@@ -2,6 +2,7 @@ import type { Transport } from '../sequencer/transport';
 import type { Sequencer } from '../sequencer/sequencer';
 import type { ThemeSwitcher } from './theme-switcher';
 import type { PerformanceFX } from '../audio/performance-fx';
+import type { HelpOverlay } from './help-overlay';
 
 type FxName = 'tapestop' | 'stutter' | 'bitcrush' | 'reverbwash';
 
@@ -19,6 +20,7 @@ export class KeyboardShortcuts {
     private onRandomize?: () => void,
     private themeSwitcher?: ThemeSwitcher,
     private performanceFX?: PerformanceFX,
+    private helpOverlay?: HelpOverlay,
   ) {
     document.addEventListener('keydown', this.handleKeyDown);
     document.addEventListener('keyup', this.handleKeyUp);
@@ -63,6 +65,13 @@ export class KeyboardShortcuts {
     if (modKey && e.code === 'KeyV') {
       e.preventDefault();
       this.sequencer.pasteBank();
+      return;
+    }
+
+    // Help: ? (Shift+/)
+    if (e.code === 'Slash' && e.shiftKey && this.helpOverlay) {
+      e.preventDefault();
+      this.helpOverlay.toggle();
       return;
     }
 

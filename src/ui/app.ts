@@ -10,6 +10,7 @@ import { ShareButton } from './share-button';
 import { ExportButton } from './export-button';
 import { KeyboardShortcuts } from './keyboard-shortcuts';
 import { ThemeSwitcher } from './theme-switcher';
+import { HelpOverlay } from './help-overlay';
 import { PatternChainUI } from './pattern-chain-ui';
 import { PerformanceFX } from '../audio/performance-fx';
 import { PerformanceFXUI } from './performance-fx-ui';
@@ -51,6 +52,13 @@ export class AppUI {
     subtitle.className = 'app-subtitle';
     subtitle.textContent = 'Paint beats. Make music.';
     header.appendChild(subtitle);
+
+    // Help button (top-right)
+    const helpBtn = document.createElement('button');
+    helpBtn.className = 'help-btn';
+    helpBtn.textContent = '?';
+    root.appendChild(helpBtn);
+
     root.appendChild(header);
 
     // Transport + Pattern bank + extras row
@@ -85,10 +93,14 @@ export class AppUI {
     // Waveform visualizer
     this.visualizer = new WaveformVisualizer(root, audioEngine.analyser);
 
+    // Help overlay
+    const helpOverlay = new HelpOverlay(root);
+    helpBtn.addEventListener('click', () => helpOverlay.toggle());
+
     // Keyboard shortcuts
     new KeyboardShortcuts(transport, sequencer, () => {
       PatternBankUI.doRandomize(sequencer);
-    }, themeSwitcher, performanceFX);
+    }, themeSwitcher, performanceFX, helpOverlay);
 
     // Wire particle bursts to cell triggers
     eventBus.on('step:advance', (step) => {
