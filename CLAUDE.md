@@ -32,12 +32,14 @@ src/
     history.ts               # Undo/redo stack (max 50)
     url-state.ts             # Binary state encoding: V1 (1-bit), V2 (2-bit velocity), V3 (+probability)
     local-storage.ts         # Auto-save/restore via localStorage (debounced 500ms)
-  ui/                        # Pure DOM manipulation, no framework
+  ui/                        # Pure DOM manipulation, no framework. Constructor pattern: (parent, ...deps) → create DOM, append, wire eventBus
+    help-overlay.ts          # ? button + overlay showing all controls/shortcuts
   visuals/                   # Canvas-based: particles, waveform, reactive background
   utils/
     event-bus.ts             # Typed pub/sub singleton — EventMap interface enforces compile-time safety
 styles/
   variables.css              # CSS custom properties (colors, sizing) — themes override these
+  help.css                   # Help overlay styles
 ```
 
 ## Key Patterns
@@ -52,6 +54,7 @@ styles/
 - **Step rotation**: `[`/`]` keys shift entire pattern left/right by one step (wraps around)
 - **Theme system**: CSS custom properties on `:root`, 4 themes defined in `theme-switcher.ts`, persisted in localStorage
 - **URL state**: Binary serialization (base64url), backward-compatible V1/V2/V3 formats detected by byte length
+- **CSS organization**: One CSS file per feature in `styles/`, imported in `styles/main.css`. BEM naming: `.component-name`, `.component-name--modifier`
 
 ## Gotchas
 
@@ -61,3 +64,5 @@ styles/
 - **InstrumentConfig.color**: Mutable — updated on theme change for particle system colors
 - **History snapshots**: Always include probabilities and noteGrid when pushing to history stack
 - **Note display**: CSS `::before` with `content: attr(data-note)` — set `data-note` attribute on cell, delete attribute when note is 0
+- **Adding shortcuts**: Update both `keyboard-shortcuts.ts` AND `help-overlay.ts` sections to keep them in sync
+- **New CSS files**: Must be `@import`ed in `styles/main.css` or they won't load
