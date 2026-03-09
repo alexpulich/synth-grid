@@ -6,6 +6,7 @@
 @import './pattern-bank.css';
 @import './animations.css';
 @import './particles.css';
+@import './presets.css';
 
 *,
 *::before,

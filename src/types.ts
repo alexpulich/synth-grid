@@ -5,7 +5,7 @@ export const NUM_BANKS = 4;
 export type Grid = boolean[][];
 
 export type InstrumentTrigger = (
-  ctx: AudioContext,
+  ctx: BaseAudioContext,
   destination: AudioNode,
   time: number,
   velocity?: number,

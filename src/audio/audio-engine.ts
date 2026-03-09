@@ -11,6 +11,7 @@ export class AudioEngine {
   readonly reverb: ReverbEffect;
   readonly delay: DelayEffect;
   readonly filter: FilterEffect;
+  readonly analyser: AnalyserNode;
 
   constructor() {
     this.ctx = new AudioContext();
@@ -26,6 +27,9 @@ export class AudioEngine {
     this.delay = new DelayEffect(this.ctx);
     this.filter = new FilterEffect(this.ctx);
 
+    this.analyser = this.ctx.createAnalyser();
+    this.analyser.fftSize = 256;
+
     // Routing: dry path
     this.dryBus.connect(this.masterGain);
 
@@ -36,8 +40,9 @@ export class AudioEngine {
     this.reverb.output.connect(this.masterGain);
     this.delay.output.connect(this.masterGain);
 
-    // Filter sits on the master output
-    this.masterGain.connect(this.filter.input);
+    // Filter sits on the master output, analyser taps the signal
+    this.masterGain.connect(this.analyser);
+    this.analyser.connect(this.filter.input);
     this.filter.output.connect(this.ctx.destination);
   }
 

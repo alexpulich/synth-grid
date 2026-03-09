@@ -55,4 +55,27 @@ export class Sequencer {
 
   get currentStep(): number { return this._currentStep; }
   set currentStep(step: number) { this._currentStep = step; }
+
+  loadGrid(grid: Grid): void {
+    this.grids[this._activeBank] = grid.map((row) => [...row]);
+    eventBus.emit('grid:cleared');
+  }
+
+  getAllGrids(): Grid[] {
+    return this.grids;
+  }
+
+  loadFullState(grids: Grid[], tempo: number, swing: number, activeBank: number): void {
+    for (let b = 0; b < NUM_BANKS; b++) {
+      if (grids[b]) {
+        this.grids[b] = grids[b].map((row) => [...row]);
+      }
+    }
+    this._tempo = clamp(tempo, 30, 300);
+    this._swing = clamp(swing, 0, 0.5);
+    this._activeBank = clamp(activeBank, 0, NUM_BANKS - 1);
+    eventBus.emit('tempo:changed', this._tempo);
+    eventBus.emit('bank:changed', this._activeBank);
+    eventBus.emit('grid:cleared');
+  }
 }

@@ -5,14 +5,21 @@ import { GridUI } from './grid';
 import { TransportControls } from './transport-controls';
 import { PatternBankUI } from './pattern-bank';
 import { EffectsPanel } from './effects-panel';
+import { PresetSelector } from './preset-selector';
+import { ShareButton } from './share-button';
+import { ExportButton } from './export-button';
+import { KeyboardShortcuts } from './keyboard-shortcuts';
 import { ParticleSystem } from '../visuals/particle-system';
+import { WaveformVisualizer } from '../visuals/waveform-visualizer';
 import { INSTRUMENTS } from '../audio/instruments';
 import { eventBus } from '../utils/event-bus';
 import { NUM_ROWS } from '../types';
+import { decodeState } from '../state/url-state';
 
 export class AppUI {
   private gridUI: GridUI;
   private particles: ParticleSystem;
+  private visualizer: WaveformVisualizer;
 
   constructor(
     root: HTMLElement,
@@ -33,11 +40,14 @@ export class AppUI {
     header.appendChild(subtitle);
     root.appendChild(header);
 
-    // Transport + Pattern bank row
+    // Transport + Pattern bank + extras row
     const controlsRow = document.createElement('div');
     controlsRow.className = 'controls-row';
     new TransportControls(controlsRow, sequencer, transport);
     new PatternBankUI(controlsRow, sequencer);
+    new PresetSelector(controlsRow, sequencer);
+    new ShareButton(controlsRow, sequencer);
+    new ExportButton(controlsRow, sequencer);
     root.appendChild(controlsRow);
 
     // Grid container (for particle overlay)
@@ -51,6 +61,14 @@ export class AppUI {
 
     // Effects panel
     new EffectsPanel(root, audioEngine);
+
+    // Waveform visualizer
+    this.visualizer = new WaveformVisualizer(root, audioEngine.analyser);
+
+    // Keyboard shortcuts
+    new KeyboardShortcuts(transport, sequencer, () => {
+      PatternBankUI.doRandomize(sequencer);
+    });
 
     // Wire particle bursts to cell triggers
     eventBus.on('step:advance', (step) => {
@@ -68,10 +86,24 @@ export class AppUI {
       }
     });
 
+    // Wake visualizer on play
+    eventBus.on('transport:play', () => {
+      this.visualizer.wake();
+    });
+
     // Wire transport stop to clear playhead
     eventBus.on('transport:stop', () => {
       this.gridUI.clearPlayhead();
     });
+
+    // Restore state from URL hash (after all UI is constructed)
+    const hash = window.location.hash.slice(1);
+    if (hash) {
+      const state = decodeState(hash);
+      if (state) {
+        sequencer.loadFullState(state.grids, state.tempo, state.swing, state.activeBank);
+      }
+    }
   }
 
   onStepAdvance(step: number): void {

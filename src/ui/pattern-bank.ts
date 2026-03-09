@@ -1,6 +1,7 @@
 import type { Sequencer } from '../sequencer/sequencer';
 import { NUM_BANKS } from '../types';
 import { eventBus } from '../utils/event-bus';
+import { randomizeGrid } from '../data/randomizer';
 
 export class PatternBankUI {
   private buttons: HTMLButtonElement[] = [];
@@ -32,6 +33,13 @@ export class PatternBankUI {
     clearBtn.addEventListener('click', () => this.sequencer.clearCurrentBank());
     container.appendChild(clearBtn);
 
+    // Randomize button
+    const randBtn = document.createElement('button');
+    randBtn.className = 'rand-btn';
+    randBtn.textContent = 'Rand';
+    randBtn.addEventListener('click', () => PatternBankUI.doRandomize(this.sequencer));
+    container.appendChild(randBtn);
+
     parent.appendChild(container);
 
     eventBus.on('bank:changed', (bankIndex) => {
@@ -39,5 +47,10 @@ export class PatternBankUI {
         btn.classList.toggle('bank-btn--active', i === (bankIndex as number));
       });
     });
+  }
+
+  static doRandomize(sequencer: Sequencer): void {
+    const grid = randomizeGrid();
+    sequencer.loadGrid(grid);
   }
 }
