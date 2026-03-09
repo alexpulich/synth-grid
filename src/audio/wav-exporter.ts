@@ -1,6 +1,6 @@
 import { INSTRUMENTS } from './instruments';
 import type { Sequencer } from '../sequencer/sequencer';
-import { NUM_STEPS } from '../types';
+import { NUM_STEPS, VELOCITY_MAP } from '../types';
 
 export async function exportToWav(sequencer: Sequencer): Promise<void> {
   const sampleRate = 44100;
@@ -24,10 +24,11 @@ export async function exportToWav(sequencer: Sequencer): Promise<void> {
       const triggerTime = time + swingOffset;
 
       for (let row = 0; row < grid.length; row++) {
-        if (grid[row][step]) {
+        const vel = grid[row][step];
+        if (vel > 0 && sequencer.muteState.isRowAudible(row)) {
           const instrument = INSTRUMENTS[row];
           if (instrument) {
-            instrument.trigger(offlineCtx, masterGain, triggerTime, 1.0);
+            instrument.trigger(offlineCtx, masterGain, triggerTime, VELOCITY_MAP[vel]);
           }
         }
       }

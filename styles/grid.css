@@ -8,12 +8,14 @@
   display: flex;
   flex-direction: column;
   gap: var(--cell-gap);
+  user-select: none;
 }
 
 .grid-row {
   display: flex;
   align-items: center;
   gap: var(--cell-gap);
+  transition: opacity var(--transition-fast), filter var(--transition-fast);
 }
 
 .grid-row-label {
@@ -26,6 +28,8 @@
   padding-right: 8px;
   flex-shrink: 0;
   user-select: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
 }
 
 .grid-cell {
@@ -60,10 +64,30 @@
 .grid-row[data-instrument="6"] .grid-cell--active { background: var(--color-pad); box-shadow: 0 0 6px var(--color-pad); }
 .grid-row[data-instrument="7"] .grid-cell--active { background: var(--color-perc); box-shadow: 0 0 6px var(--color-perc); }
 
+/* Velocity opacity levels */
+.grid-cell--active[data-velocity="1"] { opacity: 0.4; }
+.grid-cell--active[data-velocity="2"] { opacity: 0.7; }
+.grid-cell--active[data-velocity="3"] { opacity: 1.0; }
+
 .grid-cell--playing {
   border-color: rgba(255, 255, 255, 0.25);
 }
 
 .grid-cell--triggered {
   animation: cell-trigger 200ms ease-out;
+}
+
+/* Mute/Solo row styles */
+.grid-row--muted {
+  opacity: 0.3;
+  filter: saturate(0.2);
+}
+
+.grid-row--muted .grid-row-label {
+  text-decoration: line-through;
+}
+
+.grid-row--solo .grid-row-label {
+  font-weight: 700;
+  text-shadow: 0 0 6px currentColor;
 }

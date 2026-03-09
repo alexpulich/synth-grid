@@ -14,6 +14,22 @@ export class KeyboardShortcuts {
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
 
+    const modKey = e.metaKey || e.ctrlKey;
+
+    // Undo: Ctrl/Cmd+Z
+    if (modKey && !e.shiftKey && e.code === 'KeyZ') {
+      e.preventDefault();
+      this.sequencer.undo();
+      return;
+    }
+
+    // Redo: Ctrl/Cmd+Shift+Z
+    if (modKey && e.shiftKey && e.code === 'KeyZ') {
+      e.preventDefault();
+      this.sequencer.redo();
+      return;
+    }
+
     switch (e.code) {
       case 'Space':
         e.preventDefault();
@@ -26,6 +42,9 @@ export class KeyboardShortcuts {
       case 'KeyC': this.sequencer.clearCurrentBank(); break;
       case 'KeyR':
         if (this.onRandomize) this.onRandomize();
+        break;
+      case 'KeyS':
+        this.sequencer.patternChain.toggleSongMode();
         break;
     }
   };

@@ -17,6 +17,16 @@ export class Transport {
     if (this.sequencer.isPlaying) return;
     this.audioEngine.resume();
     this.sequencer.isPlaying = true;
+
+    // Song mode: reset chain position and set initial bank
+    if (this.sequencer.patternChain.songMode && this.sequencer.patternChain.length > 0) {
+      this.sequencer.patternChain.resetPosition();
+      const initialBank = this.sequencer.patternChain.getCurrentChainBank();
+      if (initialBank !== null) {
+        this.sequencer.setBank(initialBank);
+      }
+    }
+
     this.scheduler.start();
     eventBus.emit('transport:play');
   }

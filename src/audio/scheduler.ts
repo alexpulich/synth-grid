@@ -1,6 +1,6 @@
 import type { AudioEngine } from './audio-engine';
 import type { Sequencer } from '../sequencer/sequencer';
-import { NUM_STEPS } from '../types';
+import { NUM_STEPS, VELOCITY_MAP } from '../types';
 
 export class Scheduler {
   private readonly LOOKAHEAD_MS = 25;
@@ -44,8 +44,9 @@ export class Scheduler {
     const grid = this.sequencer.getCurrentGrid();
 
     for (let row = 0; row < grid.length; row++) {
-      if (grid[row][step]) {
-        this.audioEngine.trigger(row, time, 1.0);
+      const vel = grid[row][step];
+      if (vel > 0 && this.sequencer.muteState.isRowAudible(row)) {
+        this.audioEngine.trigger(row, time, VELOCITY_MAP[vel]);
       }
     }
 
@@ -65,5 +66,13 @@ export class Scheduler {
     }
 
     this.currentStep = (this.currentStep + 1) % NUM_STEPS;
+
+    // Song mode: advance chain when wrapping back to step 0
+    if (this.currentStep === 0 && this.sequencer.patternChain.songMode) {
+      const nextBank = this.sequencer.patternChain.advanceChain();
+      if (nextBank !== null) {
+        this.sequencer.setBank(nextBank);
+      }
+    }
   }
 }

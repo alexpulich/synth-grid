@@ -1,7 +1,10 @@
-import { NUM_ROWS, NUM_STEPS, NUM_BANKS } from '../types';
-import type { Grid } from '../types';
+import { NUM_ROWS, NUM_STEPS, NUM_BANKS, VELOCITY_OFF, VELOCITY_LOUD } from '../types';
+import type { Grid, VelocityLevel } from '../types';
 import { clamp } from '../utils/math';
 import { eventBus } from '../utils/event-bus';
+import { History } from '../state/history';
+import { MuteState } from './mute-state';
+import { PatternChain } from './pattern-chain';
 
 export class Sequencer {
   private grids: Grid[];
@@ -10,17 +13,39 @@ export class Sequencer {
   private _swing = 0;
   private _isPlaying = false;
   private _currentStep = 0;
+  readonly history = new History();
+  readonly muteState = new MuteState();
+  readonly patternChain = new PatternChain();
 
   constructor() {
     this.grids = Array.from({ length: NUM_BANKS }, () =>
-      Array.from({ length: NUM_ROWS }, () => new Array<boolean>(NUM_STEPS).fill(false)),
+      Array.from({ length: NUM_ROWS }, () => new Array<number>(NUM_STEPS).fill(VELOCITY_OFF)),
     );
   }
 
   toggleCell(row: number, step: number): void {
+    this.history.push(this.getCurrentGrid(), this._activeBank);
     const grid = this.grids[this._activeBank];
-    grid[row][step] = !grid[row][step];
-    eventBus.emit('cell:toggled', { row, step, active: grid[row][step] });
+    grid[row][step] = grid[row][step] === VELOCITY_OFF ? VELOCITY_LOUD : VELOCITY_OFF;
+    eventBus.emit('cell:toggled', { row, step, velocity: grid[row][step] });
+  }
+
+  cycleVelocity(row: number, step: number): void {
+    this.history.push(this.getCurrentGrid(), this._activeBank);
+    const grid = this.grids[this._activeBank];
+    grid[row][step] = ((grid[row][step] + 1) % 4) as VelocityLevel;
+    eventBus.emit('cell:toggled', { row, step, velocity: grid[row][step] });
+  }
+
+  setCell(row: number, step: number, velocity: VelocityLevel): void {
+    const grid = this.grids[this._activeBank];
+    if (grid[row][step] === velocity) return;
+    grid[row][step] = velocity;
+    eventBus.emit('cell:toggled', { row, step, velocity });
+  }
+
+  pushHistorySnapshot(): void {
+    this.history.push(this.getCurrentGrid(), this._activeBank);
   }
 
   setBank(bankIndex: number): void {
@@ -33,8 +58,9 @@ export class Sequencer {
   }
 
   clearCurrentBank(): void {
+    this.history.push(this.getCurrentGrid(), this._activeBank);
     this.grids[this._activeBank] = Array.from({ length: NUM_ROWS }, () =>
-      new Array<boolean>(NUM_STEPS).fill(false),
+      new Array<number>(NUM_STEPS).fill(VELOCITY_OFF),
     );
     eventBus.emit('grid:cleared');
   }
@@ -57,6 +83,7 @@ export class Sequencer {
   set currentStep(step: number) { this._currentStep = step; }
 
   loadGrid(grid: Grid): void {
+    this.history.push(this.getCurrentGrid(), this._activeBank);
     this.grids[this._activeBank] = grid.map((row) => [...row]);
     eventBus.emit('grid:cleared');
   }
@@ -76,6 +103,28 @@ export class Sequencer {
     this._activeBank = clamp(activeBank, 0, NUM_BANKS - 1);
     eventBus.emit('tempo:changed', this._tempo);
     eventBus.emit('bank:changed', this._activeBank);
+    eventBus.emit('grid:cleared');
+  }
+
+  undo(): void {
+    const entry = this.history.undo();
+    if (!entry) return;
+    if (entry.bank !== this._activeBank) {
+      this._activeBank = entry.bank;
+      eventBus.emit('bank:changed', this._activeBank);
+    }
+    this.grids[entry.bank] = entry.grid;
+    eventBus.emit('grid:cleared');
+  }
+
+  redo(): void {
+    const entry = this.history.redo();
+    if (!entry) return;
+    if (entry.bank !== this._activeBank) {
+      this._activeBank = entry.bank;
+      eventBus.emit('bank:changed', this._activeBank);
+    }
+    this.grids[entry.bank] = entry.grid;
     eventBus.emit('grid:cleared');
   }
 }

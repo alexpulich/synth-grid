@@ -9,6 +9,7 @@ import { PresetSelector } from './preset-selector';
 import { ShareButton } from './share-button';
 import { ExportButton } from './export-button';
 import { KeyboardShortcuts } from './keyboard-shortcuts';
+import { PatternChainUI } from './pattern-chain-ui';
 import { ParticleSystem } from '../visuals/particle-system';
 import { WaveformVisualizer } from '../visuals/waveform-visualizer';
 import { INSTRUMENTS } from '../audio/instruments';
@@ -50,6 +51,9 @@ export class AppUI {
     new ExportButton(controlsRow, sequencer);
     root.appendChild(controlsRow);
 
+    // Pattern Chain (Song Mode)
+    new PatternChainUI(root, sequencer);
+
     // Grid container (for particle overlay)
     const gridContainer = document.createElement('div');
     gridContainer.className = 'grid-container';
@@ -75,7 +79,7 @@ export class AppUI {
       const s = step as number;
       const grid = sequencer.getCurrentGrid();
       for (let row = 0; row < NUM_ROWS; row++) {
-        if (grid[row][s]) {
+        if (grid[row][s] > 0 && sequencer.muteState.isRowAudible(row)) {
           const rect = this.gridUI.getCellRect(row, s);
           this.particles.burst(
             rect.left + rect.width / 2,

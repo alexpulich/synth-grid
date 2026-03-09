@@ -1,5 +1,6 @@
 import type { Grid } from '../types';
-import { NUM_ROWS, NUM_STEPS } from '../types';
+import { NUM_ROWS, NUM_STEPS, VELOCITY_OFF, VELOCITY_LOUD, VELOCITY_MEDIUM } from '../types';
+import type { VelocityLevel } from '../types';
 
 // Bjorklund / Euclidean rhythm algorithm
 function euclidean(steps: number, pulses: number): boolean[] {
@@ -67,7 +68,13 @@ export function randomizeGrid(): Grid {
     const rotation = randInt(0, NUM_STEPS - 1);
     const rotated = [...pattern.slice(rotation), ...pattern.slice(0, rotation)];
 
-    grid.push(rotated);
+    // Convert booleans to velocity levels: 70% loud, 30% medium
+    const velocityRow: VelocityLevel[] = rotated.map((on) => {
+      if (!on) return VELOCITY_OFF as VelocityLevel;
+      return (Math.random() < 0.7 ? VELOCITY_LOUD : VELOCITY_MEDIUM) as VelocityLevel;
+    });
+
+    grid.push(velocityRow);
   }
 
   return grid;
