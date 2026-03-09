@@ -1,8 +1,9 @@
-import type { Grid } from '../types';
+import type { Grid, ProbabilityGrid } from '../types';
 
 export interface HistoryEntry {
   grid: Grid;
   bank: number;
+  probabilities?: ProbabilityGrid;
 }
 
 export class History {
@@ -10,10 +11,14 @@ export class History {
   private pointer = -1;
   private readonly MAX_SIZE = 50;
 
-  push(grid: Grid, bank: number): void {
+  push(grid: Grid, bank: number, probabilities?: ProbabilityGrid): void {
     this.stack = this.stack.slice(0, this.pointer + 1);
     const clone: Grid = grid.map((row) => [...row]);
-    this.stack.push({ grid: clone, bank });
+    const entry: HistoryEntry = { grid: clone, bank };
+    if (probabilities) {
+      entry.probabilities = probabilities.map((row) => [...row]);
+    }
+    this.stack.push(entry);
     if (this.stack.length > this.MAX_SIZE) {
       this.stack.shift();
     }
@@ -33,6 +38,10 @@ export class History {
   }
 
   private cloneEntry(entry: HistoryEntry): HistoryEntry {
-    return { grid: entry.grid.map((row) => [...row]), bank: entry.bank };
+    const result: HistoryEntry = { grid: entry.grid.map((row) => [...row]), bank: entry.bank };
+    if (entry.probabilities) {
+      result.probabilities = entry.probabilities.map((row) => [...row]);
+    }
+    return result;
   }
 }

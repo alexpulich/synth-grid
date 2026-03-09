@@ -1,17 +1,18 @@
 import type { InstrumentTrigger } from '../../types';
 
-export const triggerHiHat: InstrumentTrigger = (ctx, dest, time, velocity = 1) => {
-  const fundamental = 40;
+export const triggerHiHat: InstrumentTrigger = (ctx, dest, time, velocity = 1, pitchOffset = 0) => {
+  const pitchMult = Math.pow(2, pitchOffset / 12);
+  const fundamental = 40 * pitchMult;
   const ratios = [2, 3, 4.16, 5.43, 6.79, 8.21];
 
   const bandpass = ctx.createBiquadFilter();
   bandpass.type = 'bandpass';
-  bandpass.frequency.setValueAtTime(10000, time);
+  bandpass.frequency.setValueAtTime(10000 * pitchMult, time);
   bandpass.Q.setValueAtTime(0.5, time);
 
   const highpass = ctx.createBiquadFilter();
   highpass.type = 'highpass';
-  highpass.frequency.setValueAtTime(7000, time);
+  highpass.frequency.setValueAtTime(7000 * pitchMult, time);
 
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(velocity * 0.25, time);

@@ -1,14 +1,16 @@
 import type { InstrumentTrigger } from '../../types';
 
-export const triggerBass: InstrumentTrigger = (ctx, dest, time, velocity = 1) => {
+export const triggerBass: InstrumentTrigger = (ctx, dest, time, velocity = 1, pitchOffset = 0) => {
+  const pitchMult = Math.pow(2, pitchOffset / 12);
+
   const osc = ctx.createOscillator();
   osc.type = 'sawtooth';
-  osc.frequency.setValueAtTime(55, time);
+  osc.frequency.setValueAtTime(55 * pitchMult, time);
 
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';
-  filter.frequency.setValueAtTime(800, time);
-  filter.frequency.exponentialRampToValueAtTime(200, time + 0.3);
+  filter.frequency.setValueAtTime(800 * pitchMult, time);
+  filter.frequency.exponentialRampToValueAtTime(200 * pitchMult, time + 0.3);
   filter.Q.setValueAtTime(5, time);
 
   const gain = ctx.createGain();

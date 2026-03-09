@@ -9,6 +9,7 @@ export class GridUI {
   private cells: HTMLElement[][] = [];
   private rowElements: HTMLElement[] = [];
   private labelElements: HTMLElement[] = [];
+  private pitchDisplays: HTMLElement[] = [];
 
   // Drag paint state
   private isDragging = false;
@@ -35,10 +36,47 @@ export class GridUI {
       const label = document.createElement('span');
       label.className = 'grid-row-label';
       label.textContent = INSTRUMENTS[row].name;
-      label.style.color = INSTRUMENTS[row].color;
+      // Color comes from CSS var so it responds to theme changes
+      const varName = `--color-${INSTRUMENTS[row].name.toLowerCase()}`;
+      label.style.color = `var(${varName})`;
       label.dataset.row = String(row);
       this.labelElements[row] = label;
       rowEl.appendChild(label);
+
+      // Pitch controls
+      const pitchCtrl = document.createElement('div');
+      pitchCtrl.className = 'grid-pitch-ctrl';
+
+      const minusBtn = document.createElement('button');
+      minusBtn.className = 'pitch-btn';
+      minusBtn.textContent = '-';
+      minusBtn.addEventListener('click', () => {
+        this.sequencer.setPitchOffset(row, this.sequencer.getPitchOffset(row) - 1);
+      });
+
+      const pitchDisplay = document.createElement('span');
+      pitchDisplay.className = 'pitch-display';
+      pitchDisplay.textContent = '0';
+      this.pitchDisplays[row] = pitchDisplay;
+
+      // Scroll wheel on display
+      pitchDisplay.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 1 : -1;
+        this.sequencer.setPitchOffset(row, this.sequencer.getPitchOffset(row) + delta);
+      });
+
+      const plusBtn = document.createElement('button');
+      plusBtn.className = 'pitch-btn';
+      plusBtn.textContent = '+';
+      plusBtn.addEventListener('click', () => {
+        this.sequencer.setPitchOffset(row, this.sequencer.getPitchOffset(row) + 1);
+      });
+
+      pitchCtrl.appendChild(minusBtn);
+      pitchCtrl.appendChild(pitchDisplay);
+      pitchCtrl.appendChild(plusBtn);
+      rowEl.appendChild(pitchCtrl);
 
       for (let step = 0; step < NUM_STEPS; step++) {
         const cell = document.createElement('button');
@@ -93,6 +131,16 @@ export class GridUI {
       this.applyDrag(row, step);
     });
 
+    // Right-click: cycle probability
+    this.container.addEventListener('contextmenu', (e) => {
+      const cell = (e.target as HTMLElement).closest('.grid-cell') as HTMLElement | null;
+      if (!cell) return;
+      e.preventDefault();
+      const row = Number(cell.dataset.row);
+      const step = Number(cell.dataset.step);
+      this.sequencer.cycleProbability(row, step);
+    });
+
     // Drag paint: mouseover during drag
     this.container.addEventListener('mouseover', (e) => {
       if (!this.isDragging) return;
@@ -117,6 +165,14 @@ export class GridUI {
       cell.dataset.velocity = String(velocity);
     });
 
+    // Probability changed event
+    eventBus.on('cell:probability-changed', (payload) => {
+      const { row, step, probability } = payload as { row: number; step: number; probability: number };
+      const cell = this.cells[row][step];
+      const pct = Math.round(probability * 100);
+      cell.dataset.prob = String(pct);
+    });
+
     // Full grid refresh events
     eventBus.on('bank:changed', () => this.refreshAll());
     eventBus.on('grid:cleared', () => this.refreshAll());
@@ -133,6 +189,27 @@ export class GridUI {
         if (soloRow === row) name += ' [S]';
         else if (muted[row]) name += ' [M]';
         this.labelElements[row].textContent = name;
+      }
+    });
+
+    // Pitch changed
+    eventBus.on('pitch:changed', (payload) => {
+      const { row, offset } = payload as { row: number; offset: number };
+      this.updatePitchDisplay(row, offset);
+    });
+
+    // Bank changed: also refresh pitch displays
+    eventBus.on('bank:changed', () => this.refreshPitchDisplays());
+
+    // Theme change: update INSTRUMENTS color for particle system
+    eventBus.on('theme:changed', () => {
+      for (let row = 0; row < NUM_ROWS; row++) {
+        const color = getComputedStyle(document.documentElement)
+          .getPropertyValue(`--color-${INSTRUMENTS[row].name.toLowerCase()}`)
+          .trim();
+        if (color) {
+          INSTRUMENTS[row].color = color;
+        }
       }
     });
   }
@@ -174,12 +251,31 @@ export class GridUI {
 
   private refreshAll(): void {
     const grid = this.sequencer.getCurrentGrid();
+    const probs = this.sequencer.getCurrentProbabilities();
     for (let row = 0; row < NUM_ROWS; row++) {
       for (let step = 0; step < NUM_STEPS; step++) {
         const vel = grid[row][step];
         this.cells[row][step].classList.toggle('grid-cell--active', vel > 0);
         this.cells[row][step].dataset.velocity = String(vel);
+        const pct = Math.round(probs[row][step] * 100);
+        this.cells[row][step].dataset.prob = String(pct);
       }
+    }
+    this.refreshPitchDisplays();
+  }
+
+  private updatePitchDisplay(row: number, offset: number): void {
+    const display = this.pitchDisplays[row];
+    if (!display) return;
+    const text = offset > 0 ? `+${offset}` : String(offset);
+    display.textContent = text;
+    display.classList.toggle('pitch-display--shifted', offset !== 0);
+  }
+
+  private refreshPitchDisplays(): void {
+    const offsets = this.sequencer.getCurrentPitchOffsets();
+    for (let row = 0; row < NUM_ROWS; row++) {
+      this.updatePitchDisplay(row, offsets[row]);
     }
   }
 }

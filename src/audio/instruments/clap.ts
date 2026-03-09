@@ -1,9 +1,11 @@
 import type { InstrumentTrigger } from '../../types';
 
-export const triggerClap: InstrumentTrigger = (ctx, dest, time, velocity = 1) => {
+export const triggerClap: InstrumentTrigger = (ctx, dest, time, velocity = 1, pitchOffset = 0) => {
+  const pitchMult = Math.pow(2, pitchOffset / 12);
+
   const filter = ctx.createBiquadFilter();
   filter.type = 'bandpass';
-  filter.frequency.setValueAtTime(2500, time);
+  filter.frequency.setValueAtTime(2500 * pitchMult, time);
   filter.Q.setValueAtTime(2, time);
   filter.connect(dest);
 

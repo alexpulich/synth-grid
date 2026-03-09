@@ -13,6 +13,7 @@ export class ShareButton {
         this.sequencer.tempo,
         this.sequencer.swing,
         this.sequencer.activeBank,
+        this.sequencer.getAllProbabilities(),
       );
 
       const url = `${window.location.origin}${window.location.pathname}#${hash}`;

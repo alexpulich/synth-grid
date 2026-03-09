@@ -6,7 +6,7 @@ import { FilterEffect } from './effects/filter';
 export class AudioEngine {
   readonly ctx: AudioContext;
   readonly masterGain: GainNode;
-  private dryBus: GainNode;
+  readonly dryBus: GainNode;
   private effectsSend: GainNode;
   readonly reverb: ReverbEffect;
   readonly delay: DelayEffect;
@@ -46,11 +46,21 @@ export class AudioEngine {
     this.filter.output.connect(this.ctx.destination);
   }
 
+  /**
+   * Insert performance FX between masterGain and analyser.
+   * Call once after PerformanceFX is created.
+   */
+  insertPerformanceFX(insertIn: GainNode, insertOut: GainNode): void {
+    this.masterGain.disconnect(this.analyser);
+    this.masterGain.connect(insertIn);
+    insertOut.connect(this.analyser);
+  }
+
   resume(): Promise<void> {
     return this.ctx.resume();
   }
 
-  trigger(instrumentIndex: number, time: number, velocity: number): void {
+  trigger(instrumentIndex: number, time: number, velocity: number, pitchOffset = 0): void {
     const instrument = INSTRUMENTS[instrumentIndex];
     if (!instrument) return;
 
@@ -59,6 +69,6 @@ export class AudioEngine {
     splitGain.connect(this.dryBus);
     splitGain.connect(this.effectsSend);
 
-    instrument.trigger(this.ctx, splitGain, time, velocity);
+    instrument.trigger(this.ctx, splitGain, time, velocity, pitchOffset);
   }
 }

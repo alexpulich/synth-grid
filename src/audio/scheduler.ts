@@ -42,11 +42,16 @@ export class Scheduler {
 
   private scheduleStep(step: number, time: number): void {
     const grid = this.sequencer.getCurrentGrid();
+    const probs = this.sequencer.getCurrentProbabilities();
+    const pitches = this.sequencer.getCurrentPitchOffsets();
 
     for (let row = 0; row < grid.length; row++) {
       const vel = grid[row][step];
       if (vel > 0 && this.sequencer.muteState.isRowAudible(row)) {
-        this.audioEngine.trigger(row, time, VELOCITY_MAP[vel]);
+        const prob = probs[row][step];
+        if (prob >= 1.0 || Math.random() < prob) {
+          this.audioEngine.trigger(row, time, VELOCITY_MAP[vel], pitches[row]);
+        }
       }
     }
 

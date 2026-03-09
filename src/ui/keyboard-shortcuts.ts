@@ -1,18 +1,40 @@
 import type { Transport } from '../sequencer/transport';
 import type { Sequencer } from '../sequencer/sequencer';
+import type { ThemeSwitcher } from './theme-switcher';
+import type { PerformanceFX } from '../audio/performance-fx';
+
+type FxName = 'tapestop' | 'stutter' | 'bitcrush' | 'reverbwash';
+
+const FX_KEY_MAP: Record<string, FxName> = {
+  F1: 'tapestop',
+  F2: 'stutter',
+  F3: 'bitcrush',
+  F4: 'reverbwash',
+};
 
 export class KeyboardShortcuts {
   constructor(
     private transport: Transport,
     private sequencer: Sequencer,
     private onRandomize?: () => void,
+    private themeSwitcher?: ThemeSwitcher,
+    private performanceFX?: PerformanceFX,
   ) {
     document.addEventListener('keydown', this.handleKeyDown);
+    document.addEventListener('keyup', this.handleKeyUp);
   }
 
   private handleKeyDown = (e: KeyboardEvent): void => {
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+    // Performance FX: F1-F4 engage on keydown
+    const fx = FX_KEY_MAP[e.key];
+    if (fx && this.performanceFX) {
+      e.preventDefault();
+      this.performanceFX.engage(fx);
+      return;
+    }
 
     const modKey = e.metaKey || e.ctrlKey;
 
@@ -27,6 +49,20 @@ export class KeyboardShortcuts {
     if (modKey && e.shiftKey && e.code === 'KeyZ') {
       e.preventDefault();
       this.sequencer.redo();
+      return;
+    }
+
+    // Copy bank: Ctrl/Cmd+C
+    if (modKey && e.code === 'KeyC') {
+      e.preventDefault();
+      this.sequencer.copyBank();
+      return;
+    }
+
+    // Paste bank: Ctrl/Cmd+V
+    if (modKey && e.code === 'KeyV') {
+      e.preventDefault();
+      this.sequencer.pasteBank();
       return;
     }
 
@@ -46,6 +82,17 @@ export class KeyboardShortcuts {
       case 'KeyS':
         this.sequencer.patternChain.toggleSongMode();
         break;
+      case 'KeyT':
+        if (this.themeSwitcher) this.themeSwitcher.cycle();
+        break;
+    }
+  };
+
+  private handleKeyUp = (e: KeyboardEvent): void => {
+    // Performance FX: disengage on keyup
+    const fx = FX_KEY_MAP[e.key];
+    if (fx && this.performanceFX) {
+      this.performanceFX.disengage(fx);
     }
   };
 }

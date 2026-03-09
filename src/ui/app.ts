@@ -9,9 +9,13 @@ import { PresetSelector } from './preset-selector';
 import { ShareButton } from './share-button';
 import { ExportButton } from './export-button';
 import { KeyboardShortcuts } from './keyboard-shortcuts';
+import { ThemeSwitcher } from './theme-switcher';
 import { PatternChainUI } from './pattern-chain-ui';
+import { PerformanceFX } from '../audio/performance-fx';
+import { PerformanceFXUI } from './performance-fx-ui';
 import { ParticleSystem } from '../visuals/particle-system';
 import { WaveformVisualizer } from '../visuals/waveform-visualizer';
+import { ReactiveBackground } from '../visuals/reactive-background';
 import { INSTRUMENTS } from '../audio/instruments';
 import { eventBus } from '../utils/event-bus';
 import { NUM_ROWS } from '../types';
@@ -28,6 +32,13 @@ export class AppUI {
     transport: Transport,
     audioEngine: AudioEngine,
   ) {
+    // Audio reactive background (behind everything)
+    new ReactiveBackground(root, audioEngine.analyser);
+
+    // Performance FX (audio routing)
+    const performanceFX = new PerformanceFX(audioEngine);
+    audioEngine.insertPerformanceFX(performanceFX.insertIn, performanceFX.insertOut);
+
     // Header
     const header = document.createElement('div');
     header.className = 'app-header';
@@ -49,6 +60,7 @@ export class AppUI {
     new PresetSelector(controlsRow, sequencer);
     new ShareButton(controlsRow, sequencer);
     new ExportButton(controlsRow, sequencer);
+    const themeSwitcher = new ThemeSwitcher(controlsRow);
     root.appendChild(controlsRow);
 
     // Pattern Chain (Song Mode)
@@ -66,13 +78,16 @@ export class AppUI {
     // Effects panel
     new EffectsPanel(root, audioEngine);
 
+    // Performance FX UI
+    new PerformanceFXUI(root, performanceFX);
+
     // Waveform visualizer
     this.visualizer = new WaveformVisualizer(root, audioEngine.analyser);
 
     // Keyboard shortcuts
     new KeyboardShortcuts(transport, sequencer, () => {
       PatternBankUI.doRandomize(sequencer);
-    });
+    }, themeSwitcher, performanceFX);
 
     // Wire particle bursts to cell triggers
     eventBus.on('step:advance', (step) => {
@@ -105,7 +120,7 @@ export class AppUI {
     if (hash) {
       const state = decodeState(hash);
       if (state) {
-        sequencer.loadFullState(state.grids, state.tempo, state.swing, state.activeBank);
+        sequencer.loadFullState(state.grids, state.tempo, state.swing, state.activeBank, state.probabilities);
       }
     }
   }

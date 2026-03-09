@@ -47,6 +47,21 @@ export class PatternBankUI {
         btn.classList.toggle('bank-btn--active', i === (bankIndex as number));
       });
     });
+
+    // Flash active bank button on copy/paste
+    eventBus.on('bank:copied', (bankIndex) => {
+      this.flashButton(bankIndex as number);
+    });
+    eventBus.on('bank:pasted', (bankIndex) => {
+      this.flashButton(bankIndex as number);
+    });
+  }
+
+  private flashButton(bankIndex: number): void {
+    const btn = this.buttons[bankIndex];
+    if (!btn) return;
+    btn.classList.add('bank-btn--flash');
+    setTimeout(() => btn.classList.remove('bank-btn--flash'), 300);
   }
 
   static doRandomize(sequencer: Sequencer): void {

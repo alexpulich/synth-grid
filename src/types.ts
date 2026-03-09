@@ -16,12 +16,16 @@ export const VELOCITY_MAP: Record<number, number> = {
 };
 
 export type Grid = number[][];
+export type ProbabilityGrid = number[][];
+
+export const PROBABILITY_LEVELS = [1.0, 0.75, 0.5, 0.25] as const;
 
 export type InstrumentTrigger = (
   ctx: BaseAudioContext,
   destination: AudioNode,
   time: number,
   velocity?: number,
+  pitchOffset?: number,
 ) => void;
 
 export interface InstrumentConfig {

@@ -1,6 +1,8 @@
 import type { InstrumentTrigger } from '../../types';
 
-export const triggerSnare: InstrumentTrigger = (ctx, dest, time, velocity = 1) => {
+export const triggerSnare: InstrumentTrigger = (ctx, dest, time, velocity = 1, pitchOffset = 0) => {
+  const pitchMult = Math.pow(2, pitchOffset / 12);
+
   // Noise component
   const bufferSize = Math.floor(ctx.sampleRate * 0.2);
   const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -14,7 +16,7 @@ export const triggerSnare: InstrumentTrigger = (ctx, dest, time, velocity = 1) =
 
   const noiseFilter = ctx.createBiquadFilter();
   noiseFilter.type = 'bandpass';
-  noiseFilter.frequency.setValueAtTime(5000, time);
+  noiseFilter.frequency.setValueAtTime(5000 * pitchMult, time);
   noiseFilter.Q.setValueAtTime(1.2, time);
 
   const noiseGain = ctx.createGain();
@@ -28,8 +30,8 @@ export const triggerSnare: InstrumentTrigger = (ctx, dest, time, velocity = 1) =
   // Body component
   const osc = ctx.createOscillator();
   osc.type = 'triangle';
-  osc.frequency.setValueAtTime(180, time);
-  osc.frequency.exponentialRampToValueAtTime(80, time + 0.04);
+  osc.frequency.setValueAtTime(180 * pitchMult, time);
+  osc.frequency.exponentialRampToValueAtTime(80 * pitchMult, time + 0.04);
 
   const oscGain = ctx.createGain();
   oscGain.gain.setValueAtTime(velocity * 0.6, time);
