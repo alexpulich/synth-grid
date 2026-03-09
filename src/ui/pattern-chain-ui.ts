@@ -51,13 +51,13 @@ export class PatternChainUI {
     parent.appendChild(wrapper);
 
     eventBus.on('chain:mode-changed', (songMode) => {
-      this.modeBtn.textContent = (songMode as boolean) ? 'Song' : 'Loop';
-      this.modeBtn.classList.toggle('chain-mode-btn--song', songMode as boolean);
-      wrapper.classList.toggle('pattern-chain--song-mode', songMode as boolean);
+      this.modeBtn.textContent = songMode ? 'Song' : 'Loop';
+      this.modeBtn.classList.toggle('chain-mode-btn--song', songMode);
+      wrapper.classList.toggle('pattern-chain--song-mode', songMode);
     });
 
     eventBus.on('chain:updated', () => this.renderChain());
-    eventBus.on('chain:position-changed', (pos) => this.highlightPosition(pos as number));
+    eventBus.on('chain:position-changed', (pos) => this.highlightPosition(pos));
   }
 
   private renderChain(): void {

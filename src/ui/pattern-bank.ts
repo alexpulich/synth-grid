@@ -44,16 +44,16 @@ export class PatternBankUI {
 
     eventBus.on('bank:changed', (bankIndex) => {
       this.buttons.forEach((btn, i) => {
-        btn.classList.toggle('bank-btn--active', i === (bankIndex as number));
+        btn.classList.toggle('bank-btn--active', i === bankIndex);
       });
     });
 
     // Flash active bank button on copy/paste
     eventBus.on('bank:copied', (bankIndex) => {
-      this.flashButton(bankIndex as number);
+      this.flashButton(bankIndex);
     });
     eventBus.on('bank:pasted', (bankIndex) => {
-      this.flashButton(bankIndex as number);
+      this.flashButton(bankIndex);
     });
   }
 

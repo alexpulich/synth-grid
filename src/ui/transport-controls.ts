@@ -59,7 +59,7 @@ export class TransportControls {
     });
 
     eventBus.on('tempo:changed', (tempo) => {
-      this.tempoDisplay.textContent = String(tempo as number);
+      this.tempoDisplay.textContent = String(tempo);
     });
   }
 

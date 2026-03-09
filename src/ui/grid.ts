@@ -1,4 +1,4 @@
-import { NUM_ROWS, NUM_STEPS, VELOCITY_OFF, VELOCITY_LOUD } from '../types';
+import { NUM_ROWS, NUM_STEPS, VELOCITY_OFF, VELOCITY_LOUD, MELODIC_ROWS } from '../types';
 import type { VelocityLevel } from '../types';
 import { INSTRUMENTS } from '../audio/instruments';
 import type { Sequencer } from '../sequencer/sequencer';
@@ -141,6 +141,22 @@ export class GridUI {
       this.sequencer.cycleProbability(row, step);
     });
 
+    // Alt+scroll on active melodic cells: change per-step note
+    this.container.addEventListener('wheel', (e) => {
+      if (!e.altKey) return;
+      const cell = (e.target as HTMLElement).closest('.grid-cell') as HTMLElement | null;
+      if (!cell) return;
+      const row = Number(cell.dataset.row);
+      const step = Number(cell.dataset.step);
+      if (!MELODIC_ROWS.includes(row as typeof MELODIC_ROWS[number])) return;
+      const grid = this.sequencer.getCurrentGrid();
+      if (grid[row][step] === VELOCITY_OFF) return;
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 1 : -1;
+      const current = this.sequencer.getNoteOffset(row, step);
+      this.sequencer.setNoteOffset(row, step, current + delta);
+    });
+
     // Drag paint: mouseover during drag
     this.container.addEventListener('mouseover', (e) => {
       if (!this.isDragging) return;
@@ -158,16 +174,14 @@ export class GridUI {
     });
 
     // Cell toggled event
-    eventBus.on('cell:toggled', (payload) => {
-      const { row, step, velocity } = payload as { row: number; step: number; velocity: number };
+    eventBus.on('cell:toggled', ({ row, step, velocity }) => {
       const cell = this.cells[row][step];
       cell.classList.toggle('grid-cell--active', velocity > 0);
       cell.dataset.velocity = String(velocity);
     });
 
     // Probability changed event
-    eventBus.on('cell:probability-changed', (payload) => {
-      const { row, step, probability } = payload as { row: number; step: number; probability: number };
+    eventBus.on('cell:probability-changed', ({ row, step, probability }) => {
       const cell = this.cells[row][step];
       const pct = Math.round(probability * 100);
       cell.dataset.prob = String(pct);
@@ -178,8 +192,7 @@ export class GridUI {
     eventBus.on('grid:cleared', () => this.refreshAll());
 
     // Mute/solo state change
-    eventBus.on('mute:changed', (state) => {
-      const { muted, soloRow } = state as { muted: boolean[]; soloRow: number | null };
+    eventBus.on('mute:changed', ({ muted, soloRow }) => {
       for (let row = 0; row < NUM_ROWS; row++) {
         this.rowElements[row].classList.toggle('grid-row--muted', muted[row]);
         this.rowElements[row].classList.toggle('grid-row--solo', soloRow === row);
@@ -193,13 +206,17 @@ export class GridUI {
     });
 
     // Pitch changed
-    eventBus.on('pitch:changed', (payload) => {
-      const { row, offset } = payload as { row: number; offset: number };
+    eventBus.on('pitch:changed', ({ row, offset }) => {
       this.updatePitchDisplay(row, offset);
     });
 
     // Bank changed: also refresh pitch displays
     eventBus.on('bank:changed', () => this.refreshPitchDisplays());
+
+    // Note changed
+    eventBus.on('note:changed', ({ row, step, note }) => {
+      this.updateNoteDisplay(row, step, note);
+    });
 
     // Theme change: update INSTRUMENTS color for particle system
     eventBus.on('theme:changed', () => {
@@ -252,6 +269,7 @@ export class GridUI {
   private refreshAll(): void {
     const grid = this.sequencer.getCurrentGrid();
     const probs = this.sequencer.getCurrentProbabilities();
+    const notes = this.sequencer.getCurrentNoteGrid();
     for (let row = 0; row < NUM_ROWS; row++) {
       for (let step = 0; step < NUM_STEPS; step++) {
         const vel = grid[row][step];
@@ -259,6 +277,7 @@ export class GridUI {
         this.cells[row][step].dataset.velocity = String(vel);
         const pct = Math.round(probs[row][step] * 100);
         this.cells[row][step].dataset.prob = String(pct);
+        this.updateNoteDisplay(row, step, notes[row][step]);
       }
     }
     this.refreshPitchDisplays();
@@ -276,6 +295,16 @@ export class GridUI {
     const offsets = this.sequencer.getCurrentPitchOffsets();
     for (let row = 0; row < NUM_ROWS; row++) {
       this.updatePitchDisplay(row, offsets[row]);
+    }
+  }
+
+  private updateNoteDisplay(row: number, step: number, note: number): void {
+    const cell = this.cells[row]?.[step];
+    if (!cell) return;
+    if (note !== 0) {
+      cell.dataset.note = note > 0 ? `+${note}` : String(note);
+    } else {
+      delete cell.dataset.note;
     }
   }
 }

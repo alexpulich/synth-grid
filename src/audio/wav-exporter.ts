@@ -17,6 +17,7 @@ export async function exportToWav(sequencer: Sequencer): Promise<void> {
 
   const grid = sequencer.getCurrentGrid();
   const pitches = sequencer.getCurrentPitchOffsets();
+  const notes = sequencer.getCurrentNoteGrid();
 
   for (let loop = 0; loop < numLoops; loop++) {
     for (let step = 0; step < NUM_STEPS; step++) {
@@ -29,7 +30,8 @@ export async function exportToWav(sequencer: Sequencer): Promise<void> {
         if (vel > 0 && sequencer.muteState.isRowAudible(row)) {
           const instrument = INSTRUMENTS[row];
           if (instrument) {
-            instrument.trigger(offlineCtx, masterGain, triggerTime, VELOCITY_MAP[vel], pitches[row]);
+            const totalPitch = pitches[row] + notes[row][step];
+            instrument.trigger(offlineCtx, masterGain, triggerTime, VELOCITY_MAP[vel], totalPitch);
           }
         }
       }

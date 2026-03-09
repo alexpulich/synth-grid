@@ -20,6 +20,7 @@ import { INSTRUMENTS } from '../audio/instruments';
 import { eventBus } from '../utils/event-bus';
 import { NUM_ROWS } from '../types';
 import { decodeState } from '../state/url-state';
+import { AutoSave } from '../state/local-storage';
 
 export class AppUI {
   private gridUI: GridUI;
@@ -91,11 +92,10 @@ export class AppUI {
 
     // Wire particle bursts to cell triggers
     eventBus.on('step:advance', (step) => {
-      const s = step as number;
       const grid = sequencer.getCurrentGrid();
       for (let row = 0; row < NUM_ROWS; row++) {
-        if (grid[row][s] > 0 && sequencer.muteState.isRowAudible(row)) {
-          const rect = this.gridUI.getCellRect(row, s);
+        if (grid[row][step] > 0 && sequencer.muteState.isRowAudible(row)) {
+          const rect = this.gridUI.getCellRect(row, step);
           this.particles.burst(
             rect.left + rect.width / 2,
             rect.top + rect.height / 2,
@@ -115,12 +115,23 @@ export class AppUI {
       this.gridUI.clearPlayhead();
     });
 
-    // Restore state from URL hash (after all UI is constructed)
+    // Auto-save (listens for changes)
+    new AutoSave(sequencer);
+
+    // Restore state: URL hash takes priority over localStorage
     const hash = window.location.hash.slice(1);
     if (hash) {
       const state = decodeState(hash);
       if (state) {
         sequencer.loadFullState(state.grids, state.tempo, state.swing, state.activeBank, state.probabilities);
+      }
+    } else {
+      const saved = AutoSave.load();
+      if (saved) {
+        sequencer.loadFullState(
+          saved.grids, saved.tempo, saved.swing, saved.activeBank,
+          saved.probabilities, saved.pitchOffsets, saved.noteGrids,
+        );
       }
     }
   }

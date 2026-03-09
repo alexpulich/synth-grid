@@ -44,13 +44,15 @@ export class Scheduler {
     const grid = this.sequencer.getCurrentGrid();
     const probs = this.sequencer.getCurrentProbabilities();
     const pitches = this.sequencer.getCurrentPitchOffsets();
+    const notes = this.sequencer.getCurrentNoteGrid();
 
     for (let row = 0; row < grid.length; row++) {
       const vel = grid[row][step];
       if (vel > 0 && this.sequencer.muteState.isRowAudible(row)) {
         const prob = probs[row][step];
         if (prob >= 1.0 || Math.random() < prob) {
-          this.audioEngine.trigger(row, time, VELOCITY_MAP[vel], pitches[row]);
+          const totalPitch = pitches[row] + notes[row][step];
+          this.audioEngine.trigger(row, time, VELOCITY_MAP[vel], totalPitch);
         }
       }
     }

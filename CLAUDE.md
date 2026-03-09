@@ -15,36 +15,41 @@ npx tsc --noEmit  # Type-check only
 ```
 src/
   main.ts                    # Entry: wires AudioEngine → Sequencer → Scheduler → AppUI
-  types.ts                   # Grid = number[][], VelocityLevel, InstrumentTrigger, ProbabilityGrid
+  types.ts                   # Grid = number[][], VelocityLevel, InstrumentTrigger, ProbabilityGrid, NoteGrid
   audio/
-    audio-engine.ts          # Audio routing hub: instruments → splitGain → dry/effects → master → perf insert → analyser → filter → destination
+    audio-engine.ts          # Audio routing hub: instruments → splitGain → dry/effects → master → perf insert → compressor → analyser → filter → destination
     scheduler.ts             # Look-ahead scheduler (25ms lookahead, 100ms schedule-ahead)
     performance-fx.ts        # Hold-to-engage FX: tape stop, stutter, bitcrush, reverb wash
     wav-exporter.ts          # Offline render to WAV
     instruments/*.ts         # 8 synth instruments (kick, snare, hihat, clap, bass, lead, pad, perc)
     effects/*.ts             # Reverb (ConvolverNode), Delay, Filter (BiquadFilter)
   sequencer/
-    sequencer.ts             # Central state: grids, probabilities, pitchOffsets, clipboard, history
+    sequencer.ts             # Central state: grids, probabilities, pitchOffsets, noteGrids, clipboard, history
     transport.ts             # Play/stop/tap tempo
     mute-state.ts            # Per-row mute/solo
     pattern-chain.ts         # Song mode chain (max 32 entries)
   state/
     history.ts               # Undo/redo stack (max 50)
     url-state.ts             # Binary state encoding: V1 (1-bit), V2 (2-bit velocity), V3 (+probability)
+    local-storage.ts         # Auto-save/restore via localStorage (debounced 500ms)
   ui/                        # Pure DOM manipulation, no framework
   visuals/                   # Canvas-based: particles, waveform, reactive background
   utils/
-    event-bus.ts             # Pub/sub singleton for decoupled components
+    event-bus.ts             # Typed pub/sub singleton — EventMap interface enforces compile-time safety
 styles/
   variables.css              # CSS custom properties (colors, sizing) — themes override these
 ```
 
 ## Key Patterns
 
-- **Event bus**: Components communicate via `eventBus.emit()`/`eventBus.on()`, never direct references
+- **Event bus**: Typed `EventMap` interface — all `emit()`/`on()` calls get compile-time payload checking. Never direct references between components
 - **Look-ahead scheduling**: Scheduler uses `AudioContext.currentTime` with 100ms lookahead for sample-accurate timing
 - **Velocity**: Grid cells are `number` (0=off, 1=soft/0.33, 2=medium/0.66, 3=loud/1.0)
-- **Pitch offset**: `Math.pow(2, semitones / 12)` multiplier on all oscillator frequencies
+- **Pitch offset**: `Math.pow(2, semitones / 12)` multiplier on all oscillator frequencies. Per-step note offset (±12 semitones) is additive with row pitch offset
+- **Melodic rows**: Bass (4), Lead (5), Pad (6) support per-step note input via Alt+scroll. Non-melodic rows ignore it
+- **Master compressor**: `DynamicsCompressorNode` (threshold -6dB, ratio 12) prevents clipping — transparent to user
+- **Auto-save**: localStorage persistence with 500ms debounce. URL hash takes priority on load
+- **Step rotation**: `[`/`]` keys shift entire pattern left/right by one step (wraps around)
 - **Theme system**: CSS custom properties on `:root`, 4 themes defined in `theme-switcher.ts`, persisted in localStorage
 - **URL state**: Binary serialization (base64url), backward-compatible V1/V2/V3 formats detected by byte length
 
@@ -54,4 +59,5 @@ styles/
 - **Label colors**: Use `var(--color-instrumentname)` CSS vars, not inline hardcoded colors, so themes apply correctly
 - **Grid cell events**: Use `mousedown` (not `click`) for drag-paint; `contextmenu` for probability cycling
 - **InstrumentConfig.color**: Mutable — updated on theme change for particle system colors
-- **History snapshots**: Always include probabilities when pushing to history stack
+- **History snapshots**: Always include probabilities and noteGrid when pushing to history stack
+- **Note display**: CSS `::before` with `content: attr(data-note)` — set `data-note` attribute on cell, delete attribute when note is 0

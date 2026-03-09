@@ -12,6 +12,7 @@ export class AudioEngine {
   readonly delay: DelayEffect;
   readonly filter: FilterEffect;
   readonly analyser: AnalyserNode;
+  private readonly compressor: DynamicsCompressorNode;
 
   constructor() {
     this.ctx = new AudioContext();
@@ -30,6 +31,14 @@ export class AudioEngine {
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 256;
 
+    // Master limiter to prevent clipping
+    this.compressor = this.ctx.createDynamicsCompressor();
+    this.compressor.threshold.setValueAtTime(-6, 0);
+    this.compressor.knee.setValueAtTime(3, 0);
+    this.compressor.ratio.setValueAtTime(12, 0);
+    this.compressor.attack.setValueAtTime(0.003, 0);
+    this.compressor.release.setValueAtTime(0.1, 0);
+
     // Routing: dry path
     this.dryBus.connect(this.masterGain);
 
@@ -40,20 +49,21 @@ export class AudioEngine {
     this.reverb.output.connect(this.masterGain);
     this.delay.output.connect(this.masterGain);
 
-    // Filter sits on the master output, analyser taps the signal
-    this.masterGain.connect(this.analyser);
+    // Chain: masterGain → compressor → analyser → filter → destination
+    this.masterGain.connect(this.compressor);
+    this.compressor.connect(this.analyser);
     this.analyser.connect(this.filter.input);
     this.filter.output.connect(this.ctx.destination);
   }
 
   /**
-   * Insert performance FX between masterGain and analyser.
-   * Call once after PerformanceFX is created.
+   * Insert performance FX between masterGain and compressor.
+   * Chain: masterGain → perfInsertIn → perfInsertOut → compressor → analyser → filter → dest
    */
   insertPerformanceFX(insertIn: GainNode, insertOut: GainNode): void {
-    this.masterGain.disconnect(this.analyser);
+    this.masterGain.disconnect(this.compressor);
     this.masterGain.connect(insertIn);
-    insertOut.connect(this.analyser);
+    insertOut.connect(this.compressor);
   }
 
   resume(): Promise<void> {

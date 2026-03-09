@@ -85,6 +85,12 @@ export class KeyboardShortcuts {
       case 'KeyT':
         if (this.themeSwitcher) this.themeSwitcher.cycle();
         break;
+      case 'BracketLeft':
+        this.sequencer.rotateLeft();
+        break;
+      case 'BracketRight':
+        this.sequencer.rotateRight();
+        break;
     }
   };
 

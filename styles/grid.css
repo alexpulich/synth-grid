@@ -178,3 +178,17 @@
 .pitch-display--shifted {
   color: var(--color-lead);
 }
+
+/* Per-step note display (melodic rows) */
+.grid-cell--active[data-note]::before {
+  content: attr(data-note);
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  z-index: 1;
+}

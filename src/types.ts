@@ -17,6 +17,9 @@ export const VELOCITY_MAP: Record<number, number> = {
 
 export type Grid = number[][];
 export type ProbabilityGrid = number[][];
+export type NoteGrid = number[][];
+
+export const MELODIC_ROWS = [4, 5, 6] as const; // bass, lead, pad
 
 export const PROBABILITY_LEVELS = [1.0, 0.75, 0.5, 0.25] as const;
 

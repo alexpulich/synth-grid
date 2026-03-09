@@ -42,12 +42,12 @@ export class PerformanceFXUI {
     parent.appendChild(panel);
 
     eventBus.on('perfx:engaged', (fxName) => {
-      const btn = this.buttons.get(fxName as string);
+      const btn = this.buttons.get(fxName);
       if (btn) btn.classList.add('perf-fx-btn--active');
     });
 
     eventBus.on('perfx:disengaged', (fxName) => {
-      const btn = this.buttons.get(fxName as string);
+      const btn = this.buttons.get(fxName);
       if (btn) btn.classList.remove('perf-fx-btn--active');
     });
   }
