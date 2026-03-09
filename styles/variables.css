@@ -1,0 +1,37 @@
+:root {
+  --color-bg: #0a0a0f;
+  --color-surface: #12121a;
+  --color-surface-light: #1a1a28;
+  --color-border: #2a2a3a;
+  --color-text: #c0c0d0;
+  --color-text-dim: #606080;
+
+  --color-kick: #ff3366;
+  --color-snare: #ff6633;
+  --color-hihat: #ffcc00;
+  --color-clap: #33ff66;
+  --color-bass: #00ccff;
+  --color-lead: #6633ff;
+  --color-pad: #ff33cc;
+  --color-perc: #33ccff;
+
+  --cell-size: clamp(24px, 3.2vw, 40px);
+  --cell-gap: 3px;
+  --cell-radius: 4px;
+  --cell-inactive: var(--color-surface-light);
+  --cell-hover: #22223a;
+
+  --glow-spread: 12px;
+
+  --knob-size: 48px;
+  --knob-bg: #1e1e2e;
+  --knob-indicator: #ffffff;
+  --knob-track: #333344;
+
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-size-sm: 0.7rem;
+  --font-size-base: 0.875rem;
+
+  --transition-fast: 80ms ease-out;
+  --transition-med: 200ms ease-out;
+}
