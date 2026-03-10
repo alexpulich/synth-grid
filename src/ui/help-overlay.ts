@@ -47,6 +47,7 @@ export class HelpOverlay {
           ['P knob (per row)', 'Pan (drag up/down)'],
           ['S knob (per row)', 'Swing amount (drag up/down)'],
           ['E button (per row)', 'Euclidean rhythm generator'],
+          ['\u266a button (melodic rows)', 'Open piano roll editor'],
           ['Double-click label', 'Open sound shaper'],
         ],
       },

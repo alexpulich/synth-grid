@@ -12,6 +12,7 @@
 @import './scale-selector.css';
 @import './euclidean.css';
 @import './sound-shaper.css';
+@import './piano-roll.css';
 
 *,
 *::before,

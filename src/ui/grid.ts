@@ -5,8 +5,10 @@ import type { Sequencer } from '../sequencer/sequencer';
 import { Knob } from './knob';
 import { eventBus } from '../utils/event-bus';
 import { SCALES, scaleDegreesToSemitones, semitonesToScaleDegree, semitoneToNoteName } from '../utils/scales';
+import type { AudioEngine } from '../audio/audio-engine';
 import { EuclideanPopover } from './euclidean-popover';
 import { SoundShaper } from './sound-shaper';
+import { PianoRoll } from './piano-roll';
 
 export class GridUI {
   private container: HTMLElement;
@@ -19,19 +21,21 @@ export class GridUI {
   private swingKnobs: Knob[] = [];
   private euclideanPopover: EuclideanPopover;
   private soundShaper: SoundShaper;
+  private pianoRoll: PianoRoll;
 
   // Drag paint state
   private isDragging = false;
   private dragMode: 'paint' | 'erase' = 'paint';
   private draggedCells = new Set<string>();
 
-  constructor(parent: HTMLElement, private sequencer: Sequencer) {
+  constructor(parent: HTMLElement, private sequencer: Sequencer, audioEngine: AudioEngine) {
     this.container = document.createElement('div');
     this.container.className = 'grid';
     parent.appendChild(this.container);
 
     this.euclideanPopover = new EuclideanPopover(sequencer);
     this.soundShaper = new SoundShaper(sequencer);
+    this.pianoRoll = new PianoRoll(sequencer, audioEngine);
     this.buildGrid();
     this.bindEvents();
   }
@@ -120,6 +124,23 @@ export class GridUI {
         this.euclideanPopover.show(row, eucBtn);
       });
       rowEl.appendChild(eucBtn);
+
+      // Piano roll button (functional on melodic rows, spacer on others)
+      if (MELODIC_ROWS.includes(row as typeof MELODIC_ROWS[number])) {
+        const pianoBtn = document.createElement('button');
+        pianoBtn.className = 'grid-piano-btn';
+        pianoBtn.textContent = '\u266a'; // ♪
+        pianoBtn.title = 'Piano roll';
+        pianoBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.pianoRoll.open(row);
+        });
+        rowEl.appendChild(pianoBtn);
+      } else {
+        const spacer = document.createElement('span');
+        spacer.className = 'grid-piano-btn grid-piano-btn--spacer';
+        rowEl.appendChild(spacer);
+      }
 
       for (let step = 0; step < NUM_STEPS; step++) {
         const cell = document.createElement('button');

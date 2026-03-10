@@ -37,6 +37,7 @@ src/
     scale-selector.ts        # Root note + scale type dropdowns
     euclidean-popover.ts     # Euclidean rhythm generator popover (hits, rotation, preview, apply)
     sound-shaper.ts          # Per-instrument sound shaping popover (attack, decay, tone, punch knobs)
+    piano-roll.ts            # Piano roll modal for melodic rows (visual note editor, drag paint, note preview, playhead)
   visuals/                   # Canvas-based: particles, waveform, reactive background
   utils/
     event-bus.ts             # Typed pub/sub singleton — EventMap interface enforces compile-time safety
@@ -53,7 +54,8 @@ styles/
 - **Look-ahead scheduling**: Scheduler uses `AudioContext.currentTime` with 100ms lookahead for sample-accurate timing
 - **Velocity**: Grid cells are `number` (0=off, 1=soft/0.33, 2=medium/0.66, 3=loud/1.0)
 - **Pitch offset**: `Math.pow(2, semitones / 12)` multiplier on all oscillator frequencies. Per-step note offset (±12 semitones) is additive with row pitch offset
-- **Melodic rows**: Bass (4), Lead (5), Pad (6) support per-step note input via Alt+scroll. Non-melodic rows ignore it
+- **Melodic rows**: Bass (4), Lead (5), Pad (6) support per-step note input via Alt+scroll or piano roll. Non-melodic rows ignore it
+- **Piano roll**: Modal overlay for melodic rows (♪ button). Shows 2D grid: steps × pitches. Scale-aware: chromatic=25 rows, non-chromatic=only in-scale notes. Click/drag to place/erase notes. Audible preview via `audioEngine.trigger()` with 150ms gate, throttled 50ms. Playhead tracks `step:advance`. Uses `setNoteOffsetSilent()` + `pushHistorySnapshot()` for drag paint (single undo entry per drag). `GridUI` receives `audioEngine` param to pass to `PianoRoll`
 - **Master compressor**: `DynamicsCompressorNode` (threshold -6dB, ratio 12) prevents clipping — transparent to user
 - **Auto-save**: localStorage persistence with 500ms debounce. URL hash takes priority on load
 - **Step rotation**: `[`/`]` keys shift entire pattern left/right by one step (wraps around)
@@ -97,3 +99,5 @@ styles/
 - **AutoSave accepts audioEngine**: `new AutoSave(sequencer, audioEngine)` — needed for EQ persistence. audioEngine is optional param
 - **Per-row swing vs global swing**: Old `sequencer.swing` kept for backward compat in `loadFullState`. Transport Swing knob sets all per-row swings. Scheduler only uses per-row swings
 - **Humanize global**: `sequencer.humanize` is global (not per-bank), like soundParams. 0 = no effect, 1 = maximum wobble
+- **Piano roll alignment**: Non-melodic rows use `.grid-piano-btn--spacer` (visibility: hidden) to maintain grid cell alignment with melodic rows that have the ♪ button
+- **setNoteOffsetSilent**: Like `setCell` vs `toggleCell` — skips history push, emits `note:changed`. Use with `pushHistorySnapshot()` for batch operations (drag paint)

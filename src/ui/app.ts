@@ -82,7 +82,7 @@ export class AppUI {
     const gridContainer = document.createElement('div');
     gridContainer.className = 'grid-container';
 
-    this.gridUI = new GridUI(gridContainer, sequencer);
+    this.gridUI = new GridUI(gridContainer, sequencer, audioEngine);
     this.particles = new ParticleSystem(gridContainer);
 
     root.appendChild(gridContainer);

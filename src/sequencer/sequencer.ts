@@ -179,6 +179,13 @@ export class Sequencer {
     eventBus.emit('note:changed', { row, step, note: this.noteGrids[this._activeBank][row][step] });
   }
 
+  /** Like setNoteOffset but without pushing history — for drag painting (call pushHistorySnapshot once at drag start) */
+  setNoteOffsetSilent(row: number, step: number, semitones: number): void {
+    if (!MELODIC_ROWS.includes(row as typeof MELODIC_ROWS[number])) return;
+    this.noteGrids[this._activeBank][row][step] = clamp(semitones, -12, 12);
+    eventBus.emit('note:changed', { row, step, note: this.noteGrids[this._activeBank][row][step] });
+  }
+
   getCurrentNoteGrid(): NoteGrid {
     return this.noteGrids[this._activeBank];
   }
