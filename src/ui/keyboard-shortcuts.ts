@@ -4,6 +4,10 @@ import type { ThemeSwitcher } from './theme-switcher';
 import type { PerformanceFX } from '../audio/performance-fx';
 import type { HelpOverlay } from './help-overlay';
 import type { MidiLearn } from '../midi/midi-learn';
+import type { MetronomeUI } from './metronome-ui';
+import type { PatternLibrary } from './pattern-library';
+import type { MuteScenes } from '../sequencer/mute-scenes';
+import type { MuteScenesUI } from './mute-scenes-ui';
 
 type FxName = 'tapestop' | 'stutter' | 'bitcrush' | 'reverbwash';
 
@@ -23,6 +27,10 @@ export class KeyboardShortcuts {
     private performanceFX?: PerformanceFX,
     private helpOverlay?: HelpOverlay,
     private midiLearn?: MidiLearn,
+    private readonly metronomeUI?: MetronomeUI,
+    private readonly patternLibrary?: PatternLibrary,
+    private readonly muteScenes?: MuteScenes,
+    private readonly muteScenesUI?: MuteScenesUI,
   ) {
     document.addEventListener('keydown', this.handleKeyDown);
     document.addEventListener('keyup', this.handleKeyUp);
@@ -77,15 +85,30 @@ export class KeyboardShortcuts {
       return;
     }
 
+    // Mute scenes: Alt+1-8 recall, Shift+Alt+1-8 save
+    if (e.altKey && this.muteScenes && this.muteScenesUI) {
+      const digitMatch = e.code.match(/^Digit([1-8])$/);
+      if (digitMatch) {
+        e.preventDefault();
+        const sceneIndex = parseInt(digitMatch[1]) - 1;
+        if (e.shiftKey) {
+          this.muteScenesUI.saveToScene(sceneIndex);
+        } else {
+          this.muteScenesUI.recallScene(sceneIndex);
+        }
+        return;
+      }
+    }
+
     switch (e.code) {
       case 'Space':
         e.preventDefault();
         this.transport.toggle();
         break;
-      case 'Digit1': this.sequencer.setBank(0); break;
-      case 'Digit2': this.sequencer.setBank(1); break;
-      case 'Digit3': this.sequencer.setBank(2); break;
-      case 'Digit4': this.sequencer.setBank(3); break;
+      case 'Digit1': this.sequencer.queueBank(0); break;
+      case 'Digit2': this.sequencer.queueBank(1); break;
+      case 'Digit3': this.sequencer.queueBank(2); break;
+      case 'Digit4': this.sequencer.queueBank(3); break;
       case 'KeyC':
         this.sequencer.clearCurrentBank();
         break;
@@ -109,6 +132,12 @@ export class KeyboardShortcuts {
           if (this.midiLearn.armed) this.midiLearn.cancelLearn();
           else this.midiLearn.armLearn();
         }
+        break;
+      case 'KeyK':
+        if (this.metronomeUI) this.metronomeUI.toggle();
+        break;
+      case 'KeyP':
+        if (this.patternLibrary) this.patternLibrary.toggle();
         break;
     }
   };

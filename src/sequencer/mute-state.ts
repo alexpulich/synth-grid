@@ -33,4 +33,12 @@ export class MuteState {
   getState(): { muted: boolean[]; soloRow: number | null } {
     return { muted: [...this.muted], soloRow: this.soloRow };
   }
+
+  loadState(data: { muted: boolean[]; soloRow: number | null }): void {
+    for (let i = 0; i < this.muted.length; i++) {
+      this.muted[i] = data.muted[i] ?? false;
+    }
+    this.soloRow = data.soloRow;
+    eventBus.emit('mute:changed', this.getState());
+  }
 }

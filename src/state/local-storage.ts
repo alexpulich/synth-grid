@@ -1,6 +1,8 @@
 import type { Sequencer } from '../sequencer/sequencer';
 import type { AudioEngine } from '../audio/audio-engine';
 import type { MidiLearn } from '../midi/midi-learn';
+import type { MuteScenes } from '../sequencer/mute-scenes';
+import type { MuteSceneData } from '../sequencer/mute-scenes';
 import type { Grid, ProbabilityGrid, NoteGrid, SoundParams, MidiCCMapping, SampleMeta } from '../types';
 import { eventBus } from '../utils/event-bus';
 
@@ -38,6 +40,8 @@ interface SavedState {
   delaySends?: number[][];
   useSample?: boolean[];
   sampleMetas?: SampleMeta[];
+  metronomeEnabled?: boolean;
+  muteScenes?: (MuteSceneData | null)[];
   tempo: number;
   swing: number;
   activeBank: number;
@@ -46,7 +50,7 @@ interface SavedState {
 export class AutoSave {
   private timer: number | null = null;
 
-  constructor(private sequencer: Sequencer, private audioEngine?: AudioEngine, private midiLearn?: MidiLearn) {
+  constructor(private sequencer: Sequencer, private audioEngine?: AudioEngine, private midiLearn?: MidiLearn, private muteScenes?: MuteScenes) {
     const scheduleSave = () => this.debouncedSave();
 
     eventBus.on('cell:toggled', scheduleSave);
@@ -75,6 +79,10 @@ export class AutoSave {
     eventBus.on('sample:removed', scheduleSave);
     eventBus.on('sample:meta-changed', scheduleSave);
     eventBus.on('sample:mode-toggled', scheduleSave);
+    eventBus.on('metronome:toggled', scheduleSave);
+    eventBus.on('mutescene:saved', scheduleSave);
+    eventBus.on('step:pasted', scheduleSave);
+    eventBus.on('pattern:loaded', scheduleSave);
   }
 
   private debouncedSave(): void {
@@ -118,6 +126,8 @@ export class AutoSave {
       eqMid: this.audioEngine?.eq.mid,
       eqHigh: this.audioEngine?.eq.high,
       midiMappings: this.midiLearn?.currentMappings,
+      metronomeEnabled: this.audioEngine?.metronome.enabled,
+      muteScenes: this.muteScenes?.getAllScenes(),
       tempo: this.sequencer.tempo,
       swing: this.sequencer.swing,
       activeBank: this.sequencer.activeBank,

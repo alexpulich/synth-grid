@@ -69,6 +69,16 @@
   animation: bank-flash 300ms ease-out;
 }
 
+/* Queued bank blink */
+@keyframes bank-queued-blink {
+  0%, 100% { border-color: var(--color-lead); box-shadow: 0 0 6px rgba(102, 51, 255, 0.4); }
+  50% { border-color: transparent; box-shadow: none; }
+}
+
+.bank-btn--queued {
+  animation: bank-queued-blink 600ms ease-in-out infinite;
+}
+
 /* Theme switcher */
 .theme-switcher {
   display: flex;

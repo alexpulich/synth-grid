@@ -16,6 +16,8 @@ export class DelayEffect {
   private feedbackGain: GainNode;
   private wetGain: GainNode;
   private _currentMult: number | null = null;
+  private _feedback = 0.35;
+  private _mix = 0.25;
 
   constructor(ctx: AudioContext) {
     this.input = ctx.createGain();
@@ -65,11 +67,16 @@ export class DelayEffect {
     return this._currentMult;
   }
 
+  get feedback(): number { return this._feedback; }
+  get mix(): number { return this._mix; }
+
   setFeedback(value: number): void {
-    this.feedbackGain.gain.setValueAtTime(Math.min(value, 0.9), 0);
+    this._feedback = Math.min(value, 0.9);
+    this.feedbackGain.gain.setValueAtTime(this._feedback, 0);
   }
 
   setMix(value: number): void {
+    this._mix = value;
     this.wetGain.gain.setValueAtTime(value, 0);
   }
 }

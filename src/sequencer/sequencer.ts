@@ -6,6 +6,7 @@ import { eventBus } from '../utils/event-bus';
 import { History } from '../state/history';
 import { MuteState } from './mute-state';
 import { PatternChain } from './pattern-chain';
+import { StepClipboard } from './step-clipboard';
 
 function createEmptyProbGrid(): ProbabilityGrid {
   return Array.from({ length: NUM_ROWS }, () => new Array<number>(NUM_STEPS).fill(1.0));
@@ -64,9 +65,11 @@ export class Sequencer {
   private _humanize = 0;
   private _soundParams: SoundParams[] = Array.from({ length: NUM_ROWS }, () => ({ ...DEFAULT_SOUND_PARAMS }));
   private clipboard: { grid: Grid; probabilities: ProbabilityGrid; noteGrid: NoteGrid } | null = null;
+  private _queuedBank: number | null = null;
   readonly history = new History();
   readonly muteState = new MuteState();
   readonly patternChain = new PatternChain();
+  readonly stepClipboard = new StepClipboard();
 
   constructor() {
     this.grids = Array.from({ length: NUM_BANKS }, () =>
@@ -145,6 +148,74 @@ export class Sequencer {
   setBank(bankIndex: number): void {
     this._activeBank = clamp(bankIndex, 0, NUM_BANKS - 1);
     eventBus.emit('bank:changed', this._activeBank);
+  }
+
+  queueBank(bankIndex: number): void {
+    if (!this._isPlaying) {
+      this.setBank(bankIndex);
+      return;
+    }
+    const idx = clamp(bankIndex, 0, NUM_BANKS - 1);
+    this._queuedBank = this._queuedBank === idx ? null : idx;
+    eventBus.emit('bank:queued', this._queuedBank);
+  }
+
+  processQueue(): void {
+    if (this._queuedBank !== null) {
+      this.setBank(this._queuedBank);
+      this._queuedBank = null;
+      eventBus.emit('bank:queued', null);
+    }
+  }
+
+  clearQueue(): void {
+    this._queuedBank = null;
+    eventBus.emit('bank:queued', null);
+  }
+
+  get queuedBank(): number | null {
+    return this._queuedBank;
+  }
+
+  copyStep(step: number): void {
+    const grid = this.grids[this._activeBank];
+    const probs = this.probabilities[this._activeBank];
+    const notes = this.noteGrids[this._activeBank];
+    const locks = this.filterLocks[this._activeBank];
+    const ratch = this.ratchets[this._activeBank];
+    const conds = this.conditions[this._activeBank];
+    const gts = this.gates[this._activeBank];
+    const slds = this.slides[this._activeBank];
+
+    this.stepClipboard.copy(step, {
+      velocities: grid.map(r => r[step]),
+      probabilities: probs.map(r => r[step]),
+      notes: notes.map(r => r[step]),
+      filterLocks: locks.map(r => r[step]),
+      ratchets: ratch.map(r => r[step]),
+      conditions: conds.map(r => r[step]),
+      gates: gts.map(r => r[step]),
+      slides: slds.map(r => r[step]),
+    });
+    eventBus.emit('step:copied', step);
+  }
+
+  pasteStep(step: number): void {
+    const data = this.stepClipboard.paste();
+    if (!data) return;
+    this.pushHistory();
+    for (let row = 0; row < NUM_ROWS; row++) {
+      this.grids[this._activeBank][row][step] = data.velocities[row];
+      this.probabilities[this._activeBank][row][step] = data.probabilities[row];
+      this.noteGrids[this._activeBank][row][step] = data.notes[row];
+      this.filterLocks[this._activeBank][row][step] = data.filterLocks[row];
+      this.ratchets[this._activeBank][row][step] = data.ratchets[row];
+      this.conditions[this._activeBank][row][step] = data.conditions[row];
+      this.gates[this._activeBank][row][step] = data.gates[row];
+      this.slides[this._activeBank][row][step] = data.slides[row];
+    }
+    eventBus.emit('step:pasted', step);
+    eventBus.emit('grid:cleared');
   }
 
   getCurrentGrid(): Grid {

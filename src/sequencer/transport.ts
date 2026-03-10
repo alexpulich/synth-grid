@@ -35,6 +35,7 @@ export class Transport {
     this.sequencer.isPlaying = false;
     this.scheduler.stop();
     this.sequencer.currentStep = 0;
+    this.sequencer.clearQueue();
     eventBus.emit('transport:stop');
   }
 

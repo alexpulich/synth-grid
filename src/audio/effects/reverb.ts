@@ -2,6 +2,7 @@ export class ReverbEffect {
   readonly input: GainNode;
   readonly output: GainNode;
   private wetGain: GainNode;
+  private _mix = 0.3;
 
   constructor(ctx: AudioContext) {
     this.input = ctx.createGain();
@@ -30,7 +31,10 @@ export class ReverbEffect {
     return buffer;
   }
 
+  get mix(): number { return this._mix; }
+
   setMix(value: number): void {
+    this._mix = value;
     this.wetGain.gain.setValueAtTime(value, 0);
   }
 }

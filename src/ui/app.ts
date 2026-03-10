@@ -31,6 +31,12 @@ import { ScaleSelector } from './scale-selector';
 import { DELAY_DIVISIONS } from '../audio/effects/delay';
 import { showToast } from './toast';
 import { CellTooltip } from './cell-tooltip';
+import { MetronomeUI } from './metronome-ui';
+import { MuteScenes } from '../sequencer/mute-scenes';
+import { MuteScenesUI } from './mute-scenes-ui';
+import { PatternLibraryStorage, type PatternData } from '../state/pattern-library-storage';
+import { PatternLibrary } from './pattern-library';
+import { FACTORY_PRESETS } from '../data/factory-presets';
 
 export class AppUI {
   private gridUI: GridUI;
@@ -95,8 +101,12 @@ export class AppUI {
 
     root.appendChild(gridContainer);
 
+    // Mute Scenes
+    const muteScenes = new MuteScenes();
+    const muteScenesUI = new MuteScenesUI(root, muteScenes, sequencer.muteState);
+
     // Effects panel
-    new EffectsPanel(root, audioEngine, sequencer);
+    const effectsPanel = new EffectsPanel(root, audioEngine, sequencer);
 
     // Performance FX UI
     new PerformanceFXUI(root, performanceFX);
@@ -108,11 +118,84 @@ export class AppUI {
     const helpOverlay = new HelpOverlay(root);
     helpBtn.addEventListener('click', () => helpOverlay.toggle());
 
+    // Metronome UI (appended to controls row, after TAP)
+    const metronomeUI = new MetronomeUI(controlsRow, audioEngine.metronome);
+
+    // Pattern Library
+    const patternLibraryStorage = new PatternLibraryStorage();
+    const captureSnapshot = (): PatternData => ({
+      grids: sequencer.getAllGrids().map(b => b.map(r => [...r])),
+      probabilities: sequencer.getAllProbabilities().map(b => b.map(r => [...r])),
+      pitchOffsets: sequencer.getAllPitchOffsets().map(b => [...b]),
+      noteGrids: sequencer.getAllNoteGrids().map(b => b.map(r => [...r])),
+      rowVolumes: sequencer.getAllRowVolumes().map(b => [...b]),
+      rowPans: sequencer.getAllRowPans().map(b => [...b]),
+      filterLocks: sequencer.getAllFilterLocks().map(b =>
+        b.map(r => r.map(v => isNaN(v) ? null : v)),
+      ),
+      ratchets: sequencer.getAllRatchets().map(b => b.map(r => [...r])),
+      conditions: sequencer.getAllConditions().map(b => b.map(r => [...r])),
+      gates: sequencer.getAllGates().map(b => b.map(r => [...r])),
+      slides: sequencer.getAllSlides().map(b => b.map(r => [...r])),
+      rowSwings: sequencer.getAllRowSwings().map(b => [...b]),
+      reverbSends: sequencer.getAllReverbSends().map(b => [...b]),
+      delaySends: sequencer.getAllDelaySends().map(b => [...b]),
+      tempo: sequencer.tempo,
+      selectedScale: sequencer.selectedScale,
+      rootNote: sequencer.rootNote,
+      soundParams: sequencer.getAllSoundParams().map(p => ({ ...p })),
+      humanize: sequencer.humanize,
+      sidechainEnabled: sequencer.sidechainEnabled,
+      sidechainDepth: sequencer.sidechainDepth,
+      sidechainRelease: sequencer.sidechainRelease,
+      saturationDrive: audioEngine.saturation.drive,
+      saturationTone: audioEngine.saturation.tone,
+      eqLow: audioEngine.eq.low,
+      eqMid: audioEngine.eq.mid,
+      eqHigh: audioEngine.eq.high,
+      delayDivision: effectsPanel.getDelayDivisionIndex(),
+    });
+
+    const loadSnapshot = (data: PatternData): void => {
+      // Convert null → NaN for filter locks
+      const restoredFilterLocks = data.filterLocks.map(b =>
+        b.map(r => r.map(v => v === null ? NaN : v)),
+      );
+      sequencer.loadFullState(
+        data.grids, data.tempo, 0, 0,
+        data.probabilities, data.pitchOffsets, data.noteGrids,
+        data.rowVolumes, data.rowPans, restoredFilterLocks,
+        data.ratchets, data.conditions,
+        data.rowSwings, data.gates, data.slides,
+        data.reverbSends, data.delaySends,
+      );
+      sequencer.setScale(data.selectedScale, data.rootNote);
+      sequencer.setSidechain(data.sidechainEnabled, data.sidechainDepth, data.sidechainRelease);
+      sequencer.humanize = data.humanize;
+      sequencer.loadSoundParams(data.soundParams);
+      for (let row = 0; row < NUM_ROWS; row++) {
+        audioEngine.soundParams[row] = { ...sequencer.getSoundParams(row) };
+      }
+      audioEngine.saturation.setDrive(data.saturationDrive);
+      audioEngine.saturation.setTone(data.saturationTone);
+      audioEngine.eq.setLow(data.eqLow);
+      audioEngine.eq.setMid(data.eqMid);
+      audioEngine.eq.setHigh(data.eqHigh);
+      if (data.delayDivision != null && data.delayDivision < DELAY_DIVISIONS.length) {
+        effectsPanel.setDelayDivisionIndex(data.delayDivision);
+        audioEngine.delay.setTimeFromDivision(data.tempo, DELAY_DIVISIONS[data.delayDivision].mult);
+      }
+      effectsPanel.refresh(audioEngine, sequencer);
+    };
+
+    const patternLibrary = new PatternLibrary(root, patternLibraryStorage, captureSnapshot, loadSnapshot);
+
     // Keyboard shortcuts
     const midiLearn = new MidiLearn();
     new KeyboardShortcuts(transport, sequencer, () => {
       PatternBankUI.doRandomize(sequencer);
-    }, themeSwitcher, performanceFX, helpOverlay, midiLearn);
+    }, themeSwitcher, performanceFX, helpOverlay, midiLearn,
+       metronomeUI, patternLibrary, muteScenes, muteScenesUI);
 
     // MIDI setup
     const midiManager = new MidiManager();
@@ -263,8 +346,11 @@ export class AppUI {
       this.gridUI.clearPlayhead();
     });
 
-    // Toast notifications for bank copy/paste and MIDI
+    // Toast notifications for bank queue, copy/paste, and MIDI
     const bankNames = ['A', 'B', 'C', 'D'];
+    eventBus.on('bank:queued', (bank) => {
+      if (bank !== null) showToast(`Bank ${bankNames[bank]} queued`);
+    });
     eventBus.on('bank:copied', (bank) => showToast(`Pattern ${bankNames[bank]} copied`, 'success'));
     eventBus.on('bank:pasted', (bank) => showToast(`Pattern pasted to ${bankNames[bank]}`, 'success'));
     eventBus.on('grid:cleared', () => showToast('Bank cleared'));
@@ -329,7 +415,7 @@ export class AppUI {
     });
 
     // Auto-save (listens for changes)
-    new AutoSave(sequencer, audioEngine, midiLearn);
+    new AutoSave(sequencer, audioEngine, midiLearn, muteScenes);
 
     // Restore state: URL hash takes priority over localStorage
     const hash = window.location.hash.slice(1);
@@ -404,8 +490,32 @@ export class AppUI {
             audioEngine.useSample[i] = saved.useSample[i] ?? false;
           }
         }
+        // Restore metronome state
+        if (saved.metronomeEnabled) {
+          metronomeUI.setEnabled(true);
+        }
+        // Restore mute scenes
+        if (saved.muteScenes) {
+          muteScenes.loadScenes(saved.muteScenes);
+        }
       }
     }
+
+    // Pattern Library storage init + factory presets seeding
+    patternLibraryStorage.init().then(async () => {
+      const count = await patternLibraryStorage.getCount();
+      if (count === 0) {
+        for (const preset of FACTORY_PRESETS) {
+          await patternLibraryStorage.savePattern({
+            id: preset.id,
+            name: preset.name,
+            createdAt: 0,
+            isFactory: true,
+            data: preset.data(),
+          });
+        }
+      }
+    });
 
     // Restore sample audio buffers from IndexedDB (async, non-blocking)
     sampleStorage.loadAll().then(async (records) => {

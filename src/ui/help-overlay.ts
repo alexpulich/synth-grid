@@ -57,7 +57,7 @@ export class HelpOverlay {
       {
         title: 'Pattern',
         rows: [
-          ['1 \u2013 4', 'Switch bank A\u2013D'],
+          ['1 \u2013 4', 'Switch/queue bank A\u2013D'],
           ['C', 'Clear current bank'],
           ['R', 'Randomize pattern'],
           ['[ / ]', 'Rotate pattern left / right'],
@@ -65,6 +65,8 @@ export class HelpOverlay {
           ['\u2318/Ctrl + V', 'Paste bank'],
           ['\u2318/Ctrl + Z', 'Undo'],
           ['\u2318/Ctrl + Shift + Z', 'Redo'],
+          ['Ctrl + Click step header', 'Copy step column'],
+          ['Ctrl + Shift + Click step header', 'Paste step column'],
         ],
       },
       {
@@ -87,10 +89,19 @@ export class HelpOverlay {
         ],
       },
       {
+        title: 'Mute Scenes',
+        rows: [
+          ['Alt + 1\u20138', 'Recall mute scene'],
+          ['Shift + Alt + 1\u20138', 'Save current mutes to scene'],
+        ],
+      },
+      {
         title: 'Other',
         rows: [
           ['T', 'Cycle theme'],
           ['S', 'Toggle song mode'],
+          ['K', 'Toggle metronome'],
+          ['P', 'Open pattern library'],
           ['?', 'Toggle this help'],
         ],
       },

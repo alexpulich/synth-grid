@@ -1,6 +1,7 @@
 import type { AudioEngine } from './audio-engine';
 import type { Sequencer } from '../sequencer/sequencer';
 import { NUM_STEPS, VELOCITY_MAP, GATE_LEVELS, MELODIC_ROWS } from '../types';
+import { eventBus } from '../utils/event-bus';
 
 function checkCondition(condIndex: number, loopCount: number): boolean {
   switch (condIndex) {
@@ -152,6 +153,13 @@ export class Scheduler {
       this.audioEngine.filter.scheduleFrequencyPulse(minLock, time, stepDuration * 0.9);
     }
 
+    // Metronome: click on beat boundaries (steps 0, 4, 8, 12)
+    if (step % 4 === 0) {
+      this.audioEngine.metronome.scheduleClick(time, step === 0);
+      const beat = step / 4;
+      setTimeout(() => eventBus.emit('metronome:beat', beat), Math.max(0, (time - ctxTime) * 1000));
+    }
+
     const delayMs = (time - ctxTime) * 1000;
     const s = step;
     setTimeout(() => this.onStepAdvance(s), Math.max(0, delayMs));
@@ -167,6 +175,9 @@ export class Scheduler {
     // Increment loop count when wrapping
     if (this.currentStep === 0) {
       this.sequencer.incrementLoopCount();
+
+      // Pattern queue: process queued bank before song mode
+      this.sequencer.processQueue();
 
       // Song mode: advance chain
       if (this.sequencer.patternChain.songMode) {

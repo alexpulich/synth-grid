@@ -21,7 +21,7 @@ export class PatternBankUI {
       btn.className = 'bank-btn';
       if (i === this.sequencer.activeBank) btn.classList.add('bank-btn--active');
       btn.textContent = bankLabels[i];
-      btn.addEventListener('click', () => this.sequencer.setBank(i));
+      btn.addEventListener('click', () => this.sequencer.queueBank(i));
       container.appendChild(btn);
       this.buttons.push(btn);
     }
@@ -45,6 +45,13 @@ export class PatternBankUI {
     eventBus.on('bank:changed', (bankIndex) => {
       this.buttons.forEach((btn, i) => {
         btn.classList.toggle('bank-btn--active', i === bankIndex);
+      });
+    });
+
+    // Queue visual indicator
+    eventBus.on('bank:queued', (bankIndex) => {
+      this.buttons.forEach((btn, i) => {
+        btn.classList.toggle('bank-btn--queued', i === bankIndex);
       });
     });
 

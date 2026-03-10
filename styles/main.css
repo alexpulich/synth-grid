@@ -17,6 +17,9 @@
 @import './toast.css';
 @import './cell-context-menu.css';
 @import './sample.css';
+@import './metronome.css';
+@import './mute-scenes.css';
+@import './pattern-library.css';
 
 *,
 *::before,

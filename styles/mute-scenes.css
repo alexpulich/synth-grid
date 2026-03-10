@@ -1,0 +1,51 @@
+.mute-scenes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 0.5rem;
+}
+
+.mute-scenes-label {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-dim);
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+
+.mute-scene-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all 80ms ease-out;
+  outline: none;
+  padding: 0;
+}
+
+.mute-scene-btn:hover {
+  border-color: var(--color-text);
+  color: var(--color-text);
+}
+
+.mute-scene-btn--filled {
+  border-color: var(--color-hihat);
+  color: var(--color-text);
+}
+
+.mute-scene-btn--active {
+  background: var(--color-hihat);
+  color: var(--color-bg);
+  border-color: var(--color-hihat);
+  box-shadow: 0 0 6px var(--color-hihat);
+}
+
+.mute-scene-btn:active {
+  transform: scale(0.95);
+  transition: transform 50ms ease-out;
+}

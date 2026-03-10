@@ -4,6 +4,7 @@ export interface EventMap {
   'cell:toggled': { row: number; step: number; velocity: number };
   'cell:probability-changed': { row: number; step: number; probability: number };
   'bank:changed': number;
+  'bank:queued': number | null;
   'grid:cleared': void;
   'bank:copied': number;
   'bank:pasted': number;
@@ -44,6 +45,16 @@ export interface EventMap {
   'sample:load-request': { row: number; file: File };
   'sample:meta-changed': { row: number; meta: SampleMeta };
   'sample:mode-toggled': { row: number; useSample: boolean };
+  // Round 12
+  'metronome:toggled': boolean;
+  'metronome:beat': number;
+  'mutescene:saved': number;
+  'mutescene:recalled': number;
+  'step:copied': number;
+  'step:pasted': number;
+  'pattern:saved': string;
+  'pattern:loaded': string;
+  'pattern:deleted': string;
 }
 
 type Listener<T> = (payload: T) => void;

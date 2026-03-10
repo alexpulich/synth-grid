@@ -7,6 +7,7 @@ import { FilterEffect } from './effects/filter';
 import { SaturationEffect } from './effects/saturation';
 import { EQEffect } from './effects/eq';
 import { SampleEngine } from './sample-engine';
+import { Metronome } from './metronome';
 
 export class AudioEngine {
   readonly ctx: AudioContext;
@@ -18,6 +19,7 @@ export class AudioEngine {
   readonly saturation: SaturationEffect;
   readonly eq: EQEffect;
   readonly analyser: AnalyserNode;
+  readonly metronome: Metronome;
   private readonly compressor: DynamicsCompressorNode;
 
   // Per-row channel strips
@@ -51,6 +53,8 @@ export class AudioEngine {
 
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 256;
+
+    this.metronome = new Metronome(this.ctx);
 
     // Master limiter to prevent clipping
     this.compressor = this.ctx.createDynamicsCompressor();

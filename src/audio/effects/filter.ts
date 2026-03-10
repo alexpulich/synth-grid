@@ -3,6 +3,7 @@ export class FilterEffect {
   readonly output: GainNode;
   private filter: BiquadFilterNode;
   private _currentNormFreq = 1.0;
+  private _resonance = 0;
   private static readonly MIN_FREQ = 20;
   private static readonly MAX_FREQ = 20000;
 
@@ -37,7 +38,11 @@ export class FilterEffect {
     this.filter.frequency.setValueAtTime(restoreFreq, time + duration);
   }
 
+  get frequency(): number { return this._currentNormFreq; }
+  get resonance(): number { return this._resonance; }
+
   setResonance(normalizedValue: number): void {
+    this._resonance = normalizedValue;
     this.filter.Q.setValueAtTime(0.5 + normalizedValue * 19.5, 0);
   }
 

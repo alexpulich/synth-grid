@@ -10,6 +10,7 @@ import { EuclideanPopover } from './euclidean-popover';
 import { SoundShaper } from './sound-shaper';
 import { PianoRoll } from './piano-roll';
 import { CellContextMenu } from './cell-context-menu';
+import { showToast } from './toast';
 
 export class GridUI {
   private container: HTMLElement;
@@ -46,6 +47,53 @@ export class GridUI {
   }
 
   private buildGrid(): void {
+    // Step header row (step numbers for copy/paste)
+    const headerRow = document.createElement('div');
+    headerRow.className = 'grid-step-header';
+
+    // Spacer for label column
+    const labelSpacer = document.createElement('span');
+    labelSpacer.className = 'grid-step-header-spacer grid-step-header-spacer--label';
+    headerRow.appendChild(labelSpacer);
+
+    // Spacer for pitch controls
+    const pitchSpacer = document.createElement('span');
+    pitchSpacer.className = 'grid-step-header-spacer grid-step-header-spacer--pitch';
+    headerRow.appendChild(pitchSpacer);
+
+    // Spacer for mixer controls
+    const mixerSpacer = document.createElement('span');
+    mixerSpacer.className = 'grid-step-header-spacer grid-step-header-spacer--mixer';
+    headerRow.appendChild(mixerSpacer);
+
+    // Spacer for euclidean button
+    const eucSpacer = document.createElement('span');
+    eucSpacer.className = 'grid-step-header-spacer grid-step-header-spacer--euc';
+    headerRow.appendChild(eucSpacer);
+
+    // Spacer for piano roll button
+    const pianoSpacer = document.createElement('span');
+    pianoSpacer.className = 'grid-step-header-spacer grid-step-header-spacer--piano';
+    headerRow.appendChild(pianoSpacer);
+
+    for (let step = 0; step < NUM_STEPS; step++) {
+      const stepLabel = document.createElement('button');
+      stepLabel.className = 'grid-step-label';
+      stepLabel.textContent = String(step + 1);
+      if (step % 4 === 0 && step > 0) stepLabel.classList.add('grid-step-label--beat-start');
+      stepLabel.addEventListener('click', (e) => {
+        if (e.ctrlKey || e.metaKey) {
+          if (e.shiftKey) {
+            this.sequencer.pasteStep(step);
+          } else {
+            this.sequencer.copyStep(step);
+          }
+        }
+      });
+      headerRow.appendChild(stepLabel);
+    }
+    this.container.appendChild(headerRow);
+
     for (let row = 0; row < NUM_ROWS; row++) {
       const rowEl = document.createElement('div');
       rowEl.className = 'grid-row';
@@ -447,6 +495,24 @@ export class GridUI {
     eventBus.on('sample:removed', ({ row }) => {
       this.labelElements[row].classList.remove('grid-row-label--sample');
       this.labelElements[row].title = '';
+    });
+
+    // Step copy/paste flash
+    eventBus.on('step:copied', (step) => {
+      showToast(`Step ${step + 1} copied`, 'success');
+      for (let row = 0; row < NUM_ROWS; row++) {
+        const cell = this.cells[row][step];
+        cell.classList.add('grid-cell--flash');
+        setTimeout(() => cell.classList.remove('grid-cell--flash'), 300);
+      }
+    });
+    eventBus.on('step:pasted', (step) => {
+      showToast(`Pasted to step ${step + 1}`, 'success');
+      for (let row = 0; row < NUM_ROWS; row++) {
+        const cell = this.cells[row][step];
+        cell.classList.add('grid-cell--flash');
+        setTimeout(() => cell.classList.remove('grid-cell--flash'), 300);
+      }
     });
 
     // Theme change: update INSTRUMENTS color for particle system

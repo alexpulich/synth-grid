@@ -6,8 +6,8 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 
 ## Current State
 
-- **71 TypeScript files, 20 CSS files, ~22,000 lines of code**
-- **Latest round**: Round 11 — Sample Engine & Per-Row Sends
+- **82 TypeScript files, 23 CSS files, ~24,000 lines of code**
+- **Latest round**: Round 12 — Pattern Library & Performance Mode
 - **No test suite** — verification has been manual via browser
 - **No lint config** — only `npx tsc --noEmit` for type checking
 - **Deployment**: Dockerfile + GitHub Actions CI/CD exist
@@ -27,6 +27,7 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 9 | MIDI integration: device detection, note input (GM drum + octave mappings), CC learn mode (arm → capture → assign), MIDI panel UI, mapping persistence |
 | 10 | Toast notifications, knob drag tooltips, cell hover tooltips, right-click cell context menu (all 8 cell data layers), CSS transitions (page fade-in, bank switch flash, modal slide-in, button active states) |
 | 11 | Per-row sample loading (drag-and-drop WAV/MP3/OGG), sample playback engine (pitch/velocity/gate/glide), waveform preview with trim handles, per-row reverb/delay sends (R/D knobs), IndexedDB sample persistence, sound shaper dual synth/sample mode, WAV export with sample support |
+| 12 | Metronome (K toggle, beat dots, volume), mute scenes (8 slots, Shift+click save, click recall), step copy/paste (Ctrl+click header), pattern queue (bank switch on loop boundary), pattern library (save/load/import/export named patterns, 4 factory presets, IndexedDB) |
 
 ### Architecture Overview
 
@@ -36,7 +37,11 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **State**: Sequencer holds all grid state. 4 pattern banks (A-D). localStorage auto-save with 500ms debounce. URL hash encoding (backward-compatible V1/V2/V3)
 - **UI**: Pure DOM manipulation, no framework. Constructor pattern: `(parent, ...deps) → create DOM, append, wire eventBus`
 - **Visuals**: Canvas-based particles, waveform display, reactive background
-- **z-index stacking**: toast (2000) > cell-tooltip (1500) > modals (1000) > context-menu (950) > MIDI panel (500)
+- **z-index stacking**: toast (2000) > cell-tooltip (1500) > modals/pattern-library (1000) > context-menu (950) > MIDI panel (500)
+- **Pattern library**: IndexedDB storage for named patterns. Save/load full sequencer + effects state. Import/export as JSON files. 4 factory presets seeded on first run
+- **Mute scenes**: 8 scene slots store mute/solo states. Save with Shift+click, recall with click. Persisted in localStorage
+- **Pattern queue**: Bank switches during playback are queued and applied at loop boundary (step 0). Immediate switch when stopped. Blinking indicator on queued bank button
+- **Metronome**: Independent audio path (bypasses master chain). Sine clicks at 1200Hz (beat 1) / 800Hz (beats 2-4). Toggle with K key
 
 ## What Worked
 
@@ -57,6 +62,10 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **Dual storage for samples**: IndexedDB for large binary data (ArrayBuffers), localStorage for small metadata (filenames, trim points, flags). Clean separation — IndexedDB restored async, localStorage sync
 - **Cached trigger functions**: `SampleEngine.createTrigger()` builds a closure per row, cached in `triggers[]` array. Avoids allocation in scheduler hot path
 - **Per-bank vs global state**: Following existing patterns (volume/pan = per-bank, soundParams = global) made the sends/samples state design obvious
+- **Effects panel `refresh()` method**: Storing all knob references as class fields and adding getters to effect classes enabled programmatic knob updates on pattern load via `setValueSilent()`
+- **Pattern queue at loop boundary**: Integrating queue processing into `scheduler.advanceStep()` at step 0 was cleaner than a separate timer. Queue overrides song mode for one loop, then song mode resumes
+- **Factory presets as lazy functions**: Using function references instead of pre-computed data objects avoids shared mutable state between preset instances
+- **Step clipboard captures all layers**: 8 data layers × 8 rows per step column — grid, probability, pitchOffset, noteGrid, filterLock, ratchet, condition, gate, slide, rowVolume, rowPan, reverbSend, delaySend, rowSwing. One undo entry per paste
 
 ## What Didn't Work / Gotchas
 
@@ -70,6 +79,11 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **No innerHTML for security**: The security hook blocks `innerHTML` usage. Use `clearChildren()` pattern (while loop with removeChild) or `textContent` instead
 - **Cell tooltip shows nothing for defaults**: Active cells with all-default attributes (vel=Loud, prob=100%, ratchet=1x, etc.) intentionally show no tooltip — only non-default attributes are displayed
 - **Toast positioning**: Toast container is at `position: fixed; bottom: 2rem` — may not be visible in some preview/screenshot tools that crop the viewport bottom
+- **Vite stale errors after new files**: If Vite reports "Failed to resolve import" for a file that exists on disk, restart the dev server — Vite caches transform errors from previous sessions
+- **Adding per-bank state is a 9-step checklist**: See CLAUDE.md "Adding per-bank state" gotcha — sequencer, EventMap, local-storage, app.ts wiring, grid.ts UI all need coordinated updates
+- **Pattern data NaN/null conversion**: FilterLock grids use NaN in memory but must serialize to null for JSON (IndexedDB and file export). Convert back on load
+- **Pattern library excludes samples and mute scenes**: Samples are too large for pattern snapshots. Mute scenes are performance/preference state, not pattern data
+- **Step header alignment**: Step header row (1-16) needs spacer elements matching widths of label, pitch, mixer, euclidean, and piano roll button columns to align with grid cells
 
 ## Potential Next Directions
 
@@ -78,14 +92,17 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 ### Feature Ideas
 - **MIDI output**: Send MIDI notes to external synths/DAWs via Web MIDI output ports
 - **MIDI clock sync**: Sync to external MIDI clock for hardware integration
-- ~~**Sample loading**~~: ✅ Done in Round 11 — drag-and-drop WAV/MP3/OGG/M4A onto row labels, file picker in sound shaper, IndexedDB persistence
-- ~~**Effects per row**~~: ✅ Done in Round 11 — per-row reverb/delay sends with R/D mixer knobs
+- ~~**Sample loading**~~: ✅ Done in Round 11
+- ~~**Effects per row**~~: ✅ Done in Round 11
+- ~~**Pattern library**~~: ✅ Done in Round 12 — save/load/import/export named patterns with factory presets
+- ~~**Metronome**~~: ✅ Done in Round 12
 - **Automation lanes**: Per-step automation of any parameter (filter cutoff, volume, pan)
 - **Polyrhythm/polymeter**: Different step counts per row (not just 16)
-- **Preset sharing**: Import/export full presets as JSON or URL
 - **Collaborative mode**: WebRTC or WebSocket-based real-time jam sessions
 - **Audio input**: Sidechain from mic/line-in, sampler from live input
 - **Piano roll enhancements**: Velocity editing in piano roll, keyboard arrow navigation, row copy/paste
+- **Pattern chaining improvements**: Visual timeline editor for song mode, drag-and-drop reorder
+- **Undo across patterns**: Global undo that spans bank/pattern switches
 
 ### Technical Improvements
 - **Testing**: Add Vitest for unit tests (audio logic, sequencer state, serialization)
@@ -116,7 +133,17 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 | `src/ui/toast.ts` | Toast notification singleton |
 | `src/ui/knob.ts` | Knob component with drag tooltip |
 | `src/ui/piano-roll.ts` | Piano roll modal — good example of modal pattern + scale-aware UI |
+| `src/audio/sample-engine.ts` | Sample playback engine — per-row AudioBuffer + trigger functions |
+| `src/state/sample-storage.ts` | IndexedDB wrapper for sample ArrayBuffer persistence |
+| `src/ui/sound-shaper.ts` | Dual synth/sample mode popover — good example of mode-switching UI |
+| `src/ui/waveform-preview.ts` | Canvas waveform with draggable trim handles |
 | `src/midi/midi-manager.ts` | Web MIDI API access, device detection, message routing |
+| `src/audio/metronome.ts` | Metronome click scheduling — independent audio path |
+| `src/sequencer/mute-scenes.ts` | 8 mute scene slots — save/recall mute+solo states |
+| `src/sequencer/step-clipboard.ts` | Step copy/paste — full vertical slice of all data layers |
+| `src/state/pattern-library-storage.ts` | IndexedDB storage for named patterns |
+| `src/ui/pattern-library.ts` | Pattern library modal — save/load/import/export UI |
+| `src/data/factory-presets.ts` | 4 built-in presets (Four on the Floor, Funky Breaks, Ambient Drift, Techno Minimal) |
 | `src/utils/event-bus.ts` | Event system — `EventMap` interface shows all events |
 
 ## Commands

@@ -298,6 +298,59 @@
   font-weight: 700;
 }
 
+/* Step header row (step numbers + copy/paste) */
+.grid-step-header {
+  display: flex;
+  align-items: center;
+  gap: var(--cell-gap);
+  margin-bottom: 2px;
+}
+
+.grid-step-header-spacer--label { width: 56px; flex-shrink: 0; }
+.grid-step-header-spacer--pitch { width: 66px; flex-shrink: 0; }
+.grid-step-header-spacer--mixer { width: 134px; flex-shrink: 0; }
+.grid-step-header-spacer--euc { width: 22px; flex-shrink: 0; }
+.grid-step-header-spacer--piano { width: 22px; flex-shrink: 0; }
+
+.grid-step-label {
+  width: var(--cell-size);
+  height: 16px;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  color: var(--color-text-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  outline: none;
+  transition: all 80ms ease-out;
+}
+
+.grid-step-label:hover {
+  color: var(--color-text);
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+.grid-step-label--beat-start {
+  margin-left: 4px;
+}
+
+/* Cell copy/paste flash */
+@keyframes cell-copy-flash {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(2); }
+  100% { filter: brightness(1); }
+}
+
+.grid-cell--flash {
+  animation: cell-copy-flash 300ms ease-out;
+}
+
 /* Delay division selector */
 .delay-division-select {
   padding: 4px 6px;

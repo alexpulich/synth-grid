@@ -1,0 +1,53 @@
+.metronome {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.metronome-toggle {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 80ms ease-out;
+  user-select: none;
+}
+
+.metronome-toggle:hover {
+  border-color: var(--color-text-dim);
+}
+
+.metronome-toggle--active {
+  background: var(--color-accent, var(--color-hihat));
+  color: var(--color-bg);
+  border-color: var(--color-accent, var(--color-hihat));
+}
+
+.metronome-toggle:active {
+  transform: scale(0.95);
+  transition: transform 50ms ease-out;
+}
+
+.metronome-dots {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.metronome-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  transition: background 80ms ease-out, box-shadow 80ms ease-out;
+}
+
+.metronome-dot--active {
+  background: var(--color-accent, var(--color-hihat));
+  box-shadow: 0 0 6px var(--color-accent, var(--color-hihat));
+}

@@ -1,0 +1,180 @@
+.pattern-library-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease-out;
+}
+
+.pattern-library-overlay--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pattern-library-modal {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.5rem;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  animation: modal-slide-in 300ms ease-out;
+}
+
+.pattern-library-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pattern-library-title {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.pattern-library-close {
+  background: none;
+  border: none;
+  color: var(--color-text-dim);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.pattern-library-close:hover {
+  color: var(--color-text);
+}
+
+.pattern-library-save-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.pattern-library-name-input {
+  flex: 1;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  padding: 0.4rem 0.6rem;
+  outline: none;
+}
+
+.pattern-library-name-input:focus {
+  border-color: var(--color-lead);
+}
+
+.pattern-library-save-btn,
+.pattern-library-import-btn {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  transition: all 80ms ease-out;
+}
+
+.pattern-library-save-btn:hover {
+  background: var(--color-lead);
+  border-color: var(--color-lead);
+  color: #fff;
+}
+
+.pattern-library-import-btn:hover {
+  border-color: var(--color-text);
+}
+
+.pattern-library-list {
+  overflow-y: auto;
+  max-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.pattern-library-empty {
+  text-align: center;
+  color: var(--color-text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  padding: 2rem;
+}
+
+.pattern-library-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.6rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.pattern-library-item--factory {
+  border-color: var(--color-text-dim);
+}
+
+.pattern-library-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pattern-library-item-name {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+}
+
+.pattern-library-item-date {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--color-text-dim);
+}
+
+.pattern-library-item-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.pattern-library-action-btn {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  color: var(--color-text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 80ms ease-out;
+}
+
+.pattern-library-action-btn:hover {
+  border-color: var(--color-text);
+  color: var(--color-text);
+}
+
+.pattern-library-action-btn--danger:hover {
+  border-color: var(--color-kick);
+  color: var(--color-kick);
+}
