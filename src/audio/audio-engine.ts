@@ -1,3 +1,4 @@
+import { NUM_ROWS } from '../types';
 import { INSTRUMENTS } from './instruments';
 import { ReverbEffect } from './effects/reverb';
 import { DelayEffect } from './effects/delay';
@@ -13,6 +14,10 @@ export class AudioEngine {
   readonly filter: FilterEffect;
   readonly analyser: AnalyserNode;
   private readonly compressor: DynamicsCompressorNode;
+
+  // Per-row channel strips
+  private readonly rowGains: GainNode[] = [];
+  private readonly rowPans: StereoPannerNode[] = [];
 
   constructor() {
     this.ctx = new AudioContext();
@@ -38,6 +43,21 @@ export class AudioEngine {
     this.compressor.ratio.setValueAtTime(12, 0);
     this.compressor.attack.setValueAtTime(0.003, 0);
     this.compressor.release.setValueAtTime(0.1, 0);
+
+    // Per-row channel strips: gain → pan → dryBus + effectsSend
+    for (let i = 0; i < NUM_ROWS; i++) {
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.8, 0);
+      const pan = this.ctx.createStereoPanner();
+      pan.pan.setValueAtTime(0, 0);
+
+      gain.connect(pan);
+      pan.connect(this.dryBus);
+      pan.connect(this.effectsSend);
+
+      this.rowGains.push(gain);
+      this.rowPans.push(pan);
+    }
 
     // Routing: dry path
     this.dryBus.connect(this.masterGain);
@@ -74,11 +94,37 @@ export class AudioEngine {
     const instrument = INSTRUMENTS[instrumentIndex];
     if (!instrument) return;
 
-    // Create a per-trigger gain splitter
-    const splitGain = this.ctx.createGain();
-    splitGain.connect(this.dryBus);
-    splitGain.connect(this.effectsSend);
+    // Route through per-row channel strip
+    const dest = this.rowGains[instrumentIndex] ?? this.dryBus;
+    instrument.trigger(this.ctx, dest, time, velocity, pitchOffset);
+  }
 
-    instrument.trigger(this.ctx, splitGain, time, velocity, pitchOffset);
+  setRowVolume(row: number, value: number): void {
+    const gain = this.rowGains[row];
+    if (gain) gain.gain.setValueAtTime(value, this.ctx.currentTime);
+  }
+
+  setRowPan(row: number, value: number): void {
+    const pan = this.rowPans[row];
+    if (pan) pan.pan.setValueAtTime(value, this.ctx.currentTime);
+  }
+
+  getRowGainNode(row: number): GainNode | undefined {
+    return this.rowGains[row];
+  }
+
+  /** Duck rows 1-7 when kick fires (sidechain compression effect) */
+  scheduleSidechainDuck(time: number, depth: number, release: number, baseVolumes: number[]): void {
+    const attackTime = 0.005;
+    for (let row = 1; row < NUM_ROWS; row++) {
+      const gain = this.rowGains[row];
+      if (!gain) continue;
+      const base = baseVolumes[row] ?? 0.8;
+      const ducked = base * (1 - depth);
+      gain.gain.cancelScheduledValues(time);
+      gain.gain.setValueAtTime(base, time);
+      gain.gain.linearRampToValueAtTime(ducked, time + attackTime);
+      gain.gain.linearRampToValueAtTime(base, time + attackTime + release);
+    }
   }
 }

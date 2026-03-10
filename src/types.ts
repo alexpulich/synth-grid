@@ -18,6 +18,7 @@ export const VELOCITY_MAP: Record<number, number> = {
 export type Grid = number[][];
 export type ProbabilityGrid = number[][];
 export type NoteGrid = number[][];
+export type FilterLockGrid = number[][]; // NaN = no lock, 0-1 = normalized frequency
 
 export const MELODIC_ROWS = [4, 5, 6] as const; // bass, lead, pad
 

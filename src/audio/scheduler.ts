@@ -46,6 +46,8 @@ export class Scheduler {
     const pitches = this.sequencer.getCurrentPitchOffsets();
     const notes = this.sequencer.getCurrentNoteGrid();
 
+    let kickFired = false;
+
     for (let row = 0; row < grid.length; row++) {
       const vel = grid[row][step];
       if (vel > 0 && this.sequencer.muteState.isRowAudible(row)) {
@@ -53,8 +55,33 @@ export class Scheduler {
         if (prob >= 1.0 || Math.random() < prob) {
           const totalPitch = pitches[row] + notes[row][step];
           this.audioEngine.trigger(row, time, VELOCITY_MAP[vel], totalPitch);
+          if (row === 0) kickFired = true;
         }
       }
+    }
+
+    // Sidechain ducking: duck rows 1-7 when kick fires
+    if (kickFired && this.sequencer.sidechainEnabled) {
+      this.audioEngine.scheduleSidechainDuck(
+        time,
+        this.sequencer.sidechainDepth,
+        this.sequencer.sidechainRelease,
+        this.sequencer.getCurrentRowVolumes(),
+      );
+    }
+
+    // Filter locks: find minimum lock value for this step, apply as frequency pulse
+    const filterLocks = this.sequencer.getCurrentFilterLocks();
+    let minLock = NaN;
+    for (let row = 0; row < grid.length; row++) {
+      const lock = filterLocks[row][step];
+      if (!isNaN(lock) && grid[row][step] > 0) {
+        if (isNaN(minLock) || lock < minLock) minLock = lock;
+      }
+    }
+    if (!isNaN(minLock)) {
+      const stepDuration = 60.0 / this.sequencer.tempo / 4;
+      this.audioEngine.filter.scheduleFrequencyPulse(minLock, time, stepDuration * 0.9);
     }
 
     const delayMs = (time - this.audioEngine.ctx.currentTime) * 1000;

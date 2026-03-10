@@ -1,8 +1,9 @@
 import type { AudioEngine } from '../audio/audio-engine';
+import type { Sequencer } from '../sequencer/sequencer';
 import { Knob } from './knob';
 
 export class EffectsPanel {
-  constructor(parent: HTMLElement, audioEngine: AudioEngine) {
+  constructor(parent: HTMLElement, audioEngine: AudioEngine, sequencer?: Sequencer) {
     const container = document.createElement('div');
     container.className = 'effects-panel';
 
@@ -47,6 +48,32 @@ export class EffectsPanel {
 
     filterGroup.el.appendChild(typeRow);
     container.appendChild(filterGroup.el);
+
+    // Sidechain (requires sequencer)
+    if (sequencer) {
+      const scGroup = this.createGroup('Sidechain');
+
+      const toggleBtn = document.createElement('button');
+      toggleBtn.className = 'sidechain-toggle';
+      toggleBtn.textContent = 'OFF';
+      toggleBtn.addEventListener('click', () => {
+        const newEnabled = !sequencer.sidechainEnabled;
+        sequencer.setSidechain(newEnabled, sequencer.sidechainDepth, sequencer.sidechainRelease);
+        toggleBtn.textContent = newEnabled ? 'ON' : 'OFF';
+        toggleBtn.classList.toggle('sidechain-toggle--active', newEnabled);
+      });
+      scGroup.knobs.appendChild(toggleBtn);
+
+      new Knob(scGroup.knobs, 'Depth', 0.7, (v) => {
+        sequencer.setSidechain(sequencer.sidechainEnabled, v, sequencer.sidechainRelease);
+      });
+
+      new Knob(scGroup.knobs, 'Rel', 0.3, (v) => {
+        sequencer.setSidechain(sequencer.sidechainEnabled, sequencer.sidechainDepth, v * 0.5);
+      });
+
+      container.appendChild(scGroup.el);
+    }
 
     parent.appendChild(container);
   }

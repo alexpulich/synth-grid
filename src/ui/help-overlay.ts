@@ -29,9 +29,19 @@ export class HelpOverlay {
         rows: [
           ['Click', 'Toggle cell on/off'],
           ['Drag', 'Paint multiple cells'],
-          ['Click active', 'Cycle velocity: soft \u2192 med \u2192 loud'],
+          ['Shift + Click', 'Cycle velocity: soft \u2192 med \u2192 loud'],
           ['Right-click', 'Cycle probability: 100% \u2192 75% \u2192 50% \u2192 25%'],
-          ['Alt + Scroll', 'Change note pitch (bass / lead / pad only)'],
+          ['Alt + Scroll', 'Change note pitch (scale-aware)'],
+          ['Shift + Scroll', 'Set filter lock on active cell'],
+          ['Shift + Right-click', 'Clear filter lock'],
+        ],
+      },
+      {
+        title: 'Mixer',
+        rows: [
+          ['V knob (per row)', 'Volume (drag up/down)'],
+          ['P knob (per row)', 'Pan (drag up/down)'],
+          ['E button (per row)', 'Euclidean rhythm generator'],
         ],
       },
       {

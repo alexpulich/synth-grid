@@ -18,6 +18,11 @@ export interface EventMap {
   'chain:updated': number[];
   'chain:position-changed': number;
   'note:changed': { row: number; step: number; note: number };
+  'volume:changed': { row: number; volume: number };
+  'pan:changed': { row: number; pan: number };
+  'scale:changed': { scaleIndex: number; rootNote: number };
+  'sidechain:changed': { enabled: boolean; depth: number; release: number };
+  'filterlock:changed': { row: number; step: number; value: number };
 }
 
 type Listener<T> = (payload: T) => void;

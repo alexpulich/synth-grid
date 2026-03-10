@@ -2,6 +2,9 @@ export class FilterEffect {
   readonly input: GainNode;
   readonly output: GainNode;
   private filter: BiquadFilterNode;
+  private _currentNormFreq = 1.0;
+  private static readonly MIN_FREQ = 20;
+  private static readonly MAX_FREQ = 20000;
 
   constructor(ctx: AudioContext) {
     this.input = ctx.createGain();
@@ -16,11 +19,22 @@ export class FilterEffect {
     this.filter.connect(this.output);
   }
 
+  private normToFreq(norm: number): number {
+    return FilterEffect.MIN_FREQ * Math.pow(FilterEffect.MAX_FREQ / FilterEffect.MIN_FREQ, norm);
+  }
+
   setFrequency(normalizedValue: number): void {
-    const minFreq = 20;
-    const maxFreq = 20000;
-    const freq = minFreq * Math.pow(maxFreq / minFreq, normalizedValue);
+    this._currentNormFreq = normalizedValue;
+    const freq = this.normToFreq(normalizedValue);
     this.filter.frequency.setValueAtTime(freq, 0);
+  }
+
+  /** Schedule a temporary filter frequency change for one step, then restore */
+  scheduleFrequencyPulse(normValue: number, time: number, duration: number): void {
+    const freq = this.normToFreq(normValue);
+    const restoreFreq = this.normToFreq(this._currentNormFreq);
+    this.filter.frequency.setValueAtTime(freq, time);
+    this.filter.frequency.setValueAtTime(restoreFreq, time + duration);
   }
 
   setResonance(normalizedValue: number): void {

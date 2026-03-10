@@ -22,6 +22,7 @@ import { eventBus } from '../utils/event-bus';
 import { NUM_ROWS } from '../types';
 import { decodeState } from '../state/url-state';
 import { AutoSave } from '../state/local-storage';
+import { ScaleSelector } from './scale-selector';
 
 export class AppUI {
   private gridUI: GridUI;
@@ -69,6 +70,7 @@ export class AppUI {
     new PresetSelector(controlsRow, sequencer);
     new ShareButton(controlsRow, sequencer);
     new ExportButton(controlsRow, sequencer);
+    new ScaleSelector(controlsRow, sequencer);
     const themeSwitcher = new ThemeSwitcher(controlsRow);
     root.appendChild(controlsRow);
 
@@ -85,7 +87,7 @@ export class AppUI {
     root.appendChild(gridContainer);
 
     // Effects panel
-    new EffectsPanel(root, audioEngine);
+    new EffectsPanel(root, audioEngine, sequencer);
 
     // Performance FX UI
     new PerformanceFXUI(root, performanceFX);
@@ -101,6 +103,24 @@ export class AppUI {
     new KeyboardShortcuts(transport, sequencer, () => {
       PatternBankUI.doRandomize(sequencer);
     }, themeSwitcher, performanceFX, helpOverlay);
+
+    // Wire mixer volume/pan to audio engine
+    eventBus.on('volume:changed', ({ row, volume }) => {
+      audioEngine.setRowVolume(row, volume);
+    });
+    eventBus.on('pan:changed', ({ row, pan }) => {
+      audioEngine.setRowPan(row, pan);
+    });
+
+    // Sync mixer to audio engine on bank change
+    eventBus.on('bank:changed', () => {
+      const volumes = sequencer.getCurrentRowVolumes();
+      const pans = sequencer.getCurrentRowPans();
+      for (let row = 0; row < NUM_ROWS; row++) {
+        audioEngine.setRowVolume(row, volumes[row]);
+        audioEngine.setRowPan(row, pans[row]);
+      }
+    });
 
     // Wire particle bursts to cell triggers
     eventBus.on('step:advance', (step) => {
@@ -140,10 +160,21 @@ export class AppUI {
     } else {
       const saved = AutoSave.load();
       if (saved) {
+        // Convert null → NaN for filter locks from JSON
+        const restoredFilterLocks = saved.filterLocks?.map((bank) =>
+          bank.map((row) => row.map((v) => v === null ? NaN : v)),
+        );
         sequencer.loadFullState(
           saved.grids, saved.tempo, saved.swing, saved.activeBank,
           saved.probabilities, saved.pitchOffsets, saved.noteGrids,
+          saved.rowVolumes, saved.rowPans, restoredFilterLocks,
         );
+        if (saved.selectedScale != null) {
+          sequencer.setScale(saved.selectedScale, saved.rootNote ?? 0);
+        }
+        if (saved.sidechainEnabled != null) {
+          sequencer.setSidechain(saved.sidechainEnabled, saved.sidechainDepth ?? 0.7, saved.sidechainRelease ?? 0.15);
+        }
       }
     }
   }

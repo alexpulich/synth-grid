@@ -49,6 +49,28 @@
   color: var(--color-text);
 }
 
+/* Sidechain toggle */
+.sidechain-toggle {
+  padding: 4px 12px;
+  border-radius: 3px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  outline: none;
+}
+
+.sidechain-toggle--active {
+  background: rgba(255, 51, 102, 0.15);
+  border-color: var(--color-kick);
+  color: var(--color-kick);
+}
+
 /* Performance FX panel */
 .perf-fx-panel {
   display: flex;

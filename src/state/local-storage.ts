@@ -10,6 +10,14 @@ interface SavedState {
   probabilities: ProbabilityGrid[];
   pitchOffsets: number[][];
   noteGrids?: NoteGrid[];
+  rowVolumes?: number[][];
+  rowPans?: number[][];
+  selectedScale?: number;
+  rootNote?: number;
+  sidechainEnabled?: boolean;
+  sidechainDepth?: number;
+  sidechainRelease?: number;
+  filterLocks?: (number | null)[][][]; // NaN → null for JSON
   tempo: number;
   swing: number;
   activeBank: number;
@@ -28,6 +36,11 @@ export class AutoSave {
     eventBus.on('tempo:changed', scheduleSave);
     eventBus.on('pitch:changed', scheduleSave);
     eventBus.on('note:changed', scheduleSave);
+    eventBus.on('volume:changed', scheduleSave);
+    eventBus.on('pan:changed', scheduleSave);
+    eventBus.on('scale:changed', scheduleSave);
+    eventBus.on('sidechain:changed', scheduleSave);
+    eventBus.on('filterlock:changed', scheduleSave);
   }
 
   private debouncedSave(): void {
@@ -46,6 +59,16 @@ export class AutoSave {
       probabilities: this.sequencer.getAllProbabilities().map((bank) => bank.map((row) => [...row])),
       pitchOffsets: this.sequencer.getAllPitchOffsets().map((bank) => [...bank]),
       noteGrids: this.sequencer.getAllNoteGrids().map((bank) => bank.map((row) => [...row])),
+      rowVolumes: this.sequencer.getAllRowVolumes().map((bank) => [...bank]),
+      rowPans: this.sequencer.getAllRowPans().map((bank) => [...bank]),
+      selectedScale: this.sequencer.selectedScale,
+      rootNote: this.sequencer.rootNote,
+      sidechainEnabled: this.sequencer.sidechainEnabled,
+      sidechainDepth: this.sequencer.sidechainDepth,
+      sidechainRelease: this.sequencer.sidechainRelease,
+      filterLocks: this.sequencer.getAllFilterLocks().map((bank) =>
+        bank.map((row) => row.map((v) => isNaN(v) ? null : v)),
+      ),
       tempo: this.sequencer.tempo,
       swing: this.sequencer.swing,
       activeBank: this.sequencer.activeBank,

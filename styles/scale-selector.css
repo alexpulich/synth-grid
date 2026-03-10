@@ -1,0 +1,43 @@
+/* Scale selector */
+.scale-selector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.scale-selector-row {
+  display: flex;
+  gap: 4px;
+}
+
+.scale-select {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23606080'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  padding-right: 18px;
+}
+
+.scale-select:hover {
+  border-color: var(--color-text-dim);
+}
+
+.scale-select:focus {
+  border-color: var(--color-lead);
+}
+
+.scale-select option {
+  background: var(--color-surface);
+  color: var(--color-text);
+}

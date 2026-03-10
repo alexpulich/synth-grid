@@ -9,6 +9,8 @@
 @import './presets.css';
 @import './pattern-chain.css';
 @import './help.css';
+@import './scale-selector.css';
+@import './euclidean.css';
 
 *,
 *::before,

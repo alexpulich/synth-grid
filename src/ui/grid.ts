@@ -2,7 +2,10 @@ import { NUM_ROWS, NUM_STEPS, VELOCITY_OFF, VELOCITY_LOUD, MELODIC_ROWS } from '
 import type { VelocityLevel } from '../types';
 import { INSTRUMENTS } from '../audio/instruments';
 import type { Sequencer } from '../sequencer/sequencer';
+import { Knob } from './knob';
 import { eventBus } from '../utils/event-bus';
+import { SCALES, scaleDegreesToSemitones, semitonesToScaleDegree, semitoneToNoteName } from '../utils/scales';
+import { EuclideanPopover } from './euclidean-popover';
 
 export class GridUI {
   private container: HTMLElement;
@@ -10,6 +13,9 @@ export class GridUI {
   private rowElements: HTMLElement[] = [];
   private labelElements: HTMLElement[] = [];
   private pitchDisplays: HTMLElement[] = [];
+  private volumeKnobs: Knob[] = [];
+  private panKnobs: Knob[] = [];
+  private euclideanPopover: EuclideanPopover;
 
   // Drag paint state
   private isDragging = false;
@@ -21,6 +27,7 @@ export class GridUI {
     this.container.className = 'grid';
     parent.appendChild(this.container);
 
+    this.euclideanPopover = new EuclideanPopover(sequencer);
     this.buildGrid();
     this.bindEvents();
   }
@@ -78,6 +85,33 @@ export class GridUI {
       pitchCtrl.appendChild(plusBtn);
       rowEl.appendChild(pitchCtrl);
 
+      // Mixer controls (volume + pan)
+      const mixerCtrl = document.createElement('div');
+      mixerCtrl.className = 'grid-mixer-ctrl';
+
+      const volKnob = new Knob(mixerCtrl, 'V', this.sequencer.getRowVolume(row) / 1.0, (v) => {
+        this.sequencer.setRowVolume(row, v);
+      });
+      this.volumeKnobs[row] = volKnob;
+
+      const panKnob = new Knob(mixerCtrl, 'P', (this.sequencer.getRowPan(row) + 1) / 2, (v) => {
+        this.sequencer.setRowPan(row, v * 2 - 1); // map 0-1 → -1 to 1
+      });
+      this.panKnobs[row] = panKnob;
+
+      rowEl.appendChild(mixerCtrl);
+
+      // Euclidean button
+      const eucBtn = document.createElement('button');
+      eucBtn.className = 'grid-euc-btn';
+      eucBtn.textContent = 'E';
+      eucBtn.title = 'Euclidean rhythm';
+      eucBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.euclideanPopover.show(row, eucBtn);
+      });
+      rowEl.appendChild(eucBtn);
+
       for (let step = 0; step < NUM_STEPS; step++) {
         const cell = document.createElement('button');
         cell.className = 'grid-cell';
@@ -131,17 +165,37 @@ export class GridUI {
       this.applyDrag(row, step);
     });
 
-    // Right-click: cycle probability
+    // Right-click: cycle probability (or Shift+right-click: clear filter lock)
     this.container.addEventListener('contextmenu', (e) => {
       const cell = (e.target as HTMLElement).closest('.grid-cell') as HTMLElement | null;
       if (!cell) return;
       e.preventDefault();
       const row = Number(cell.dataset.row);
       const step = Number(cell.dataset.step);
-      this.sequencer.cycleProbability(row, step);
+      if (e.shiftKey) {
+        this.sequencer.clearFilterLock(row, step);
+      } else {
+        this.sequencer.cycleProbability(row, step);
+      }
     });
 
-    // Alt+scroll on active melodic cells: change per-step note
+    // Shift+scroll on active cells: set filter lock
+    this.container.addEventListener('wheel', (e) => {
+      if (!e.shiftKey || e.altKey) return;
+      const cell = (e.target as HTMLElement).closest('.grid-cell') as HTMLElement | null;
+      if (!cell) return;
+      const row = Number(cell.dataset.row);
+      const step = Number(cell.dataset.step);
+      const grid = this.sequencer.getCurrentGrid();
+      if (grid[row][step] === VELOCITY_OFF) return;
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.05 : -0.05;
+      const current = this.sequencer.getFilterLock(row, step);
+      const base = isNaN(current) ? 1.0 : current;
+      this.sequencer.setFilterLock(row, step, base + delta);
+    });
+
+    // Alt+scroll on active melodic cells: change per-step note (scale-aware)
     this.container.addEventListener('wheel', (e) => {
       if (!e.altKey) return;
       const cell = (e.target as HTMLElement).closest('.grid-cell') as HTMLElement | null;
@@ -154,7 +208,16 @@ export class GridUI {
       e.preventDefault();
       const delta = e.deltaY < 0 ? 1 : -1;
       const current = this.sequencer.getNoteOffset(row, step);
-      this.sequencer.setNoteOffset(row, step, current + delta);
+      const scale = SCALES[this.sequencer.selectedScale];
+      if (scale.intervals.length === 12) {
+        // Chromatic: step by semitones as before
+        this.sequencer.setNoteOffset(row, step, current + delta);
+      } else {
+        // Scale-aware: convert to degree, step, convert back
+        const degree = semitonesToScaleDegree(scale, current);
+        const newSemitones = scaleDegreesToSemitones(scale, degree + delta);
+        this.sequencer.setNoteOffset(row, step, newSemitones);
+      }
     });
 
     // Drag paint: mouseover during drag
@@ -210,12 +273,23 @@ export class GridUI {
       this.updatePitchDisplay(row, offset);
     });
 
-    // Bank changed: also refresh pitch displays
-    eventBus.on('bank:changed', () => this.refreshPitchDisplays());
+    // Bank changed: also refresh pitch displays and mixer knobs
+    eventBus.on('bank:changed', () => {
+      this.refreshPitchDisplays();
+      this.refreshMixerKnobs();
+    });
 
     // Note changed
     eventBus.on('note:changed', ({ row, step, note }) => {
       this.updateNoteDisplay(row, step, note);
+    });
+
+    // Scale changed: refresh all note displays
+    eventBus.on('scale:changed', () => this.refreshAll());
+
+    // Filter lock changed
+    eventBus.on('filterlock:changed', ({ row, step, value }) => {
+      this.updateFilterLockVisual(row, step, value);
     });
 
     // Theme change: update INSTRUMENTS color for particle system
@@ -270,6 +344,7 @@ export class GridUI {
     const grid = this.sequencer.getCurrentGrid();
     const probs = this.sequencer.getCurrentProbabilities();
     const notes = this.sequencer.getCurrentNoteGrid();
+    const locks = this.sequencer.getCurrentFilterLocks();
     for (let row = 0; row < NUM_ROWS; row++) {
       for (let step = 0; step < NUM_STEPS; step++) {
         const vel = grid[row][step];
@@ -278,9 +353,11 @@ export class GridUI {
         const pct = Math.round(probs[row][step] * 100);
         this.cells[row][step].dataset.prob = String(pct);
         this.updateNoteDisplay(row, step, notes[row][step]);
+        this.updateFilterLockVisual(row, step, locks[row][step]);
       }
     }
     this.refreshPitchDisplays();
+    this.refreshMixerKnobs();
   }
 
   private updatePitchDisplay(row: number, offset: number): void {
@@ -298,13 +375,44 @@ export class GridUI {
     }
   }
 
+  private refreshMixerKnobs(): void {
+    const volumes = this.sequencer.getCurrentRowVolumes();
+    const pans = this.sequencer.getCurrentRowPans();
+    for (let row = 0; row < NUM_ROWS; row++) {
+      this.volumeKnobs[row]?.setValueSilent(volumes[row]);
+      this.panKnobs[row]?.setValueSilent((pans[row] + 1) / 2); // -1..1 → 0..1
+    }
+  }
+
   private updateNoteDisplay(row: number, step: number, note: number): void {
     const cell = this.cells[row]?.[step];
     if (!cell) return;
     if (note !== 0) {
-      cell.dataset.note = note > 0 ? `+${note}` : String(note);
+      const scaleIdx = this.sequencer.selectedScale;
+      if (scaleIdx > 0) {
+        // Non-chromatic: show note name
+        cell.dataset.note = semitoneToNoteName(this.sequencer.rootNote, note);
+      } else {
+        cell.dataset.note = note > 0 ? `+${note}` : String(note);
+      }
     } else {
       delete cell.dataset.note;
     }
+  }
+
+  private updateFilterLockVisual(row: number, step: number, value: number): void {
+    const cell = this.cells[row]?.[step];
+    if (!cell) return;
+    let bar = cell.querySelector('.grid-cell-filter') as HTMLElement | null;
+    if (isNaN(value)) {
+      if (bar) bar.remove();
+      return;
+    }
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.className = 'grid-cell-filter';
+      cell.appendChild(bar);
+    }
+    bar.style.height = `${Math.round(value * 100)}%`;
   }
 }

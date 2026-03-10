@@ -179,6 +179,40 @@
   color: var(--color-lead);
 }
 
+/* Inline mixer controls (volume + pan per row) */
+.grid-mixer-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+.grid-mixer-ctrl .knob-wrapper {
+  gap: 1px;
+}
+
+.grid-mixer-ctrl .knob {
+  width: 24px;
+  height: 24px;
+}
+
+.grid-mixer-ctrl .knob-body {
+  border-width: 1.5px;
+}
+
+.grid-mixer-ctrl .knob-indicator {
+  top: 3px;
+  width: 2px;
+  height: 35%;
+  margin-left: -1px;
+  transform-origin: center calc(100% + 3px);
+}
+
+.grid-mixer-ctrl .knob-label {
+  font-size: 7px;
+}
+
 /* Per-step note display (melodic rows) */
 .grid-cell--active[data-note]::before {
   content: attr(data-note);
@@ -191,4 +225,16 @@
   color: rgba(0, 0, 0, 0.7);
   pointer-events: none;
   z-index: 1;
+}
+
+/* Filter lock visual bar */
+.grid-cell-filter {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.25);
+  pointer-events: none;
+  border-radius: 0 0 var(--cell-radius) var(--cell-radius);
+  transition: height var(--transition-fast);
 }
