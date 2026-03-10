@@ -154,7 +154,7 @@ export class AppUI {
     });
 
     // Auto-save (listens for changes)
-    new AutoSave(sequencer);
+    new AutoSave(sequencer, audioEngine);
 
     // Restore state: URL hash takes priority over localStorage
     const hash = window.location.hash.slice(1);
@@ -175,7 +175,14 @@ export class AppUI {
           saved.probabilities, saved.pitchOffsets, saved.noteGrids,
           saved.rowVolumes, saved.rowPans, restoredFilterLocks,
           saved.ratchets, saved.conditions,
+          saved.rowSwings, saved.gates, saved.slides,
         );
+        // Backward compat: distribute global swing to all rows if no per-row swings saved
+        if (!saved.rowSwings && saved.swing > 0) {
+          for (let row = 0; row < NUM_ROWS; row++) {
+            sequencer.setRowSwing(row, saved.swing);
+          }
+        }
         if (saved.selectedScale != null) {
           sequencer.setScale(saved.selectedScale, saved.rootNote ?? 0);
         }
@@ -200,6 +207,14 @@ export class AppUI {
         if (saved.delayDivision != null && saved.delayDivision < DELAY_DIVISIONS.length) {
           audioEngine.delay.setTimeFromDivision(saved.tempo, DELAY_DIVISIONS[saved.delayDivision].mult);
         }
+        // Restore humanize
+        if (saved.humanize != null) {
+          sequencer.humanize = saved.humanize;
+        }
+        // Restore EQ
+        if (saved.eqLow != null) audioEngine.eq.setLow(saved.eqLow);
+        if (saved.eqMid != null) audioEngine.eq.setMid(saved.eqMid);
+        if (saved.eqHigh != null) audioEngine.eq.setHigh(saved.eqHigh);
       }
     }
   }

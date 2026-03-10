@@ -1,6 +1,6 @@
 import type { InstrumentTrigger } from '../../types';
 
-export const triggerClap: InstrumentTrigger = (ctx, dest, time, velocity = 1, pitchOffset = 0, params) => {
+export const triggerClap: InstrumentTrigger = (ctx, dest, time, velocity = 1, pitchOffset = 0, params, gate, _glideFrom) => {
   const pitchMult = Math.pow(2, pitchOffset / 12);
   const a = params?.attack ?? 0.5;
   const d = params?.decay ?? 0.5;
@@ -8,7 +8,7 @@ export const triggerClap: InstrumentTrigger = (ctx, dest, time, velocity = 1, pi
   const p = params?.punch ?? 0.5;
 
   const burstSpacing = 0.005 + a * 0.015;           // 5-20ms
-  const tailDuration = 0.15 + d * 0.35;             // 0.15-0.5s
+  const tailDuration = gate ?? (0.15 + d * 0.35);   // 0.15-0.5s
   const filterFreq = (1500 + t * 3500) * pitchMult; // 1.5k-5kHz
   const burstGain = 0.3 + p * 0.4;                  // 0.3-0.7
 

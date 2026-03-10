@@ -1,13 +1,13 @@
 import type { InstrumentTrigger } from '../../types';
 
-export const triggerHiHat: InstrumentTrigger = (ctx, dest, time, velocity = 1, pitchOffset = 0, params) => {
+export const triggerHiHat: InstrumentTrigger = (ctx, dest, time, velocity = 1, pitchOffset = 0, params, gate, _glideFrom) => {
   const pitchMult = Math.pow(2, pitchOffset / 12);
   const a = params?.attack ?? 0.5;
   const d = params?.decay ?? 0.5;
   const t = params?.tone ?? 0.5;
   const p = params?.punch ?? 0.5;
 
-  const duration = 0.03 + d * 0.12;                // 0.03-0.15s
+  const duration = gate ?? (0.03 + d * 0.12);      // 0.03-0.15s
   const filterFreq = (5000 + t * 10000) * pitchMult; // 5k-15kHz
   const initialGain = 0.15 + p * 0.2;              // 0.15-0.35
   const clickSharpness = 0.5 + (1 - a) * 0.5;     // sharper attack = higher Q

@@ -28,6 +28,10 @@ export interface EventMap {
   'ratchet:changed': { row: number; step: number; count: number };
   'condition:changed': { row: number; step: number; condition: number };
   'soundparam:changed': { row: number; params: SoundParams };
+  'humanize:changed': number;
+  'swing:changed': { row: number; swing: number };
+  'gate:changed': { row: number; step: number; gate: number };
+  'slide:changed': { row: number; step: number; slide: boolean };
 }
 
 type Listener<T> = (payload: T) => void;

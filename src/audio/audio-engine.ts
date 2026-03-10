@@ -5,6 +5,7 @@ import { ReverbEffect } from './effects/reverb';
 import { DelayEffect } from './effects/delay';
 import { FilterEffect } from './effects/filter';
 import { SaturationEffect } from './effects/saturation';
+import { EQEffect } from './effects/eq';
 
 export class AudioEngine {
   readonly ctx: AudioContext;
@@ -15,6 +16,7 @@ export class AudioEngine {
   readonly delay: DelayEffect;
   readonly filter: FilterEffect;
   readonly saturation: SaturationEffect;
+  readonly eq: EQEffect;
   readonly analyser: AnalyserNode;
   private readonly compressor: DynamicsCompressorNode;
 
@@ -39,6 +41,7 @@ export class AudioEngine {
     this.delay = new DelayEffect(this.ctx);
     this.filter = new FilterEffect(this.ctx);
     this.saturation = new SaturationEffect(this.ctx);
+    this.eq = new EQEffect(this.ctx);
 
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 256;
@@ -76,20 +79,21 @@ export class AudioEngine {
     this.reverb.output.connect(this.masterGain);
     this.delay.output.connect(this.masterGain);
 
-    // Chain: masterGain → saturation → compressor → analyser → filter → destination
+    // Chain: masterGain → saturation → EQ → compressor → analyser → filter → destination
     this.masterGain.connect(this.saturation.input);
-    this.saturation.output.connect(this.compressor);
+    this.saturation.output.connect(this.eq.input);
+    this.eq.output.connect(this.compressor);
     this.compressor.connect(this.analyser);
     this.analyser.connect(this.filter.input);
     this.filter.output.connect(this.ctx.destination);
   }
 
   /**
-   * Insert performance FX between saturation and compressor.
+   * Insert performance FX between EQ and compressor.
    */
   insertPerformanceFX(insertIn: GainNode, insertOut: GainNode): void {
-    this.saturation.output.disconnect(this.compressor);
-    this.saturation.output.connect(insertIn);
+    this.eq.output.disconnect(this.compressor);
+    this.eq.output.connect(insertIn);
     insertOut.connect(this.compressor);
   }
 
@@ -97,13 +101,13 @@ export class AudioEngine {
     return this.ctx.resume();
   }
 
-  trigger(instrumentIndex: number, time: number, velocity: number, pitchOffset = 0): void {
+  trigger(instrumentIndex: number, time: number, velocity: number, pitchOffset = 0, gate?: number, glideFrom?: number): void {
     const instrument = INSTRUMENTS[instrumentIndex];
     if (!instrument) return;
 
     // Route through per-row channel strip
     const dest = this.rowGains[instrumentIndex] ?? this.dryBus;
-    instrument.trigger(this.ctx, dest, time, velocity, pitchOffset, this.soundParams[instrumentIndex]);
+    instrument.trigger(this.ctx, dest, time, velocity, pitchOffset, this.soundParams[instrumentIndex], gate, glideFrom);
   }
 
   setRowVolume(row: number, value: number): void {

@@ -15,16 +15,16 @@ npx tsc --noEmit  # Type-check only
 ```
 src/
   main.ts                    # Entry: wires AudioEngine → Sequencer → Scheduler → AppUI
-  types.ts                   # Grid = number[][], VelocityLevel, InstrumentTrigger, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, SoundParams
+  types.ts                   # Grid = number[][], VelocityLevel, InstrumentTrigger, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, SwingGrid, SoundParams
   audio/
-    audio-engine.ts          # Audio routing hub: per-row GainNode+StereoPanner → dry/effects → master → saturation → perf insert → compressor → analyser → filter → destination
+    audio-engine.ts          # Audio routing hub: per-row GainNode+StereoPanner → dry/effects → master → saturation → EQ → perf insert → compressor → analyser → filter → destination
     scheduler.ts             # Look-ahead scheduler (25ms lookahead, 100ms schedule-ahead)
     performance-fx.ts        # Hold-to-engage FX: tape stop, stutter, bitcrush, reverb wash
     wav-exporter.ts          # Offline render to WAV
     instruments/*.ts         # 8 synth instruments (kick, snare, hihat, clap, bass, lead, pad, perc)
-    effects/*.ts             # Reverb (ConvolverNode), Delay (tempo-synced), Filter (BiquadFilter), Saturation (WaveShaperNode)
+    effects/*.ts             # Reverb (ConvolverNode), Delay (tempo-synced), Filter (BiquadFilter), Saturation (WaveShaperNode), EQ (3-band BiquadFilter)
   sequencer/
-    sequencer.ts             # Central state: grids, probabilities, pitchOffsets, noteGrids, rowVolumes, rowPans, filterLocks, ratchets, conditions, soundParams, scale, sidechain, clipboard, history
+    sequencer.ts             # Central state: grids, probabilities, pitchOffsets, noteGrids, rowVolumes, rowPans, filterLocks, ratchets, conditions, gates, slides, rowSwings, soundParams, humanize, scale, sidechain, clipboard, history
     transport.ts             # Play/stop/tap tempo
     mute-state.ts            # Per-row mute/solo
     pattern-chain.ts         # Song mode chain (max 32 entries)
@@ -33,7 +33,7 @@ src/
     url-state.ts             # Binary state encoding: V1 (1-bit), V2 (2-bit velocity), V3 (+probability)
     local-storage.ts         # Auto-save/restore via localStorage (debounced 500ms)
   ui/                        # Pure DOM manipulation, no framework. Constructor pattern: (parent, ...deps) → create DOM, append, wire eventBus
-    help-overlay.ts          # ? button + overlay showing all controls/shortcuts
+    help-overlay.ts          # ? button + overlay — `sections[]` array: Playback, Grid, Mixer, Pattern, Performance FX, Other
     scale-selector.ts        # Root note + scale type dropdowns
     euclidean-popover.ts     # Euclidean rhythm generator popover (hits, rotation, preview, apply)
     sound-shaper.ts          # Per-instrument sound shaping popover (attack, decay, tone, punch knobs)
@@ -70,6 +70,12 @@ styles/
 - **Sound params**: Per-instrument `SoundParams` (attack, decay, tone, punch) — global, not per-bank. 0.5 = factory default. Double-click label opens shaper popover
 - **Tape saturation**: `WaveShaperNode` with `tanh(drive*x)/tanh(drive)` curve. Drive 0=clean, 1=heavy. Inserted between masterGain and compressor
 - **Tempo-synced delay**: Musical divisions (1/2, 1/4, 1/8, etc.) × (60/bpm). Auto-updates when BPM changes via `syncToBpm()`
+- **Master EQ**: 3-band (lowshelf 200Hz, peaking 1kHz Q=1, highshelf 8kHz). Knob 0-1 maps to -12 to +12 dB: `(v - 0.5) * 24`. Chain: saturation → EQ → compressor
+- **Humanize**: Global knob 0-1. Timing jitter `±8% * stepDuration`, velocity variance `±20%`. Applied per-trigger including ratchet subdivisions. Clamp `triggerTime >= ctx.currentTime`
+- **Per-row swing**: `SwingGrid = number[]` per bank (0-0.75). Applied as trigger time offset on odd steps in `scheduleStep()`, NOT in `advanceStep()`. Global Swing knob sets all rows
+- **Gate (note length)**: `GateGrid` values 0-3 indexing `GATE_LEVELS = [0.25, 0.5, 0.75, 1.0]`. `gateDuration = stepDuration * GATE_LEVELS[gate]`. Alt+Right-click cycles. Visual: `.grid-cell-gate` bar at bottom
+- **Slide/Glide**: `SlideGrid = boolean[][]` per bank. Only melodic rows (4,5,6). Scheduler searches backward for previous active note pitch. Instruments ramp frequency over 60ms via `exponentialRampToValueAtTime`
+- **InstrumentTrigger signature**: `(ctx, dest, time, velocity?, pitchOffset?, params?, gate?, glideFrom?)` — gate is 7th param, glideFrom is 8th
 
 ## Gotchas
 
@@ -79,10 +85,15 @@ styles/
 - **InstrumentConfig.color**: Mutable — updated on theme change for particle system colors
 - **History snapshots**: Always include probabilities and noteGrid when pushing to history stack
 - **Note display**: CSS `::before` with `content: attr(data-note)` — set `data-note` attribute on cell, delete attribute when note is 0
-- **Adding shortcuts**: Update both `keyboard-shortcuts.ts` AND `help-overlay.ts` sections to keep them in sync
+- **Adding shortcuts**: Update both `keyboard-shortcuts.ts` AND `help-overlay.ts` to keep in sync. Help overlay uses a `sections` array — add rows to the matching section (Grid, Mixer, etc.)
 - **New CSS files**: Must be `@import`ed in `styles/main.css` or they won't load
 - **FilterLockGrid NaN/null**: NaN means "no lock" in memory; must convert NaN→null for JSON serialization and null→NaN on restore
 - **Knob `setValueSilent(v)`**: Use for programmatic updates (e.g., bank switch) — avoids triggering onChange callbacks
 - **Ratchet/condition visuals**: Use DOM elements (`.grid-cell-ratchet`, `.grid-cell-condition`), NOT CSS pseudo-elements — `::before` is taken by note display, `::after` by probability stripes
 - **Label double-click vs click**: Plain click = mute, shift+click = solo, double-click = open sound shaper. No conflict because dblclick fires after mousedown
 - **SoundParams global**: Sound params are global (not per-bank), like scale. Not cleared on clearBank. Persisted in localStorage
+- **Gate/slide visuals**: Use DOM elements (`.grid-cell-gate`, `.grid-cell-slide`), same pattern as ratchet/condition visuals
+- **Grid cell modifier keys**: Alt+Click = slide toggle, Alt+Right-click = gate cycle. Check `e.altKey` before other branches in handlers
+- **AutoSave accepts audioEngine**: `new AutoSave(sequencer, audioEngine)` — needed for EQ persistence. audioEngine is optional param
+- **Per-row swing vs global swing**: Old `sequencer.swing` kept for backward compat in `loadFullState`. Transport Swing knob sets all per-row swings. Scheduler only uses per-row swings
+- **Humanize global**: `sequencer.humanize` is global (not per-bank), like soundParams. 0 = no effect, 1 = maximum wobble

@@ -1,6 +1,6 @@
 import type { InstrumentTrigger } from '../../types';
 
-export const triggerLead: InstrumentTrigger = (ctx, dest, time, velocity = 1, pitchOffset = 0, params) => {
+export const triggerLead: InstrumentTrigger = (ctx, dest, time, velocity = 1, pitchOffset = 0, params, gate, glideFrom) => {
   const pitchMult = Math.pow(2, pitchOffset / 12);
   const a = params?.attack ?? 0.5;
   const d = params?.decay ?? 0.5;
@@ -8,17 +8,26 @@ export const triggerLead: InstrumentTrigger = (ctx, dest, time, velocity = 1, pi
   const p = params?.punch ?? 0.5;
 
   const fadeIn = 0.005 + a * 0.045;                    // 5-50ms
-  const sustain = 0.15 + d * 0.45;                     // 0.15-0.6s
+  const sustain = gate ?? (0.15 + d * 0.45);           // 0.15-0.6s
   const filterCutoff = (800 + t * 3200) * pitchMult;   // 800-4kHz
   const attackPeak = 0.25 + p * 0.3;                   // 0.25-0.55
 
+  const targetFreq = 440 * pitchMult;
   const osc1 = ctx.createOscillator();
   osc1.type = 'sawtooth';
-  osc1.frequency.setValueAtTime(440 * pitchMult, time);
-
   const osc2 = ctx.createOscillator();
   osc2.type = 'sawtooth';
-  osc2.frequency.setValueAtTime(440 * 1.005 * pitchMult, time);
+
+  if (glideFrom != null) {
+    const fromMult = Math.pow(2, glideFrom / 12);
+    osc1.frequency.setValueAtTime(440 * fromMult, time);
+    osc1.frequency.exponentialRampToValueAtTime(targetFreq, time + 0.06);
+    osc2.frequency.setValueAtTime(440 * 1.005 * fromMult, time);
+    osc2.frequency.exponentialRampToValueAtTime(targetFreq * 1.005, time + 0.06);
+  } else {
+    osc1.frequency.setValueAtTime(targetFreq, time);
+    osc2.frequency.setValueAtTime(targetFreq * 1.005, time);
+  }
 
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';

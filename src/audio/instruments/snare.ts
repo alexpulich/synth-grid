@@ -1,13 +1,13 @@
 import type { InstrumentTrigger } from '../../types';
 
-export const triggerSnare: InstrumentTrigger = (ctx, dest, time, velocity = 1, pitchOffset = 0, params) => {
+export const triggerSnare: InstrumentTrigger = (ctx, dest, time, velocity = 1, pitchOffset = 0, params, gate, _glideFrom) => {
   const pitchMult = Math.pow(2, pitchOffset / 12);
   const a = params?.attack ?? 0.5;
   const d = params?.decay ?? 0.5;
   const t = params?.tone ?? 0.5;
   const p = params?.punch ?? 0.5;
 
-  const noiseDuration = 0.1 + d * 0.3;          // 0.1-0.4s
+  const noiseDuration = gate ?? (0.1 + d * 0.3); // 0.1-0.4s
   const noiseFreq = (3000 + t * 5000) * pitchMult; // 3k-8kHz
   const bodyGain = 0.3 + p * 0.6;               // 0.3-0.9
 
@@ -36,7 +36,7 @@ export const triggerSnare: InstrumentTrigger = (ctx, dest, time, velocity = 1, p
   noiseGain.connect(dest);
 
   // Body component
-  const bodyDuration = 0.05 + a * 0.1;
+  const bodyDuration = Math.min(0.05 + a * 0.1, noiseDuration);
   const osc = ctx.createOscillator();
   osc.type = 'triangle';
   osc.frequency.setValueAtTime(180 * pitchMult, time);

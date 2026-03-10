@@ -1,6 +1,6 @@
 import type { AudioEngine } from './audio-engine';
 import type { Sequencer } from '../sequencer/sequencer';
-import { NUM_STEPS, VELOCITY_MAP } from '../types';
+import { NUM_STEPS, VELOCITY_MAP, GATE_LEVELS, MELODIC_ROWS } from '../types';
 
 function checkCondition(condIndex: number, loopCount: number): boolean {
   switch (condIndex) {
@@ -59,7 +59,12 @@ export class Scheduler {
     const notes = this.sequencer.getCurrentNoteGrid();
     const ratchets = this.sequencer.getCurrentRatchets();
     const conditions = this.sequencer.getCurrentConditions();
+    const gates = this.sequencer.getCurrentGates();
+    const slides = this.sequencer.getCurrentSlides();
+    const rowSwings = this.sequencer.getCurrentRowSwings();
     const stepDuration = 60.0 / this.sequencer.tempo / 4;
+    const humanize = this.sequencer.humanize;
+    const ctxTime = this.audioEngine.ctx.currentTime;
 
     let kickFired = false;
 
@@ -74,15 +79,49 @@ export class Scheduler {
         if (prob >= 1.0 || Math.random() < prob) {
           const totalPitch = pitches[row] + notes[row][step];
           const ratchetCount = ratchets[row][step] ?? 1;
+          const gateLevel = gates[row][step] ?? 1;
+          const gateDuration = stepDuration * GATE_LEVELS[gateLevel];
+
+          // Per-row swing: offset odd steps
+          let triggerTime = time;
+          if (step % 2 === 1) {
+            triggerTime += rowSwings[row] * stepDuration;
+          }
+
+          // Slide/glide: find previous active note pitch for melodic rows
+          let glideFrom: number | undefined;
+          if (MELODIC_ROWS.includes(row as typeof MELODIC_ROWS[number]) && slides[row][step]) {
+            for (let s = 1; s <= NUM_STEPS; s++) {
+              const prevStep = (step - s + NUM_STEPS) % NUM_STEPS;
+              if (grid[row][prevStep] > 0) {
+                glideFrom = pitches[row] + notes[row][prevStep];
+                break;
+              }
+            }
+          }
 
           if (ratchetCount > 1) {
-            // Subdivide step into ratchetCount evenly spaced triggers
             const subDuration = stepDuration / ratchetCount;
             for (let r = 0; r < ratchetCount; r++) {
-              this.audioEngine.trigger(row, time + r * subDuration, VELOCITY_MAP[vel], totalPitch);
+              let subTime = triggerTime + r * subDuration;
+              let subVel = VELOCITY_MAP[vel];
+              if (humanize > 0) {
+                subTime += (Math.random() - 0.5) * 2 * humanize * 0.08 * subDuration;
+                subTime = Math.max(subTime, ctxTime);
+                subVel *= 1 + (Math.random() - 0.5) * 2 * humanize * 0.2;
+                subVel = Math.max(0.01, Math.min(1.0, subVel));
+              }
+              this.audioEngine.trigger(row, subTime, subVel, totalPitch, gateDuration / ratchetCount, r === 0 ? glideFrom : undefined);
             }
           } else {
-            this.audioEngine.trigger(row, time, VELOCITY_MAP[vel], totalPitch);
+            let tVel = VELOCITY_MAP[vel];
+            if (humanize > 0) {
+              triggerTime += (Math.random() - 0.5) * 2 * humanize * 0.08 * stepDuration;
+              triggerTime = Math.max(triggerTime, ctxTime);
+              tVel *= 1 + (Math.random() - 0.5) * 2 * humanize * 0.2;
+              tVel = Math.max(0.01, Math.min(1.0, tVel));
+            }
+            this.audioEngine.trigger(row, triggerTime, tVel, totalPitch, gateDuration, glideFrom);
           }
 
           if (row === 0) kickFired = true;
@@ -113,20 +152,15 @@ export class Scheduler {
       this.audioEngine.filter.scheduleFrequencyPulse(minLock, time, stepDuration * 0.9);
     }
 
-    const delayMs = (time - this.audioEngine.ctx.currentTime) * 1000;
+    const delayMs = (time - ctxTime) * 1000;
     const s = step;
     setTimeout(() => this.onStepAdvance(s), Math.max(0, delayMs));
   }
 
   private advanceStep(): void {
     const secondsPerStep = 60.0 / this.sequencer.tempo / 4;
-    const swingAmount = this.sequencer.swing;
-
-    if (this.currentStep % 2 === 1) {
-      this.nextStepTime += secondsPerStep * (1 + swingAmount);
-    } else {
-      this.nextStepTime += secondsPerStep * (1 - swingAmount);
-    }
+    // All steps evenly spaced; per-row swing is applied in scheduleStep()
+    this.nextStepTime += secondsPerStep;
 
     this.currentStep = (this.currentStep + 1) % NUM_STEPS;
 

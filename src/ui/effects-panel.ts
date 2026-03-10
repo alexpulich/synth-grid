@@ -84,6 +84,13 @@ export class EffectsPanel {
     new Knob(satGroup.knobs, 'Tone', 0.7, (v) => audioEngine.saturation.setTone(v));
     container.appendChild(satGroup.el);
 
+    // EQ
+    const eqGroup = this.createGroup('EQ');
+    new Knob(eqGroup.knobs, 'Low', 0.5, (v) => audioEngine.eq.setLow(v));
+    new Knob(eqGroup.knobs, 'Mid', 0.5, (v) => audioEngine.eq.setMid(v));
+    new Knob(eqGroup.knobs, 'High', 0.5, (v) => audioEngine.eq.setHigh(v));
+    container.appendChild(eqGroup.el);
+
     // Sidechain (requires sequencer)
     if (sequencer) {
       const scGroup = this.createGroup('Sidechain');

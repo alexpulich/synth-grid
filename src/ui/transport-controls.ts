@@ -1,5 +1,6 @@
 import type { Sequencer } from '../sequencer/sequencer';
 import type { Transport } from '../sequencer/transport';
+import { NUM_ROWS } from '../types';
 import { Knob } from './knob';
 import { eventBus } from '../utils/event-bus';
 
@@ -33,9 +34,17 @@ export class TransportControls {
     });
     container.appendChild(tempoSection);
 
-    // Swing knob
-    new Knob(container, 'Swing', this.sequencer.swing / 0.5, (v) => {
-      this.sequencer.swing = v * 0.5;
+    // Swing knob (sets all per-row swings)
+    new Knob(container, 'Swing', 0, (v) => {
+      const swing = v * 0.75;
+      for (let r = 0; r < NUM_ROWS; r++) {
+        this.sequencer.setRowSwing(r, swing);
+      }
+    });
+
+    // Humanize knob
+    new Knob(container, 'Human', this.sequencer.humanize, (v) => {
+      this.sequencer.humanize = v;
     });
 
     // Tap tempo button

@@ -1,6 +1,6 @@
 import { INSTRUMENTS } from './instruments';
 import type { Sequencer } from '../sequencer/sequencer';
-import { NUM_STEPS, VELOCITY_MAP } from '../types';
+import { NUM_STEPS, VELOCITY_MAP, GATE_LEVELS, MELODIC_ROWS } from '../types';
 
 export async function exportToWav(sequencer: Sequencer): Promise<void> {
   const sampleRate = 44100;
@@ -18,21 +18,51 @@ export async function exportToWav(sequencer: Sequencer): Promise<void> {
   const grid = sequencer.getCurrentGrid();
   const pitches = sequencer.getCurrentPitchOffsets();
   const notes = sequencer.getCurrentNoteGrid();
+  const rowSwings = sequencer.getCurrentRowSwings();
+  const gates = sequencer.getCurrentGates();
+  const slides = sequencer.getCurrentSlides();
+  const humanize = sequencer.humanize;
 
   for (let loop = 0; loop < numLoops; loop++) {
     for (let step = 0; step < NUM_STEPS; step++) {
-      const time = (loop * NUM_STEPS + step) * secondsPerStep;
-      const swingOffset = step % 2 === 1 ? sequencer.swing * secondsPerStep : 0;
-      const triggerTime = time + swingOffset;
+      const baseTime = (loop * NUM_STEPS + step) * secondsPerStep;
 
       for (let row = 0; row < grid.length; row++) {
         const vel = grid[row][step];
         if (vel > 0 && sequencer.muteState.isRowAudible(row)) {
           const instrument = INSTRUMENTS[row];
-          if (instrument) {
-            const totalPitch = pitches[row] + notes[row][step];
-            instrument.trigger(offlineCtx, masterGain, triggerTime, VELOCITY_MAP[vel], totalPitch);
+          if (!instrument) continue;
+
+          const totalPitch = pitches[row] + notes[row][step];
+          const gateLevel = gates[row][step] ?? 1;
+          const gateDuration = secondsPerStep * GATE_LEVELS[gateLevel];
+
+          let triggerTime = baseTime;
+          if (step % 2 === 1) {
+            triggerTime += rowSwings[row] * secondsPerStep;
           }
+
+          let tVel = VELOCITY_MAP[vel];
+          if (humanize > 0) {
+            triggerTime += (Math.random() - 0.5) * 2 * humanize * 0.08 * secondsPerStep;
+            triggerTime = Math.max(triggerTime, 0);
+            tVel *= 1 + (Math.random() - 0.5) * 2 * humanize * 0.2;
+            tVel = Math.max(0.01, Math.min(1.0, tVel));
+          }
+
+          // Slide: find previous active note for melodic rows
+          let glideFrom: number | undefined;
+          if (MELODIC_ROWS.includes(row as typeof MELODIC_ROWS[number]) && slides[row][step]) {
+            for (let s = 1; s <= NUM_STEPS; s++) {
+              const prevStep = (step - s + NUM_STEPS) % NUM_STEPS;
+              if (grid[row][prevStep] > 0) {
+                glideFrom = pitches[row] + notes[row][prevStep];
+                break;
+              }
+            }
+          }
+
+          instrument.trigger(offlineCtx, masterGain, triggerTime, tVel, totalPitch, undefined, gateDuration, glideFrom);
         }
       }
     }

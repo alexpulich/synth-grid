@@ -21,6 +21,12 @@ export type NoteGrid = number[][];
 export type FilterLockGrid = number[][]; // NaN = no lock, 0-1 = normalized frequency
 export type RatchetGrid = number[][]; // 1 = normal, 2-4 = repeats within step
 export type ConditionGrid = number[][]; // index into TRIG_CONDITIONS
+export type GateGrid = number[][]; // 0-3 per step (short/normal/long/held)
+export type SlideGrid = boolean[][]; // per-step slide toggle
+export type SwingGrid = number[]; // per-row swing values, 0-0.75
+
+export const GATE_LEVELS = [0.25, 0.5, 0.75, 1.0] as const; // short, normal, long, held
+export const GATE_LABELS = ['S', 'N', 'L', 'H'] as const;
 
 export const MELODIC_ROWS = [4, 5, 6] as const; // bass, lead, pad
 
@@ -44,6 +50,8 @@ export type InstrumentTrigger = (
   velocity?: number,
   pitchOffset?: number,
   params?: SoundParams,
+  gate?: number,
+  glideFrom?: number,
 ) => void;
 
 export interface InstrumentConfig {

@@ -1,5 +1,5 @@
 import { NUM_ROWS, NUM_STEPS, NUM_BANKS, VELOCITY_OFF, VELOCITY_LOUD, PROBABILITY_LEVELS, MELODIC_ROWS, DEFAULT_SOUND_PARAMS } from '../types';
-import type { Grid, VelocityLevel, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, SoundParams } from '../types';
+import type { Grid, VelocityLevel, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, SoundParams } from '../types';
 import { clamp } from '../utils/math';
 import { euclidean, rotatePattern } from '../utils/euclidean';
 import { eventBus } from '../utils/event-bus';
@@ -27,6 +27,14 @@ function createEmptyConditionGrid(): ConditionGrid {
   return Array.from({ length: NUM_ROWS }, () => new Array<number>(NUM_STEPS).fill(0));
 }
 
+function createEmptyGateGrid(): GateGrid {
+  return Array.from({ length: NUM_ROWS }, () => new Array<number>(NUM_STEPS).fill(1)); // 1 = normal
+}
+
+function createEmptySlideGrid(): SlideGrid {
+  return Array.from({ length: NUM_ROWS }, () => new Array<boolean>(NUM_STEPS).fill(false));
+}
+
 export class Sequencer {
   private grids: Grid[];
   private probabilities: ProbabilityGrid[];
@@ -37,6 +45,9 @@ export class Sequencer {
   private filterLocks: FilterLockGrid[];
   private ratchets: RatchetGrid[];
   private conditions: ConditionGrid[];
+  private gates: GateGrid[];
+  private slides: SlideGrid[];
+  private rowSwings: number[][];
   private _activeBank = 0;
   private _tempo = 120;
   private _swing = 0;
@@ -48,6 +59,7 @@ export class Sequencer {
   private _sidechainDepth = 0.7;
   private _sidechainRelease = 0.15;
   private _loopCount = 0;
+  private _humanize = 0;
   private _soundParams: SoundParams[] = Array.from({ length: NUM_ROWS }, () => ({ ...DEFAULT_SOUND_PARAMS }));
   private clipboard: { grid: Grid; probabilities: ProbabilityGrid; noteGrid: NoteGrid } | null = null;
   readonly history = new History();
@@ -66,6 +78,9 @@ export class Sequencer {
     this.filterLocks = Array.from({ length: NUM_BANKS }, () => createEmptyFilterLockGrid());
     this.ratchets = Array.from({ length: NUM_BANKS }, () => createEmptyRatchetGrid());
     this.conditions = Array.from({ length: NUM_BANKS }, () => createEmptyConditionGrid());
+    this.gates = Array.from({ length: NUM_BANKS }, () => createEmptyGateGrid());
+    this.slides = Array.from({ length: NUM_BANKS }, () => createEmptySlideGrid());
+    this.rowSwings = Array.from({ length: NUM_BANKS }, () => new Array<number>(NUM_ROWS).fill(0));
   }
 
   private pushHistory(): void {
@@ -320,6 +335,68 @@ export class Sequencer {
     return this._soundParams;
   }
 
+  // Humanize (global, not per-bank)
+  get humanize(): number { return this._humanize; }
+  set humanize(val: number) {
+    this._humanize = clamp(val, 0, 1);
+    eventBus.emit('humanize:changed', this._humanize);
+  }
+
+  // Per-row swing (per-bank)
+  getRowSwing(row: number): number {
+    return this.rowSwings[this._activeBank][row] ?? 0;
+  }
+
+  setRowSwing(row: number, swing: number): void {
+    this.rowSwings[this._activeBank][row] = clamp(swing, 0, 0.75);
+    eventBus.emit('swing:changed', { row, swing: this.rowSwings[this._activeBank][row] });
+  }
+
+  getCurrentRowSwings(): number[] {
+    return this.rowSwings[this._activeBank];
+  }
+
+  getAllRowSwings(): number[][] {
+    return this.rowSwings;
+  }
+
+  // Gate (per-step note length)
+  getGate(row: number, step: number): number {
+    return this.gates[this._activeBank][row][step] ?? 1;
+  }
+
+  setGate(row: number, step: number, gate: number): void {
+    this.gates[this._activeBank][row][step] = clamp(gate, 0, 3);
+    eventBus.emit('gate:changed', { row, step, gate: this.gates[this._activeBank][row][step] });
+  }
+
+  getCurrentGates(): GateGrid {
+    return this.gates[this._activeBank];
+  }
+
+  getAllGates(): GateGrid[] {
+    return this.gates;
+  }
+
+  // Slide (per-step pitch glide, melodic rows only)
+  getSlide(row: number, step: number): boolean {
+    return this.slides[this._activeBank][row][step] ?? false;
+  }
+
+  setSlide(row: number, step: number, slide: boolean): void {
+    if (!MELODIC_ROWS.includes(row as typeof MELODIC_ROWS[number])) return;
+    this.slides[this._activeBank][row][step] = slide;
+    eventBus.emit('slide:changed', { row, step, slide });
+  }
+
+  getCurrentSlides(): SlideGrid {
+    return this.slides[this._activeBank];
+  }
+
+  getAllSlides(): SlideGrid[] {
+    return this.slides;
+  }
+
   loadSoundParams(params: SoundParams[]): void {
     for (let i = 0; i < NUM_ROWS; i++) {
       if (params[i]) {
@@ -341,6 +418,9 @@ export class Sequencer {
     this.filterLocks[this._activeBank] = createEmptyFilterLockGrid();
     this.ratchets[this._activeBank] = createEmptyRatchetGrid();
     this.conditions[this._activeBank] = createEmptyConditionGrid();
+    this.gates[this._activeBank] = createEmptyGateGrid();
+    this.slides[this._activeBank] = createEmptySlideGrid();
+    this.rowSwings[this._activeBank] = new Array<number>(NUM_ROWS).fill(0);
     eventBus.emit('grid:cleared');
   }
 
@@ -398,6 +478,8 @@ export class Sequencer {
     const locks = this.filterLocks[this._activeBank];
     const ratch = this.ratchets[this._activeBank];
     const conds = this.conditions[this._activeBank];
+    const gts = this.gates[this._activeBank];
+    const slds = this.slides[this._activeBank];
     for (let row = 0; row < NUM_ROWS; row++) {
       grid[row].push(grid[row].shift()!);
       probs[row].push(probs[row].shift()!);
@@ -405,6 +487,8 @@ export class Sequencer {
       locks[row].push(locks[row].shift()!);
       ratch[row].push(ratch[row].shift()!);
       conds[row].push(conds[row].shift()!);
+      gts[row].push(gts[row].shift()!);
+      slds[row].push(slds[row].shift()!);
     }
     eventBus.emit('grid:cleared');
   }
@@ -417,6 +501,8 @@ export class Sequencer {
     const locks = this.filterLocks[this._activeBank];
     const ratch = this.ratchets[this._activeBank];
     const conds = this.conditions[this._activeBank];
+    const gts = this.gates[this._activeBank];
+    const slds = this.slides[this._activeBank];
     for (let row = 0; row < NUM_ROWS; row++) {
       grid[row].unshift(grid[row].pop()!);
       probs[row].unshift(probs[row].pop()!);
@@ -424,6 +510,8 @@ export class Sequencer {
       locks[row].unshift(locks[row].pop()!);
       ratch[row].unshift(ratch[row].pop()!);
       conds[row].unshift(conds[row].pop()!);
+      gts[row].unshift(gts[row].pop()!);
+      slds[row].unshift(slds[row].pop()!);
     }
     eventBus.emit('grid:cleared');
   }
@@ -451,6 +539,9 @@ export class Sequencer {
     filterLocks?: FilterLockGrid[],
     ratchets?: RatchetGrid[],
     conditions?: ConditionGrid[],
+    rowSwings?: number[][],
+    gates?: GateGrid[],
+    slides?: SlideGrid[],
   ): void {
     for (let b = 0; b < NUM_BANKS; b++) {
       if (grids[b]) {
@@ -495,6 +586,21 @@ export class Sequencer {
         this.conditions[b] = conditions[b].map((row) => [...row]);
       } else {
         this.conditions[b] = createEmptyConditionGrid();
+      }
+      if (rowSwings?.[b]) {
+        this.rowSwings[b] = [...rowSwings[b]];
+      } else {
+        this.rowSwings[b] = new Array<number>(NUM_ROWS).fill(0);
+      }
+      if (gates?.[b]) {
+        this.gates[b] = gates[b].map((row) => [...row]);
+      } else {
+        this.gates[b] = createEmptyGateGrid();
+      }
+      if (slides?.[b]) {
+        this.slides[b] = slides[b].map((row) => [...row]);
+      } else {
+        this.slides[b] = createEmptySlideGrid();
       }
     }
     this._tempo = clamp(tempo, 30, 300);

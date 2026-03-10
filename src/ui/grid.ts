@@ -1,4 +1,4 @@
-import { NUM_ROWS, NUM_STEPS, VELOCITY_OFF, VELOCITY_LOUD, MELODIC_ROWS, TRIG_CONDITIONS } from '../types';
+import { NUM_ROWS, NUM_STEPS, VELOCITY_OFF, VELOCITY_LOUD, MELODIC_ROWS, TRIG_CONDITIONS, GATE_LEVELS, GATE_LABELS } from '../types';
 import type { VelocityLevel } from '../types';
 import { INSTRUMENTS } from '../audio/instruments';
 import type { Sequencer } from '../sequencer/sequencer';
@@ -16,6 +16,7 @@ export class GridUI {
   private pitchDisplays: HTMLElement[] = [];
   private volumeKnobs: Knob[] = [];
   private panKnobs: Knob[] = [];
+  private swingKnobs: Knob[] = [];
   private euclideanPopover: EuclideanPopover;
   private soundShaper: SoundShaper;
 
@@ -102,6 +103,11 @@ export class GridUI {
       });
       this.panKnobs[row] = panKnob;
 
+      const swingKnob = new Knob(mixerCtrl, 'S', this.sequencer.getRowSwing(row) / 0.75, (v) => {
+        this.sequencer.setRowSwing(row, v * 0.75);
+      });
+      this.swingKnobs[row] = swingKnob;
+
       rowEl.appendChild(mixerCtrl);
 
       // Euclidean button
@@ -160,6 +166,16 @@ export class GridUI {
       const row = Number(cell.dataset.row);
       const step = Number(cell.dataset.step);
 
+      // Alt+Click: toggle slide (melodic rows only, active cells only)
+      if (e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        const grid = this.sequencer.getCurrentGrid();
+        if (MELODIC_ROWS.includes(row as typeof MELODIC_ROWS[number]) && grid[row][step] > 0) {
+          const current = this.sequencer.getSlide(row, step);
+          this.sequencer.setSlide(row, step, !current);
+        }
+        return;
+      }
+
       // Shift+click: cycle velocity
       if (e.shiftKey) {
         this.sequencer.cycleVelocity(row, step);
@@ -177,14 +193,21 @@ export class GridUI {
       this.applyDrag(row, step);
     });
 
-    // Right-click: cycle probability, Shift+right-click: clear filter lock, Ctrl+right-click: cycle condition
+    // Right-click: cycle probability, Alt+right-click: cycle gate, Shift+right-click: clear filter lock, Ctrl+right-click: cycle condition
     this.container.addEventListener('contextmenu', (e) => {
       const cell = (e.target as HTMLElement).closest('.grid-cell') as HTMLElement | null;
       if (!cell) return;
       e.preventDefault();
       const row = Number(cell.dataset.row);
       const step = Number(cell.dataset.step);
-      if (e.ctrlKey || e.metaKey) {
+      if (e.altKey) {
+        // Cycle gate: 0→1→2→3→0
+        const grid = this.sequencer.getCurrentGrid();
+        if (grid[row][step] > 0) {
+          const current = this.sequencer.getGate(row, step);
+          this.sequencer.setGate(row, step, (current + 1) % GATE_LEVELS.length);
+        }
+      } else if (e.ctrlKey || e.metaKey) {
         // Cycle trig condition
         const current = this.sequencer.getCondition(row, step);
         this.sequencer.setCondition(row, step, (current + 1) % TRIG_CONDITIONS.length);
@@ -337,6 +360,16 @@ export class GridUI {
       this.updateConditionVisual(row, step, condition);
     });
 
+    // Gate changed
+    eventBus.on('gate:changed', ({ row, step, gate }) => {
+      this.updateGateVisual(row, step, gate);
+    });
+
+    // Slide changed
+    eventBus.on('slide:changed', ({ row, step, slide }) => {
+      this.updateSlideVisual(row, step, slide);
+    });
+
     // Theme change: update INSTRUMENTS color for particle system
     eventBus.on('theme:changed', () => {
       for (let row = 0; row < NUM_ROWS; row++) {
@@ -392,6 +425,8 @@ export class GridUI {
     const locks = this.sequencer.getCurrentFilterLocks();
     const ratchets = this.sequencer.getCurrentRatchets();
     const conditions = this.sequencer.getCurrentConditions();
+    const gates = this.sequencer.getCurrentGates();
+    const slides = this.sequencer.getCurrentSlides();
     for (let row = 0; row < NUM_ROWS; row++) {
       for (let step = 0; step < NUM_STEPS; step++) {
         const vel = grid[row][step];
@@ -403,6 +438,8 @@ export class GridUI {
         this.updateFilterLockVisual(row, step, locks[row][step]);
         this.updateRatchetVisual(row, step, ratchets[row][step]);
         this.updateConditionVisual(row, step, conditions[row][step]);
+        this.updateGateVisual(row, step, gates[row][step]);
+        this.updateSlideVisual(row, step, slides[row][step]);
       }
     }
     this.refreshPitchDisplays();
@@ -427,9 +464,11 @@ export class GridUI {
   private refreshMixerKnobs(): void {
     const volumes = this.sequencer.getCurrentRowVolumes();
     const pans = this.sequencer.getCurrentRowPans();
+    const swings = this.sequencer.getCurrentRowSwings();
     for (let row = 0; row < NUM_ROWS; row++) {
       this.volumeKnobs[row]?.setValueSilent(volumes[row]);
       this.panKnobs[row]?.setValueSilent((pans[row] + 1) / 2); // -1..1 → 0..1
+      this.swingKnobs[row]?.setValueSilent(swings[row] / 0.75); // 0..0.75 → 0..1
     }
   }
 
@@ -483,6 +522,40 @@ export class GridUI {
       cell.dataset.condition = TRIG_CONDITIONS[condition];
     } else {
       delete cell.dataset.condition;
+    }
+  }
+
+  private updateGateVisual(row: number, step: number, gate: number): void {
+    const cell = this.cells[row]?.[step];
+    if (!cell) return;
+    let bar = cell.querySelector('.grid-cell-gate') as HTMLElement | null;
+    if (gate === 1) {
+      // Normal (default) — remove visual
+      if (bar) bar.remove();
+      return;
+    }
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.className = 'grid-cell-gate';
+      cell.appendChild(bar);
+    }
+    bar.style.width = `${Math.round(GATE_LEVELS[gate] * 100)}%`;
+    bar.dataset.gate = GATE_LABELS[gate];
+  }
+
+  private updateSlideVisual(row: number, step: number, slide: boolean): void {
+    const cell = this.cells[row]?.[step];
+    if (!cell) return;
+    let marker = cell.querySelector('.grid-cell-slide') as HTMLElement | null;
+    if (!slide) {
+      if (marker) marker.remove();
+      return;
+    }
+    if (!marker) {
+      marker = document.createElement('div');
+      marker.className = 'grid-cell-slide';
+      marker.textContent = '/';
+      cell.appendChild(marker);
     }
   }
 }

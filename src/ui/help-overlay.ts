@@ -36,6 +36,8 @@ export class HelpOverlay {
           ['Shift + Right-click', 'Clear filter lock'],
           ['Ctrl + Scroll', 'Set ratchet repeats (\u00d72, \u00d73, \u00d74)'],
           ['Ctrl + Right-click', 'Cycle trig condition (1:2, 2:2, 1:4, etc.)'],
+          ['Alt + Right-click', 'Cycle note gate: Short \u2192 Normal \u2192 Long \u2192 Held'],
+          ['Alt + Click', 'Toggle slide/glide (melodic rows)'],
         ],
       },
       {
@@ -43,6 +45,7 @@ export class HelpOverlay {
         rows: [
           ['V knob (per row)', 'Volume (drag up/down)'],
           ['P knob (per row)', 'Pan (drag up/down)'],
+          ['S knob (per row)', 'Swing amount (drag up/down)'],
           ['E button (per row)', 'Euclidean rhythm generator'],
           ['Double-click label', 'Open sound shaper'],
         ],

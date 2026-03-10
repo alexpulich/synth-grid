@@ -1,4 +1,5 @@
 import type { Sequencer } from '../sequencer/sequencer';
+import type { AudioEngine } from '../audio/audio-engine';
 import type { Grid, ProbabilityGrid, NoteGrid, SoundParams } from '../types';
 import { eventBus } from '../utils/event-bus';
 
@@ -24,6 +25,13 @@ interface SavedState {
   saturationDrive?: number;
   saturationTone?: number;
   delayDivision?: number;
+  humanize?: number;
+  rowSwings?: number[][];
+  gates?: number[][][];
+  slides?: boolean[][][];
+  eqLow?: number;
+  eqMid?: number;
+  eqHigh?: number;
   tempo: number;
   swing: number;
   activeBank: number;
@@ -32,7 +40,7 @@ interface SavedState {
 export class AutoSave {
   private timer: number | null = null;
 
-  constructor(private sequencer: Sequencer) {
+  constructor(private sequencer: Sequencer, private audioEngine?: AudioEngine) {
     const scheduleSave = () => this.debouncedSave();
 
     eventBus.on('cell:toggled', scheduleSave);
@@ -50,6 +58,10 @@ export class AutoSave {
     eventBus.on('ratchet:changed', scheduleSave);
     eventBus.on('condition:changed', scheduleSave);
     eventBus.on('soundparam:changed', scheduleSave);
+    eventBus.on('humanize:changed', scheduleSave);
+    eventBus.on('swing:changed', scheduleSave);
+    eventBus.on('gate:changed', scheduleSave);
+    eventBus.on('slide:changed', scheduleSave);
   }
 
   private debouncedSave(): void {
@@ -81,6 +93,13 @@ export class AutoSave {
       ratchets: this.sequencer.getAllRatchets().map((bank) => bank.map((row) => [...row])),
       conditions: this.sequencer.getAllConditions().map((bank) => bank.map((row) => [...row])),
       soundParams: this.sequencer.getAllSoundParams().map((p) => ({ ...p })),
+      humanize: this.sequencer.humanize,
+      rowSwings: this.sequencer.getAllRowSwings().map((bank) => [...bank]),
+      gates: this.sequencer.getAllGates().map((bank) => bank.map((row) => [...row])),
+      slides: this.sequencer.getAllSlides().map((bank) => bank.map((row) => [...row])),
+      eqLow: this.audioEngine?.eq.low,
+      eqMid: this.audioEngine?.eq.mid,
+      eqHigh: this.audioEngine?.eq.high,
       tempo: this.sequencer.tempo,
       swing: this.sequencer.swing,
       activeBank: this.sequencer.activeBank,
