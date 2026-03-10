@@ -2,17 +2,17 @@
 
 ## Goal
 
-Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 7 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, mobile support, or anything else you see fit.
+Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 8 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, mobile support, or anything else you see fit.
 
 ## Current State
 
-- **56 TypeScript files, 15 CSS files, ~18,500 lines of code**
-- **Latest commit**: `1f5ca78` — Round 7 complete
+- **58 TypeScript files, 16 CSS files, ~19,300 lines of code**
+- **Latest commit**: `f8c54fb` — Round 8 complete
 - **No test suite** — verification has been manual via browser
 - **No lint config** — only `npx tsc --noEmit` for type checking
 - **Deployment**: Dockerfile + GitHub Actions CI/CD exist
 
-### What's Built (Rounds 1-7)
+### What's Built (Rounds 1-8)
 
 | Round | Features |
 |-------|----------|
@@ -42,6 +42,9 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **Plan-then-implement**: Writing detailed plans before coding (stored in `.claude/plans/`) prevented rework
 - **Type checking as verification**: `npx tsc --noEmit` catches most issues; browser preview for the rest
 - **DOM elements for cell overlays**: Using child elements (`.grid-cell-ratchet`, `.grid-cell-gate`, etc.) instead of CSS pseudo-elements, since `::before` and `::after` are taken by note display and probability stripes
+- **Silent setter pattern**: `setNoteOffsetSilent()` / `setCell()` skip history push for batch drag operations — call `pushHistorySnapshot()` once at drag start. Keeps undo clean
+- **Modal pattern for complex editors**: Piano roll uses a full-screen overlay (like help overlay) rather than a positioned popover — gives enough space for 2D grids. `position: fixed; z-index: 1000` with backdrop blur
+- **Scale-aware pitch computation**: Piano roll dynamically rebuilds pitch rows when scale changes — chromatic shows 25 rows, non-chromatic shows only in-scale notes. Uses `scaleDegreesToSemitones()` to enumerate valid pitches
 
 ## What Didn't Work / Gotchas
 
@@ -50,6 +53,7 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **FilterLockGrid NaN/null**: NaN in memory, null in JSON. Easy to forget the conversion
 - **Strict TypeScript + Web Audio**: Need `new Float32Array(new ArrayBuffer(n * 4))` and `Uint8Array<ArrayBuffer>` for strict mode compatibility
 - **File has not been read yet**: The Edit tool requires reading a file first in the same session. Always `Read` before `Edit`
+- **Grid alignment with conditional buttons**: Piano roll ♪ button only shows on melodic rows — non-melodic rows need invisible spacer elements (`.grid-piano-btn--spacer` with `visibility: hidden`) to keep step cells aligned across all rows
 
 ## Potential Next Directions
 
@@ -61,10 +65,10 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 - **Effects per row**: Individual delay/reverb/filter sends per instrument (currently master-only)
 - **Automation lanes**: Per-step automation of any parameter (filter cutoff, volume, pan)
 - **Polyrhythm/polymeter**: Different step counts per row (not just 16)
-- **Piano roll view**: Alternative note entry for melodic rows
 - **Preset sharing**: Import/export full presets as JSON or URL
 - **Collaborative mode**: WebRTC or WebSocket-based real-time jam sessions
 - **Audio input**: Sidechain from mic/line-in, sampler from live input
+- **Piano roll enhancements**: Velocity editing in piano roll (shift+click to cycle), keyboard arrow navigation, row copy/paste from piano roll view
 
 ### Technical Improvements
 - **Testing**: Add Vitest for unit tests (audio logic, sequencer state, serialization)
@@ -92,6 +96,7 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 | `src/audio/scheduler.ts` | Core scheduling loop |
 | `src/audio/audio-engine.ts` | Audio routing graph |
 | `src/ui/grid.ts` | Main grid UI (largest UI file) |
+| `src/ui/piano-roll.ts` | Piano roll modal — good example of modal pattern + scale-aware UI |
 | `src/utils/event-bus.ts` | Event system — `EventMap` interface shows all events |
 
 ## Commands
