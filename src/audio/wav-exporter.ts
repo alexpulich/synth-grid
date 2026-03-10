@@ -1,8 +1,9 @@
 import { INSTRUMENTS } from './instruments';
 import type { Sequencer } from '../sequencer/sequencer';
+import type { AudioEngine } from './audio-engine';
 import { NUM_STEPS, VELOCITY_MAP, GATE_LEVELS, MELODIC_ROWS } from '../types';
 
-export async function exportToWav(sequencer: Sequencer): Promise<void> {
+export async function exportToWav(sequencer: Sequencer, audioEngine?: AudioEngine): Promise<void> {
   const sampleRate = 44100;
   const tempo = sequencer.tempo;
   const secondsPerStep = 60.0 / tempo / 4;
@@ -62,7 +63,15 @@ export async function exportToWav(sequencer: Sequencer): Promise<void> {
             }
           }
 
-          instrument.trigger(offlineCtx, masterGain, triggerTime, tVel, totalPitch, undefined, gateDuration, glideFrom);
+          // Use sample trigger if row is in sample mode
+          if (audioEngine?.useSample[row] && audioEngine.sampleEngine.hasSample(row)) {
+            const sampleTrigger = audioEngine.sampleEngine.getTrigger(row);
+            if (sampleTrigger) {
+              sampleTrigger(offlineCtx, masterGain, triggerTime, tVel, totalPitch, undefined, gateDuration, glideFrom);
+            }
+          } else {
+            instrument.trigger(offlineCtx, masterGain, triggerTime, tVel, totalPitch, undefined, gateDuration, glideFrom);
+          }
         }
       }
     }

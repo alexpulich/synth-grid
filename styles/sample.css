@@ -1,0 +1,115 @@
+/* Sample indicator on row label */
+.grid-row-label--sample {
+  position: relative;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+/* Drop zone highlight on row label */
+.grid-row-label--drop-target {
+  outline: 2px dashed var(--color-text);
+  outline-offset: -2px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Waveform preview in sound shaper */
+.waveform-preview {
+  width: 200px;
+  height: 60px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: crosshair;
+  background: var(--color-surface-light, rgba(255, 255, 255, 0.03));
+}
+
+/* Sample controls in sound shaper */
+.sound-shaper-sample-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.sound-shaper-sample-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.sample-load-btn,
+.sample-remove-btn {
+  padding: 2px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: var(--color-surface);
+  color: var(--color-text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.sample-load-btn:hover,
+.sample-remove-btn:hover {
+  border-color: var(--color-text);
+  color: var(--color-text);
+}
+
+.sample-loop-toggle {
+  padding: 2px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: var(--color-surface);
+  color: var(--color-text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.sample-loop-toggle--active {
+  border-color: var(--color-lead);
+  color: var(--color-lead);
+}
+
+/* Mode toggle in sound shaper title */
+.sound-shaper-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.sound-shaper-mode-btn {
+  padding: 2px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: var(--color-surface);
+  color: var(--color-text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  cursor: pointer;
+  margin-left: auto;
+  outline: none;
+}
+
+.sound-shaper-mode-btn:hover {
+  border-color: var(--color-text);
+  color: var(--color-text);
+}
+
+.sound-shaper-mode-btn--sample {
+  color: var(--color-lead);
+  border-color: var(--color-lead);
+}
+
+.sound-shaper-filename {
+  font-size: 0.55rem;
+  color: var(--color-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+  text-align: center;
+}

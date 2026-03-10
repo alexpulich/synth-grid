@@ -15,16 +15,17 @@ npx tsc --noEmit  # Type-check only
 ```
 src/
   main.ts                    # Entry: wires AudioEngine → Sequencer → Scheduler → AppUI
-  types.ts                   # Grid = number[][], VelocityLevel, InstrumentTrigger, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, SwingGrid, SoundParams, MidiCCMapping, MidiDeviceInfo
+  types.ts                   # Grid = number[][], VelocityLevel, InstrumentTrigger, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, SwingGrid, SoundParams, MidiCCMapping, MidiDeviceInfo, SampleMeta
   audio/
-    audio-engine.ts          # Audio routing hub: per-row GainNode+StereoPanner → dry/effects → master → saturation → EQ → perf insert → compressor → analyser → filter → destination
+    audio-engine.ts          # Audio routing hub: per-row GainNode+StereoPanner → dry + per-row reverb/delay sends → master → saturation → EQ → perf insert → compressor → analyser → filter → destination
+    sample-engine.ts         # Per-row AudioBuffer storage, decode, cached trigger functions for sample playback
     scheduler.ts             # Look-ahead scheduler (25ms lookahead, 100ms schedule-ahead)
     performance-fx.ts        # Hold-to-engage FX: tape stop, stutter, bitcrush, reverb wash
-    wav-exporter.ts          # Offline render to WAV
+    wav-exporter.ts          # Offline render to WAV (supports synth + sample modes)
     instruments/*.ts         # 8 synth instruments (kick, snare, hihat, clap, bass, lead, pad, perc)
     effects/*.ts             # Reverb (ConvolverNode), Delay (tempo-synced), Filter (BiquadFilter), Saturation (WaveShaperNode), EQ (3-band BiquadFilter)
   sequencer/
-    sequencer.ts             # Central state: grids, probabilities, pitchOffsets, noteGrids, rowVolumes, rowPans, filterLocks, ratchets, conditions, gates, slides, rowSwings, soundParams, humanize, scale, sidechain, clipboard, history
+    sequencer.ts             # Central state: grids, probabilities, pitchOffsets, noteGrids, rowVolumes, rowPans, reverbSends, delaySends, filterLocks, ratchets, conditions, gates, slides, rowSwings, soundParams, humanize, scale, sidechain, clipboard, history
     transport.ts             # Play/stop/tap tempo
     mute-state.ts            # Per-row mute/solo
     pattern-chain.ts         # Song mode chain (max 32 entries)
@@ -32,11 +33,13 @@ src/
     history.ts               # Undo/redo stack (max 50)
     url-state.ts             # Binary state encoding: V1 (1-bit), V2 (2-bit velocity), V3 (+probability)
     local-storage.ts         # Auto-save/restore via localStorage (debounced 500ms)
+    sample-storage.ts        # IndexedDB wrapper for persisting raw sample ArrayBuffers (50MB limit)
   ui/                        # Pure DOM manipulation, no framework. Constructor pattern: (parent, ...deps) → create DOM, append, wire eventBus
     help-overlay.ts          # ? button + overlay — `sections[]` array: Playback, Grid, Mixer, Pattern, Performance FX, MIDI, Other
     scale-selector.ts        # Root note + scale type dropdowns
     euclidean-popover.ts     # Euclidean rhythm generator popover (hits, rotation, preview, apply)
-    sound-shaper.ts          # Per-instrument sound shaping popover (attack, decay, tone, punch knobs)
+    sound-shaper.ts          # Per-instrument sound shaping popover — dual mode: synth (ADTP knobs) / sample (waveform, trim, loop, load/remove)
+    waveform-preview.ts      # Canvas waveform display with draggable trim start/end handles
     piano-roll.ts            # Piano roll modal for melodic rows (visual note editor, drag paint, note preview, playhead)
     midi-panel.ts            # MIDI settings popover (device list, CC learn, mapping management)
     toast.ts                 # Singleton showToast(message, type?) — auto-dismissing notifications (3s, max 3)
@@ -56,6 +59,7 @@ styles/
   help.css                   # Help overlay styles
   toast.css                  # Toast notification styles (fixed bottom-center, z-index 2000)
   cell-context-menu.css      # Cell context menu popover styles (z-index 950)
+  sample.css                 # Sample indicator, drop zone, waveform preview, sample controls styling
 ```
 
 ## Key Patterns
@@ -98,6 +102,12 @@ styles/
 - **Cell hover tooltip**: Shows non-default attributes after 400ms hover delay. Only for active cells. Hides when context menu opens. Uses `sequencer` getters for all 8 cell data layers
 - **Knob drag tooltip**: Lazy-created on first drag. Uses existing `KnobOptions.formatValue` callback. Shows formatted value above knob during drag, hides 500ms after release
 - **CSS transitions**: `app-fade-in` (400ms page load), `bank-switch-flash` (200ms grid cells), `modal-slide-in` (300ms help/piano-roll), button `:active` scale(0.95)
+- **Per-row effect sends**: Each row has independent `rowReverbSends[i]` and `rowDelaySends[i]` GainNodes. Routing: `pan → dryBus(1.0) + rowReverbSend(0.3) + rowDelaySend(0.25)`. Sends are per-bank state (like volume/pan). R/D knobs in mixer strip
+- **Sample engine**: `SampleEngine` stores per-row `AudioBuffer`, `SampleMeta` (filename, trimStart, trimEnd, loop), and cached `InstrumentTrigger` functions. `audio-engine.trigger()` checks `useSample[row]` and delegates to sample or synth trigger. Pitch via `playbackRate`, velocity via gain, gate via duration, glide via ramp
+- **Sample loading**: Drag WAV/MP3/OGG/M4A onto row label → `sample:load-request` event → decode → store in `SampleEngine` + IndexedDB. File picker also available in sound shaper sample mode
+- **Sample persistence**: Raw `ArrayBuffer` stored in IndexedDB (`sample-storage.ts`, 50MB limit). Metadata (`useSample`, `sampleMetas`) in localStorage. Both restored on page load — IndexedDB async, localStorage sync
+- **Sound shaper dual mode**: Synth mode shows ADTP knobs. Sample mode shows waveform preview + trim handles + loop toggle + load/remove buttons. Mode toggle button in title bar. `useSample` flag per row (global, not per-bank)
+- **Waveform preview**: Canvas 200x60px drawing with min/max envelope. Draggable trim start/end handles (2px cyan lines with triangle grips). Active region highlighted. `onChange` callback emits `sample:meta-changed`
 
 ## Gotchas
 
@@ -131,3 +141,12 @@ styles/
 - **Cell tooltip only shows non-defaults**: Active cells with all defaults (vel=Loud, prob=100%, ratchet=1x, etc.) show no tooltip. Uses middle dot separator for attributes
 - **Toast wired to events not buttons**: Toast for "Bank cleared" fires via `grid:cleared` event in `app.ts`, not in button click handlers. All toast triggers go through events for consistency
 - **Knob tooltip lazy creation**: Tooltip div created on first mousedown/touchstart, not in constructor. Reused for subsequent drags
+- **Sample state split**: `useSample` and `SampleMeta` are global (not per-bank), like soundParams. `reverbSends`/`delaySends` are per-bank (like volume/pan). AudioBuffer data lives in IndexedDB, metadata in localStorage
+- **IndexedDB async restore**: Sample buffers are restored from IndexedDB asynchronously after page load. The `sampleStorage.loadAll().then(...)` runs in background — UI updates via `sample:loaded` events as each buffer decodes
+- **WAV exporter accepts audioEngine**: `exportToWav(sequencer, audioEngine?)` — audioEngine is optional for backward compat. When provided, checks `useSample[row]` to render samples in export
+- **Drag-and-drop file filter**: Row label drop handler filters by file extension (`/\.(wav|mp3|ogg|m4a)$/i`). Non-audio files are silently ignored
+- **Label drop visual**: `.grid-row-label--drop-target` class adds dashed outline during dragover. `.grid-row-label--sample` adds dotted underline when sample is loaded
+- **Adding per-bank state**: Follow reverbSends/delaySends pattern: (1) add array + init in sequencer constructor, (2) add getter/setter/getAll/getCurrent methods, (3) update `clearCurrentBank()` and `loadFullState()`, (4) add event to EventMap, (5) add `eventBus.on(...)` in local-storage.ts for auto-save, (6) add to SavedState interface + save() + load(), (7) wire event → audioEngine in app.ts, (8) sync on bank change in app.ts, (9) add UI control in grid.ts
+- **app.ts wiring hub**: All cross-component wiring lives in app.ts: event → audio engine, bank change sync, state restore from localStorage/IndexedDB, MIDI CC target application, sample load/remove handlers. When adding a new feature, app.ts almost always needs updates
+- **`readonly` for future-use constructor params**: Use `readonly` instead of `private` for constructor params not yet read (e.g., passed through for Phase N+1). Avoids TS6138 "declared but value never read" while keeping the param accessible
+- **Vite stale transform errors**: If Vite reports "Failed to resolve import" for a file that exists, restart the dev server. Vite caches transform errors from previous sessions and doesn't re-check until restart

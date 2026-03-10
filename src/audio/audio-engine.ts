@@ -6,12 +6,12 @@ import { DelayEffect } from './effects/delay';
 import { FilterEffect } from './effects/filter';
 import { SaturationEffect } from './effects/saturation';
 import { EQEffect } from './effects/eq';
+import { SampleEngine } from './sample-engine';
 
 export class AudioEngine {
   readonly ctx: AudioContext;
   readonly masterGain: GainNode;
   readonly dryBus: GainNode;
-  private effectsSend: GainNode;
   readonly reverb: ReverbEffect;
   readonly delay: DelayEffect;
   readonly filter: FilterEffect;
@@ -24,8 +24,16 @@ export class AudioEngine {
   private readonly rowGains: GainNode[] = [];
   private readonly rowPans: StereoPannerNode[] = [];
 
+  // Per-row effect sends
+  private readonly rowReverbSends: GainNode[] = [];
+  private readonly rowDelaySends: GainNode[] = [];
+
   // Per-row sound params (synced from sequencer)
   soundParams: SoundParams[] = Array.from({ length: NUM_ROWS }, () => ({ ...DEFAULT_SOUND_PARAMS }));
+
+  // Sample engine
+  readonly sampleEngine = new SampleEngine();
+  useSample: boolean[] = new Array(NUM_ROWS).fill(false);
 
   constructor() {
     this.ctx = new AudioContext();
@@ -34,8 +42,6 @@ export class AudioEngine {
     this.masterGain.gain.setValueAtTime(0.8, 0);
 
     this.dryBus = this.ctx.createGain();
-    this.effectsSend = this.ctx.createGain();
-    this.effectsSend.gain.setValueAtTime(0.5, 0);
 
     this.reverb = new ReverbEffect(this.ctx);
     this.delay = new DelayEffect(this.ctx);
@@ -54,7 +60,7 @@ export class AudioEngine {
     this.compressor.attack.setValueAtTime(0.003, 0);
     this.compressor.release.setValueAtTime(0.1, 0);
 
-    // Per-row channel strips: gain → pan → dryBus + effectsSend
+    // Per-row channel strips: gain → pan → dryBus + per-row reverb/delay sends
     for (let i = 0; i < NUM_ROWS; i++) {
       const gain = this.ctx.createGain();
       gain.gain.setValueAtTime(0.8, 0);
@@ -63,7 +69,20 @@ export class AudioEngine {
 
       gain.connect(pan);
       pan.connect(this.dryBus);
-      pan.connect(this.effectsSend);
+
+      // Per-row reverb send
+      const reverbSend = this.ctx.createGain();
+      reverbSend.gain.setValueAtTime(0.3, 0);
+      pan.connect(reverbSend);
+      reverbSend.connect(this.reverb.input);
+      this.rowReverbSends.push(reverbSend);
+
+      // Per-row delay send
+      const delaySend = this.ctx.createGain();
+      delaySend.gain.setValueAtTime(0.25, 0);
+      pan.connect(delaySend);
+      delaySend.connect(this.delay.input);
+      this.rowDelaySends.push(delaySend);
 
       this.rowGains.push(gain);
       this.rowPans.push(pan);
@@ -72,10 +91,7 @@ export class AudioEngine {
     // Routing: dry path
     this.dryBus.connect(this.masterGain);
 
-    // Routing: effects path
-    this.effectsSend.connect(this.reverb.input);
-    this.effectsSend.connect(this.delay.input);
-
+    // Routing: effects outputs
     this.reverb.output.connect(this.masterGain);
     this.delay.output.connect(this.masterGain);
 
@@ -102,12 +118,19 @@ export class AudioEngine {
   }
 
   trigger(instrumentIndex: number, time: number, velocity: number, pitchOffset = 0, gate?: number, glideFrom?: number): void {
-    const instrument = INSTRUMENTS[instrumentIndex];
-    if (!instrument) return;
-
     // Route through per-row channel strip
     const dest = this.rowGains[instrumentIndex] ?? this.dryBus;
-    instrument.trigger(this.ctx, dest, time, velocity, pitchOffset, this.soundParams[instrumentIndex], gate, glideFrom);
+
+    if (this.useSample[instrumentIndex] && this.sampleEngine.hasSample(instrumentIndex)) {
+      const sampleTrigger = this.sampleEngine.getTrigger(instrumentIndex);
+      if (sampleTrigger) {
+        sampleTrigger(this.ctx, dest, time, velocity, pitchOffset, undefined, gate, glideFrom);
+      }
+    } else {
+      const instrument = INSTRUMENTS[instrumentIndex];
+      if (!instrument) return;
+      instrument.trigger(this.ctx, dest, time, velocity, pitchOffset, this.soundParams[instrumentIndex], gate, glideFrom);
+    }
   }
 
   setRowVolume(row: number, value: number): void {
@@ -118,6 +141,16 @@ export class AudioEngine {
   setRowPan(row: number, value: number): void {
     const pan = this.rowPans[row];
     if (pan) pan.pan.setValueAtTime(value, this.ctx.currentTime);
+  }
+
+  setRowReverbSend(row: number, value: number): void {
+    const node = this.rowReverbSends[row];
+    if (node) node.gain.setValueAtTime(value, this.ctx.currentTime);
+  }
+
+  setRowDelaySend(row: number, value: number): void {
+    const node = this.rowDelaySends[row];
+    if (node) node.gain.setValueAtTime(value, this.ctx.currentTime);
   }
 
   getRowGainNode(row: number): GainNode | undefined {

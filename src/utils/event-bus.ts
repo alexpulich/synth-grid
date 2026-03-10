@@ -1,4 +1,4 @@
-import type { SoundParams, MidiDeviceInfo, MidiCCMapping } from '../types';
+import type { SoundParams, MidiDeviceInfo, MidiCCMapping, SampleMeta } from '../types';
 
 export interface EventMap {
   'cell:toggled': { row: number; step: number; velocity: number };
@@ -37,6 +37,13 @@ export interface EventMap {
   'midi:learn-toggle': boolean;
   'midi:cc-captured': { cc: number; channel: number };
   'midi:mapping-changed': MidiCCMapping[];
+  'send:reverb-changed': { row: number; value: number };
+  'send:delay-changed': { row: number; value: number };
+  'sample:loaded': { row: number; filename: string };
+  'sample:removed': { row: number };
+  'sample:load-request': { row: number; file: File };
+  'sample:meta-changed': { row: number; meta: SampleMeta };
+  'sample:mode-toggled': { row: number; useSample: boolean };
 }
 
 type Listener<T> = (payload: T) => void;

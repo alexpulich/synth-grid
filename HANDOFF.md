@@ -2,17 +2,17 @@
 
 ## Goal
 
-Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 10 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, mobile support, or anything else you see fit.
+Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 11 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, mobile support, or anything else you see fit.
 
 ## Current State
 
-- **67 TypeScript files, 19 CSS files, ~21,000 lines of code**
-- **Latest round**: Round 10 — Context Menus, Tooltips & Visual Polish
+- **71 TypeScript files, 20 CSS files, ~22,000 lines of code**
+- **Latest round**: Round 11 — Sample Engine & Per-Row Sends
 - **No test suite** — verification has been manual via browser
 - **No lint config** — only `npx tsc --noEmit` for type checking
 - **Deployment**: Dockerfile + GitHub Actions CI/CD exist
 
-### What's Built (Rounds 1-10)
+### What's Built (Rounds 1-11)
 
 | Round | Features |
 |-------|----------|
@@ -26,11 +26,12 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 8 | Piano roll modal for melodic rows (visual 2D note editor, scale-aware pitch rows, click/drag paint, audible note preview, playhead tracking) |
 | 9 | MIDI integration: device detection, note input (GM drum + octave mappings), CC learn mode (arm → capture → assign), MIDI panel UI, mapping persistence |
 | 10 | Toast notifications, knob drag tooltips, cell hover tooltips, right-click cell context menu (all 8 cell data layers), CSS transitions (page fade-in, bank switch flash, modal slide-in, button active states) |
+| 11 | Per-row sample loading (drag-and-drop WAV/MP3/OGG), sample playback engine (pitch/velocity/gate/glide), waveform preview with trim handles, per-row reverb/delay sends (R/D knobs), IndexedDB sample persistence, sound shaper dual synth/sample mode, WAV export with sample support |
 
 ### Architecture Overview
 
 - **Event-driven**: Typed `EventMap` pub/sub — components never reference each other directly
-- **Audio chain**: Per-row gains/panners → dry/effects buses → master → saturation → EQ → perf FX insert → compressor → analyser → filter → destination
+- **Audio chain**: Per-row gains/panners → dry bus + per-row reverb/delay sends → master → saturation → EQ → perf FX insert → compressor → analyser → filter → destination
 - **Scheduling**: Look-ahead scheduler (25ms tick, 100ms schedule-ahead) using `AudioContext.currentTime`
 - **State**: Sequencer holds all grid state. 4 pattern banks (A-D). localStorage auto-save with 500ms debounce. URL hash encoding (backward-compatible V1/V2/V3)
 - **UI**: Pure DOM manipulation, no framework. Constructor pattern: `(parent, ...deps) → create DOM, append, wire eventBus`
@@ -53,6 +54,9 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **Reflow trick for CSS transitions**: `void el.offsetHeight` before adding visible classes ensures CSS transitions trigger reliably. `requestAnimationFrame` was unreliable in headless/background contexts
 - **Singleton pattern for shared UI**: Toast container and cell context menu are singletons — created once, reused across the app. Avoids duplicate DOM elements
 - **Popover pattern for context menus**: Cell context menu uses same pattern as euclidean popover (position: fixed, smart viewport edge detection, click-outside-to-close)
+- **Dual storage for samples**: IndexedDB for large binary data (ArrayBuffers), localStorage for small metadata (filenames, trim points, flags). Clean separation — IndexedDB restored async, localStorage sync
+- **Cached trigger functions**: `SampleEngine.createTrigger()` builds a closure per row, cached in `triggers[]` array. Avoids allocation in scheduler hot path
+- **Per-bank vs global state**: Following existing patterns (volume/pan = per-bank, soundParams = global) made the sends/samples state design obvious
 
 ## What Didn't Work / Gotchas
 
@@ -74,8 +78,8 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 ### Feature Ideas
 - **MIDI output**: Send MIDI notes to external synths/DAWs via Web MIDI output ports
 - **MIDI clock sync**: Sync to external MIDI clock for hardware integration
-- **Sample loading**: User-uploaded WAV/MP3 samples replacing or layering with synth instruments
-- **Effects per row**: Individual delay/reverb/filter sends per instrument (currently master-only)
+- ~~**Sample loading**~~: ✅ Done in Round 11 — drag-and-drop WAV/MP3/OGG/M4A onto row labels, file picker in sound shaper, IndexedDB persistence
+- ~~**Effects per row**~~: ✅ Done in Round 11 — per-row reverb/delay sends with R/D mixer knobs
 - **Automation lanes**: Per-step automation of any parameter (filter cutoff, volume, pan)
 - **Polyrhythm/polymeter**: Different step counts per row (not just 16)
 - **Preset sharing**: Import/export full presets as JSON or URL

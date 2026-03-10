@@ -71,3 +71,17 @@ export interface MidiDeviceInfo {
   name: string;
   manufacturer: string;
 }
+
+export interface SampleMeta {
+  filename: string;
+  trimStart: number;  // 0-1 normalized
+  trimEnd: number;    // 0-1 normalized
+  loop: boolean;
+}
+
+export const DEFAULT_SAMPLE_META: SampleMeta = {
+  filename: '',
+  trimStart: 0,
+  trimEnd: 1,
+  loop: false,
+};

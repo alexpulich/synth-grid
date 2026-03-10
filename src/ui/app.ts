@@ -26,6 +26,7 @@ import { eventBus } from '../utils/event-bus';
 import { NUM_ROWS } from '../types';
 import { decodeState } from '../state/url-state';
 import { AutoSave } from '../state/local-storage';
+import { SampleStorage } from '../state/sample-storage';
 import { ScaleSelector } from './scale-selector';
 import { DELAY_DIVISIONS } from '../audio/effects/delay';
 import { showToast } from './toast';
@@ -76,7 +77,7 @@ export class AppUI {
     new PatternBankUI(controlsRow, sequencer);
     new PresetSelector(controlsRow, sequencer);
     new ShareButton(controlsRow, sequencer);
-    new ExportButton(controlsRow, sequencer);
+    new ExportButton(controlsRow, sequencer, audioEngine);
     new ScaleSelector(controlsRow, sequencer);
     const themeSwitcher = new ThemeSwitcher(controlsRow);
     root.appendChild(controlsRow);
@@ -182,18 +183,40 @@ export class AppUI {
           }
           break;
         }
+        case 'reverb-send': {
+          const row = parseInt(parts[1]);
+          if (row >= 0 && row < NUM_ROWS) {
+            sequencer.setReverbSend(row, value);
+            audioEngine.setRowReverbSend(row, value);
+          }
+          break;
+        }
+        case 'delay-send': {
+          const row = parseInt(parts[1]);
+          if (row >= 0 && row < NUM_ROWS) {
+            sequencer.setDelaySend(row, value);
+            audioEngine.setRowDelaySend(row, value);
+          }
+          break;
+        }
       }
     });
 
     // Initialize MIDI (async, non-blocking)
     midiManager.init();
 
-    // Wire mixer volume/pan to audio engine
+    // Wire mixer volume/pan/sends to audio engine
     eventBus.on('volume:changed', ({ row, volume }) => {
       audioEngine.setRowVolume(row, volume);
     });
     eventBus.on('pan:changed', ({ row, pan }) => {
       audioEngine.setRowPan(row, pan);
+    });
+    eventBus.on('send:reverb-changed', ({ row, value }) => {
+      audioEngine.setRowReverbSend(row, value);
+    });
+    eventBus.on('send:delay-changed', ({ row, value }) => {
+      audioEngine.setRowDelaySend(row, value);
     });
 
     // Wire sound params to audio engine
@@ -205,9 +228,13 @@ export class AppUI {
     eventBus.on('bank:changed', () => {
       const volumes = sequencer.getCurrentRowVolumes();
       const pans = sequencer.getCurrentRowPans();
+      const reverbSends = sequencer.getCurrentReverbSends();
+      const delaySends = sequencer.getCurrentDelaySends();
       for (let row = 0; row < NUM_ROWS; row++) {
         audioEngine.setRowVolume(row, volumes[row]);
         audioEngine.setRowPan(row, pans[row]);
+        audioEngine.setRowReverbSend(row, reverbSends[row]);
+        audioEngine.setRowDelaySend(row, delaySends[row]);
       }
     });
 
@@ -247,6 +274,60 @@ export class AppUI {
       }
     });
 
+    // Sample storage (IndexedDB)
+    const sampleStorage = new SampleStorage();
+    sampleStorage.init();
+
+    // Sample loading
+    eventBus.on('sample:load-request', ({ row, file }) => {
+      file.arrayBuffer().then(async (arrayBuffer) => {
+        try {
+          // Check size limit
+          const totalSize = await sampleStorage.getTotalSize();
+          if (totalSize + arrayBuffer.byteLength > sampleStorage.maxBytes) {
+            showToast('Sample storage full (50MB limit)', 'warning');
+            return;
+          }
+          await audioEngine.sampleEngine.loadSample(audioEngine.ctx, row, arrayBuffer, file.name);
+          audioEngine.useSample[row] = true;
+          eventBus.emit('sample:loaded', { row, filename: file.name });
+          eventBus.emit('sample:mode-toggled', { row, useSample: true });
+          // Persist to IndexedDB
+          const meta = audioEngine.sampleEngine.getMeta(row);
+          sampleStorage.saveSample(row, file.name, arrayBuffer, meta.trimStart, meta.trimEnd, meta.loop);
+          showToast(`Sample loaded: ${file.name}`, 'success');
+        } catch {
+          showToast('Failed to load sample', 'warning');
+        }
+      });
+    });
+
+    eventBus.on('sample:removed', ({ row }) => {
+      audioEngine.sampleEngine.removeSample(row);
+      audioEngine.useSample[row] = false;
+      sampleStorage.removeSample(row);
+      showToast('Sample removed');
+    });
+
+    eventBus.on('sample:mode-toggled', ({ row, useSample }) => {
+      audioEngine.useSample[row] = useSample;
+    });
+
+    eventBus.on('sample:meta-changed', ({ row, meta }) => {
+      // Update IndexedDB with new trim/loop settings
+      const buffer = audioEngine.sampleEngine.getBuffer(row);
+      if (buffer) {
+        // We need the raw ArrayBuffer — re-save with updated meta
+        // getBuffer returns AudioBuffer, but we stored the raw ArrayBuffer in IndexedDB
+        // Just update the metadata fields via a load+re-save
+        sampleStorage.loadSample(row).then((record) => {
+          if (record) {
+            sampleStorage.saveSample(row, meta.filename, record.arrayBuffer, meta.trimStart, meta.trimEnd, meta.loop);
+          }
+        });
+      }
+    });
+
     // Auto-save (listens for changes)
     new AutoSave(sequencer, audioEngine, midiLearn);
 
@@ -270,6 +351,7 @@ export class AppUI {
           saved.rowVolumes, saved.rowPans, restoredFilterLocks,
           saved.ratchets, saved.conditions,
           saved.rowSwings, saved.gates, saved.slides,
+          saved.reverbSends, saved.delaySends,
         );
         // Backward compat: distribute global swing to all rows if no per-row swings saved
         if (!saved.rowSwings && saved.swing > 0) {
@@ -313,8 +395,37 @@ export class AppUI {
         if (saved.midiMappings) {
           midiLearn.loadMappings(saved.midiMappings);
         }
+        // Restore sample metadata and useSample flags
+        if (saved.sampleMetas) {
+          audioEngine.sampleEngine.loadMetas(saved.sampleMetas);
+        }
+        if (saved.useSample) {
+          for (let i = 0; i < NUM_ROWS; i++) {
+            audioEngine.useSample[i] = saved.useSample[i] ?? false;
+          }
+        }
       }
     }
+
+    // Restore sample audio buffers from IndexedDB (async, non-blocking)
+    sampleStorage.loadAll().then(async (records) => {
+      for (const record of records) {
+        try {
+          await audioEngine.sampleEngine.loadSample(audioEngine.ctx, record.row, record.arrayBuffer, record.filename);
+          // Restore trim/loop from IndexedDB record (may differ from localStorage if updated)
+          audioEngine.sampleEngine.setMeta(record.row, {
+            trimStart: record.trimStart,
+            trimEnd: record.trimEnd,
+            loop: record.loop,
+          });
+          if (audioEngine.useSample[record.row]) {
+            eventBus.emit('sample:loaded', { row: record.row, filename: record.filename });
+          }
+        } catch {
+          // Failed to decode — skip silently
+        }
+      }
+    });
   }
 
   onStepAdvance(step: number): void {

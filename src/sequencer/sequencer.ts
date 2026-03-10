@@ -48,6 +48,8 @@ export class Sequencer {
   private gates: GateGrid[];
   private slides: SlideGrid[];
   private rowSwings: number[][];
+  private reverbSends: number[][];
+  private delaySends: number[][];
   private _activeBank = 0;
   private _tempo = 120;
   private _swing = 0;
@@ -81,6 +83,8 @@ export class Sequencer {
     this.gates = Array.from({ length: NUM_BANKS }, () => createEmptyGateGrid());
     this.slides = Array.from({ length: NUM_BANKS }, () => createEmptySlideGrid());
     this.rowSwings = Array.from({ length: NUM_BANKS }, () => new Array<number>(NUM_ROWS).fill(0));
+    this.reverbSends = Array.from({ length: NUM_BANKS }, () => new Array<number>(NUM_ROWS).fill(0.3));
+    this.delaySends = Array.from({ length: NUM_BANKS }, () => new Array<number>(NUM_ROWS).fill(0.25));
   }
 
   private pushHistory(): void {
@@ -373,6 +377,42 @@ export class Sequencer {
     return this.rowSwings;
   }
 
+  // Per-row reverb send (per-bank, 0-1)
+  getReverbSend(row: number): number {
+    return this.reverbSends[this._activeBank][row] ?? 0.3;
+  }
+
+  setReverbSend(row: number, value: number): void {
+    this.reverbSends[this._activeBank][row] = clamp(value, 0, 1);
+    eventBus.emit('send:reverb-changed', { row, value: this.reverbSends[this._activeBank][row] });
+  }
+
+  getCurrentReverbSends(): number[] {
+    return this.reverbSends[this._activeBank];
+  }
+
+  getAllReverbSends(): number[][] {
+    return this.reverbSends;
+  }
+
+  // Per-row delay send (per-bank, 0-1)
+  getDelaySend(row: number): number {
+    return this.delaySends[this._activeBank][row] ?? 0.25;
+  }
+
+  setDelaySend(row: number, value: number): void {
+    this.delaySends[this._activeBank][row] = clamp(value, 0, 1);
+    eventBus.emit('send:delay-changed', { row, value: this.delaySends[this._activeBank][row] });
+  }
+
+  getCurrentDelaySends(): number[] {
+    return this.delaySends[this._activeBank];
+  }
+
+  getAllDelaySends(): number[][] {
+    return this.delaySends;
+  }
+
   // Gate (per-step note length)
   getGate(row: number, step: number): number {
     return this.gates[this._activeBank][row][step] ?? 1;
@@ -434,6 +474,8 @@ export class Sequencer {
     this.gates[this._activeBank] = createEmptyGateGrid();
     this.slides[this._activeBank] = createEmptySlideGrid();
     this.rowSwings[this._activeBank] = new Array<number>(NUM_ROWS).fill(0);
+    this.reverbSends[this._activeBank] = new Array<number>(NUM_ROWS).fill(0.3);
+    this.delaySends[this._activeBank] = new Array<number>(NUM_ROWS).fill(0.25);
     eventBus.emit('grid:cleared');
   }
 
@@ -555,6 +597,8 @@ export class Sequencer {
     rowSwings?: number[][],
     gates?: GateGrid[],
     slides?: SlideGrid[],
+    reverbSends?: number[][],
+    delaySends?: number[][],
   ): void {
     for (let b = 0; b < NUM_BANKS; b++) {
       if (grids[b]) {
@@ -614,6 +658,16 @@ export class Sequencer {
         this.slides[b] = slides[b].map((row) => [...row]);
       } else {
         this.slides[b] = createEmptySlideGrid();
+      }
+      if (reverbSends?.[b]) {
+        this.reverbSends[b] = [...reverbSends[b]];
+      } else {
+        this.reverbSends[b] = new Array<number>(NUM_ROWS).fill(0.3);
+      }
+      if (delaySends?.[b]) {
+        this.delaySends[b] = [...delaySends[b]];
+      } else {
+        this.delaySends[b] = new Array<number>(NUM_ROWS).fill(0.25);
       }
     }
     this._tempo = clamp(tempo, 30, 300);

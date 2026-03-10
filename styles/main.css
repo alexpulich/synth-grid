@@ -16,6 +16,7 @@
 @import './midi.css';
 @import './toast.css';
 @import './cell-context-menu.css';
+@import './sample.css';
 
 *,
 *::before,

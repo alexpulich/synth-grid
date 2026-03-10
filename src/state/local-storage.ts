@@ -1,7 +1,7 @@
 import type { Sequencer } from '../sequencer/sequencer';
 import type { AudioEngine } from '../audio/audio-engine';
 import type { MidiLearn } from '../midi/midi-learn';
-import type { Grid, ProbabilityGrid, NoteGrid, SoundParams, MidiCCMapping } from '../types';
+import type { Grid, ProbabilityGrid, NoteGrid, SoundParams, MidiCCMapping, SampleMeta } from '../types';
 import { eventBus } from '../utils/event-bus';
 
 const STORAGE_KEY = 'synth-grid-state';
@@ -34,6 +34,10 @@ interface SavedState {
   eqMid?: number;
   eqHigh?: number;
   midiMappings?: MidiCCMapping[];
+  reverbSends?: number[][];
+  delaySends?: number[][];
+  useSample?: boolean[];
+  sampleMetas?: SampleMeta[];
   tempo: number;
   swing: number;
   activeBank: number;
@@ -65,6 +69,12 @@ export class AutoSave {
     eventBus.on('gate:changed', scheduleSave);
     eventBus.on('slide:changed', scheduleSave);
     eventBus.on('midi:mapping-changed', scheduleSave);
+    eventBus.on('send:reverb-changed', scheduleSave);
+    eventBus.on('send:delay-changed', scheduleSave);
+    eventBus.on('sample:loaded', scheduleSave);
+    eventBus.on('sample:removed', scheduleSave);
+    eventBus.on('sample:meta-changed', scheduleSave);
+    eventBus.on('sample:mode-toggled', scheduleSave);
   }
 
   private debouncedSave(): void {
@@ -100,6 +110,10 @@ export class AutoSave {
       rowSwings: this.sequencer.getAllRowSwings().map((bank) => [...bank]),
       gates: this.sequencer.getAllGates().map((bank) => bank.map((row) => [...row])),
       slides: this.sequencer.getAllSlides().map((bank) => bank.map((row) => [...row])),
+      reverbSends: this.sequencer.getAllReverbSends().map((bank) => [...bank]),
+      delaySends: this.sequencer.getAllDelaySends().map((bank) => [...bank]),
+      useSample: this.audioEngine ? [...this.audioEngine.useSample] : undefined,
+      sampleMetas: this.audioEngine?.sampleEngine.getAllMetas().map((m) => ({ ...m })),
       eqLow: this.audioEngine?.eq.low,
       eqMid: this.audioEngine?.eq.mid,
       eqHigh: this.audioEngine?.eq.high,

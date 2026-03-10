@@ -20,6 +20,8 @@ export class GridUI {
   private volumeKnobs: Knob[] = [];
   private panKnobs: Knob[] = [];
   private swingKnobs: Knob[] = [];
+  private reverbKnobs: Knob[] = [];
+  private delayKnobs: Knob[] = [];
   private euclideanPopover: EuclideanPopover;
   private soundShaper: SoundShaper;
   private pianoRoll: PianoRoll;
@@ -36,7 +38,7 @@ export class GridUI {
     parent.appendChild(this.container);
 
     this.euclideanPopover = new EuclideanPopover(sequencer);
-    this.soundShaper = new SoundShaper(sequencer);
+    this.soundShaper = new SoundShaper(sequencer, audioEngine);
     this.pianoRoll = new PianoRoll(sequencer, audioEngine);
     this.cellContextMenu = new CellContextMenu(sequencer);
     this.buildGrid();
@@ -60,6 +62,24 @@ export class GridUI {
       label.dataset.row = String(row);
       this.labelElements[row] = label;
       rowEl.appendChild(label);
+
+      // Drag-and-drop sample loading on row labels
+      label.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+        label.classList.add('grid-row-label--drop-target');
+      });
+      label.addEventListener('dragleave', () => {
+        label.classList.remove('grid-row-label--drop-target');
+      });
+      label.addEventListener('drop', (e) => {
+        e.preventDefault();
+        label.classList.remove('grid-row-label--drop-target');
+        const file = e.dataTransfer?.files[0];
+        if (file && /\.(wav|mp3|ogg|m4a)$/i.test(file.name)) {
+          eventBus.emit('sample:load-request', { row, file });
+        }
+      });
 
       // Pitch controls
       const pitchCtrl = document.createElement('div');
@@ -118,6 +138,16 @@ export class GridUI {
         this.sequencer.setRowSwing(row, v * 0.75);
       }, { formatValue: (v) => `${Math.round(v * 75)}%` });
       this.swingKnobs[row] = swingKnob;
+
+      const reverbKnob = new Knob(mixerCtrl, 'R', this.sequencer.getReverbSend(row), (v) => {
+        this.sequencer.setReverbSend(row, v);
+      }, { formatValue: (v) => `${Math.round(v * 100)}%` });
+      this.reverbKnobs[row] = reverbKnob;
+
+      const delayKnob = new Knob(mixerCtrl, 'D', this.sequencer.getDelaySend(row), (v) => {
+        this.sequencer.setDelaySend(row, v);
+      }, { formatValue: (v) => `${Math.round(v * 100)}%` });
+      this.delayKnobs[row] = delayKnob;
 
       rowEl.appendChild(mixerCtrl);
 
@@ -409,6 +439,16 @@ export class GridUI {
       this.updateSlideVisual(row, step, slide);
     });
 
+    // Sample loaded/removed: update label visual
+    eventBus.on('sample:loaded', ({ row, filename }) => {
+      this.labelElements[row].classList.add('grid-row-label--sample');
+      this.labelElements[row].title = filename;
+    });
+    eventBus.on('sample:removed', ({ row }) => {
+      this.labelElements[row].classList.remove('grid-row-label--sample');
+      this.labelElements[row].title = '';
+    });
+
     // Theme change: update INSTRUMENTS color for particle system
     eventBus.on('theme:changed', () => {
       for (let row = 0; row < NUM_ROWS; row++) {
@@ -504,10 +544,14 @@ export class GridUI {
     const volumes = this.sequencer.getCurrentRowVolumes();
     const pans = this.sequencer.getCurrentRowPans();
     const swings = this.sequencer.getCurrentRowSwings();
+    const reverbSends = this.sequencer.getCurrentReverbSends();
+    const delaySends = this.sequencer.getCurrentDelaySends();
     for (let row = 0; row < NUM_ROWS; row++) {
       this.volumeKnobs[row]?.setValueSilent(volumes[row]);
       this.panKnobs[row]?.setValueSilent((pans[row] + 1) / 2); // -1..1 → 0..1
       this.swingKnobs[row]?.setValueSilent(swings[row] / 0.75); // 0..0.75 → 0..1
+      this.reverbKnobs[row]?.setValueSilent(reverbSends[row]);
+      this.delayKnobs[row]?.setValueSilent(delaySends[row]);
     }
   }
 
