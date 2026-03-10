@@ -14,6 +14,8 @@
 @import './sound-shaper.css';
 @import './piano-roll.css';
 @import './midi.css';
+@import './toast.css';
+@import './cell-context-menu.css';
 
 *,
 *::before,
@@ -40,6 +42,7 @@ html, body {
   align-items: center;
   padding: 1.5rem 1rem;
   gap: 1.5rem;
+  animation: app-fade-in 400ms ease-out;
 }
 
 .app-header {
@@ -78,6 +81,25 @@ html, body {
   text-transform: uppercase;
   letter-spacing: 0.1em;
   margin-bottom: 0.5rem;
+}
+
+/* Button press feedback */
+.transport-play-btn:active,
+.tap-btn:active,
+.grid-euc-btn:active,
+.grid-piano-btn:active,
+.pitch-btn:active,
+.share-btn:active,
+.export-btn:active,
+.help-btn:active,
+.midi-btn:active {
+  transform: scale(0.95);
+  transition: transform 50ms ease-out;
+}
+
+/* Bank switch grid flash */
+.grid--switching .grid-cell--active {
+  animation: bank-switch-flash 200ms ease-out;
 }
 
 /* Audio reactive background */

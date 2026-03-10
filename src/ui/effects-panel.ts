@@ -13,7 +13,9 @@ export class EffectsPanel {
 
     // Reverb
     const reverbGroup = this.createGroup('Reverb');
-    new Knob(reverbGroup.knobs, 'Mix', 0.3, (v) => audioEngine.reverb.setMix(v));
+    new Knob(reverbGroup.knobs, 'Mix', 0.3, (v) => audioEngine.reverb.setMix(v), {
+      formatValue: (v) => `${Math.round(v * 100)}%`,
+    });
     container.appendChild(reverbGroup.el);
 
     // Delay (with tempo-synced division selector)
@@ -44,14 +46,25 @@ export class EffectsPanel {
       });
     }
 
-    new Knob(delayGroup.knobs, 'Fdbk', 0.35, (v) => audioEngine.delay.setFeedback(v * 0.9));
-    new Knob(delayGroup.knobs, 'Mix', 0.25, (v) => audioEngine.delay.setMix(v));
+    new Knob(delayGroup.knobs, 'Fdbk', 0.35, (v) => audioEngine.delay.setFeedback(v * 0.9), {
+      formatValue: (v) => `${Math.round(v * 90)}%`,
+    });
+    new Knob(delayGroup.knobs, 'Mix', 0.25, (v) => audioEngine.delay.setMix(v), {
+      formatValue: (v) => `${Math.round(v * 100)}%`,
+    });
     container.appendChild(delayGroup.el);
 
     // Filter
     const filterGroup = this.createGroup('Filter');
-    new Knob(filterGroup.knobs, 'Freq', 1.0, (v) => audioEngine.filter.setFrequency(v));
-    new Knob(filterGroup.knobs, 'Res', 0, (v) => audioEngine.filter.setResonance(v));
+    new Knob(filterGroup.knobs, 'Freq', 1.0, (v) => audioEngine.filter.setFrequency(v), {
+      formatValue: (v) => {
+        const hz = 20 * Math.pow(1000, v);
+        return hz >= 1000 ? `${(hz / 1000).toFixed(1)}kHz` : `${Math.round(hz)}Hz`;
+      },
+    });
+    new Knob(filterGroup.knobs, 'Res', 0, (v) => audioEngine.filter.setResonance(v), {
+      formatValue: (v) => `${Math.round(v * 100)}%`,
+    });
 
     // Filter type buttons
     const typeRow = document.createElement('div');
@@ -80,15 +93,23 @@ export class EffectsPanel {
 
     // Saturation
     const satGroup = this.createGroup('Saturation');
-    new Knob(satGroup.knobs, 'Drive', 0, (v) => audioEngine.saturation.setDrive(v));
-    new Knob(satGroup.knobs, 'Tone', 0.7, (v) => audioEngine.saturation.setTone(v));
+    new Knob(satGroup.knobs, 'Drive', 0, (v) => audioEngine.saturation.setDrive(v), {
+      formatValue: (v) => `${Math.round(v * 100)}%`,
+    });
+    new Knob(satGroup.knobs, 'Tone', 0.7, (v) => audioEngine.saturation.setTone(v), {
+      formatValue: (v) => `${Math.round(v * 100)}%`,
+    });
     container.appendChild(satGroup.el);
 
     // EQ
     const eqGroup = this.createGroup('EQ');
-    new Knob(eqGroup.knobs, 'Low', 0.5, (v) => audioEngine.eq.setLow(v));
-    new Knob(eqGroup.knobs, 'Mid', 0.5, (v) => audioEngine.eq.setMid(v));
-    new Knob(eqGroup.knobs, 'High', 0.5, (v) => audioEngine.eq.setHigh(v));
+    const eqFormat = { formatValue: (v: number) => {
+      const db = Math.round((v - 0.5) * 24);
+      return `${db > 0 ? '+' : ''}${db}dB`;
+    }};
+    new Knob(eqGroup.knobs, 'Low', 0.5, (v) => audioEngine.eq.setLow(v), eqFormat);
+    new Knob(eqGroup.knobs, 'Mid', 0.5, (v) => audioEngine.eq.setMid(v), eqFormat);
+    new Knob(eqGroup.knobs, 'High', 0.5, (v) => audioEngine.eq.setHigh(v), eqFormat);
     container.appendChild(eqGroup.el);
 
     // Sidechain (requires sequencer)
@@ -108,11 +129,11 @@ export class EffectsPanel {
 
       new Knob(scGroup.knobs, 'Depth', 0.7, (v) => {
         sequencer.setSidechain(sequencer.sidechainEnabled, v, sequencer.sidechainRelease);
-      });
+      }, { formatValue: (v) => `${Math.round(v * 100)}%` });
 
       new Knob(scGroup.knobs, 'Rel', 0.3, (v) => {
         sequencer.setSidechain(sequencer.sidechainEnabled, sequencer.sidechainDepth, v * 0.5);
-      });
+      }, { formatValue: (v) => `${Math.round(v * 500)}ms` });
 
       container.appendChild(scGroup.el);
     }

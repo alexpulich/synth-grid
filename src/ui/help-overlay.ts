@@ -30,7 +30,7 @@ export class HelpOverlay {
           ['Click', 'Toggle cell on/off'],
           ['Drag', 'Paint multiple cells'],
           ['Shift + Click', 'Cycle velocity: soft \u2192 med \u2192 loud'],
-          ['Right-click', 'Cycle probability: 100% \u2192 75% \u2192 50% \u2192 25%'],
+          ['Right-click', 'Open cell context menu (all cell options)'],
           ['Alt + Scroll', 'Change note pitch (scale-aware)'],
           ['Shift + Scroll', 'Set filter lock on active cell'],
           ['Shift + Right-click', 'Clear filter lock'],

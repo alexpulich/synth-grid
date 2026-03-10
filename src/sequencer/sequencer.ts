@@ -118,6 +118,12 @@ export class Sequencer {
     eventBus.emit('cell:probability-changed', { row, step, probability: prob[row][step] });
   }
 
+  setProbability(row: number, step: number, value: number): void {
+    this.pushHistory();
+    this.probabilities[this._activeBank][row][step] = value;
+    eventBus.emit('cell:probability-changed', { row, step, probability: value });
+  }
+
   setCell(row: number, step: number, velocity: VelocityLevel): void {
     const grid = this.grids[this._activeBank];
     if (grid[row][step] === velocity) return;

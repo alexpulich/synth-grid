@@ -36,7 +36,7 @@ export class SoundShaper {
       const key = PARAM_KEYS[i];
       const knob = new Knob(knobRow, PARAM_LABELS[i], 0.5, (v) => {
         this.sequencer.setSoundParam(this.currentRow, key, v);
-      });
+      }, { formatValue: (v) => `${Math.round(v * 100)}%` });
       this.knobs.push(knob);
     }
 

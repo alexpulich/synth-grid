@@ -29,6 +29,10 @@
   overflow-y: auto;
 }
 
+.help-overlay--visible .help-panel {
+  animation: modal-slide-in 300ms ease-out;
+}
+
 .help-title {
   font-family: var(--font-mono);
   font-size: 1rem;

@@ -28,6 +28,8 @@ import { decodeState } from '../state/url-state';
 import { AutoSave } from '../state/local-storage';
 import { ScaleSelector } from './scale-selector';
 import { DELAY_DIVISIONS } from '../audio/effects/delay';
+import { showToast } from './toast';
+import { CellTooltip } from './cell-tooltip';
 
 export class AppUI {
   private gridUI: GridUI;
@@ -88,6 +90,7 @@ export class AppUI {
 
     this.gridUI = new GridUI(gridContainer, sequencer, audioEngine);
     this.particles = new ParticleSystem(gridContainer);
+    new CellTooltip(gridContainer, sequencer);
 
     root.appendChild(gridContainer);
 
@@ -231,6 +234,17 @@ export class AppUI {
     // Wire transport stop to clear playhead
     eventBus.on('transport:stop', () => {
       this.gridUI.clearPlayhead();
+    });
+
+    // Toast notifications for bank copy/paste and MIDI
+    const bankNames = ['A', 'B', 'C', 'D'];
+    eventBus.on('bank:copied', (bank) => showToast(`Pattern ${bankNames[bank]} copied`, 'success'));
+    eventBus.on('bank:pasted', (bank) => showToast(`Pattern pasted to ${bankNames[bank]}`, 'success'));
+    eventBus.on('grid:cleared', () => showToast('Bank cleared'));
+    eventBus.on('midi:devices-changed', (devices) => {
+      if (devices.length > 0) {
+        showToast(`MIDI: ${devices.map((d) => d.name).join(', ')}`);
+      }
     });
 
     // Auto-save (listens for changes)

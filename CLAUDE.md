@@ -33,12 +33,15 @@ src/
     url-state.ts             # Binary state encoding: V1 (1-bit), V2 (2-bit velocity), V3 (+probability)
     local-storage.ts         # Auto-save/restore via localStorage (debounced 500ms)
   ui/                        # Pure DOM manipulation, no framework. Constructor pattern: (parent, ...deps) → create DOM, append, wire eventBus
-    help-overlay.ts          # ? button + overlay — `sections[]` array: Playback, Grid, Mixer, Pattern, Performance FX, Other
+    help-overlay.ts          # ? button + overlay — `sections[]` array: Playback, Grid, Mixer, Pattern, Performance FX, MIDI, Other
     scale-selector.ts        # Root note + scale type dropdowns
     euclidean-popover.ts     # Euclidean rhythm generator popover (hits, rotation, preview, apply)
     sound-shaper.ts          # Per-instrument sound shaping popover (attack, decay, tone, punch knobs)
     piano-roll.ts            # Piano roll modal for melodic rows (visual note editor, drag paint, note preview, playhead)
     midi-panel.ts            # MIDI settings popover (device list, CC learn, mapping management)
+    toast.ts                 # Singleton showToast(message, type?) — auto-dismissing notifications (3s, max 3)
+    cell-context-menu.ts     # Right-click context menu: velocity, probability, ratchet, condition, gate, slide, note, filter lock
+    cell-tooltip.ts          # Hover tooltip for active cells — shows non-default attributes after 400ms delay
   midi/
     midi-manager.ts          # Web MIDI API access, device detection, message routing (note/CC)
     midi-input.ts            # MIDI note → instrument triggering (GM drum + octave mappings)
@@ -51,6 +54,8 @@ src/
 styles/
   variables.css              # CSS custom properties (colors, sizing) — themes override these
   help.css                   # Help overlay styles
+  toast.css                  # Toast notification styles (fixed bottom-center, z-index 2000)
+  cell-context-menu.css      # Cell context menu popover styles (z-index 950)
 ```
 
 ## Key Patterns
@@ -88,12 +93,17 @@ styles/
 - **MIDI CC learn**: Flow: `armLearn()` → move MIDI knob → CC captured → user selects target from dropdown → `assignTarget()` creates mapping. One mapping per CC, one mapping per target. `handleCC()` applies mapped value (0-127 → 0-1 normalized) via `onApply` callback
 - **MIDI CC targets**: String identifiers like `'tempo'`, `'volume:0'`, `'pan:3'`, `'reverb-mix'`, `'eq-low'`. Target application wired in `app.ts`. Pan maps 0-1 → -1..1, tempo maps 0-1 → 30-300 BPM
 - **MIDI persistence**: CC mappings stored in localStorage via `SavedState.midiMappings`. `MidiLearn.loadMappings()` restores on page load
+- **Toast notifications**: Singleton `showToast(message, type?)` in `toast.ts`. Auto-dismissing (3s), max 3 visible, slide-in animation. Types: info, success, warning. Container: `position: fixed; bottom: 2rem; z-index: 2000`
+- **Cell context menu**: Right-click opens popover with all cell ops (velocity, probability, ratchet, condition, gate, slide, note, filter lock). Singleton pattern. Smart viewport positioning to avoid overflow
+- **Cell hover tooltip**: Shows non-default attributes after 400ms hover delay. Only for active cells. Hides when context menu opens. Uses `sequencer` getters for all 8 cell data layers
+- **Knob drag tooltip**: Lazy-created on first drag. Uses existing `KnobOptions.formatValue` callback. Shows formatted value above knob during drag, hides 500ms after release
+- **CSS transitions**: `app-fade-in` (400ms page load), `bank-switch-flash` (200ms grid cells), `modal-slide-in` (300ms help/piano-roll), button `:active` scale(0.95)
 
 ## Gotchas
 
 - **TypeScript strict typed arrays**: Use `new Float32Array(new ArrayBuffer(n * 4))` and `Uint8Array<ArrayBuffer>` to satisfy strict mode with Web Audio API
 - **Label colors**: Use `var(--color-instrumentname)` CSS vars, not inline hardcoded colors, so themes apply correctly
-- **Grid cell events**: Use `mousedown` (not `click`) for drag-paint; `contextmenu` for probability cycling
+- **Grid cell events**: Use `mousedown` (not `click`) for drag-paint; `contextmenu` opens cell context menu (plain right-click). Modifier+right-click shortcuts preserved: Ctrl = condition, Shift = filter clear, Alt = gate
 - **InstrumentConfig.color**: Mutable — updated on theme change for particle system colors
 - **History snapshots**: Always include probabilities and noteGrid when pushing to history stack
 - **Note display**: CSS `::before` with `content: attr(data-note)` — set `data-note` attribute on cell, delete attribute when note is 0
@@ -116,3 +126,8 @@ styles/
 - **MIDI panel**: Popover pattern (not modal). `position: fixed; z-index: 500`. Toggle via MIDI button in controls row. Activity dot flashes green on any MIDI message (100ms timeout)
 - **Web MIDI API availability**: `MidiManager.init()` silently returns `false` if `navigator.requestMIDIAccess` is undefined (e.g., Firefox, HTTP). The MIDI button still appears but panel shows "No MIDI devices connected"
 - **No innerHTML**: MIDI panel uses `clearChildren()` helper (while loop removeChild) instead of `innerHTML = ''` for XSS safety
+- **Toast reflow trick**: `void el.offsetHeight` forces reflow before adding `toast--visible` class to trigger CSS transition. `requestAnimationFrame` is unreliable in headless/background contexts
+- **Cell context menu z-index 950**: Below modals (1000) but above grid. Cell tooltip z-index 1500 hides when context menu opens via `hidden` flag
+- **Cell tooltip only shows non-defaults**: Active cells with all defaults (vel=Loud, prob=100%, ratchet=1x, etc.) show no tooltip. Uses middle dot separator for attributes
+- **Toast wired to events not buttons**: Toast for "Bank cleared" fires via `grid:cleared` event in `app.ts`, not in button click handlers. All toast triggers go through events for consistency
+- **Knob tooltip lazy creation**: Tooltip div created on first mousedown/touchstart, not in constructor. Reused for subsequent drags

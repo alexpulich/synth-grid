@@ -18,3 +18,27 @@
   0% { box-shadow: 0 0 8px var(--color-lead); }
   100% { box-shadow: 0 0 0 transparent; }
 }
+
+/* Page load fade-in */
+@keyframes app-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Bank switch grid flash */
+@keyframes bank-switch-flash {
+  0% { filter: brightness(1.3); }
+  100% { filter: brightness(1); }
+}
+
+/* Modal slide-in from bottom */
+@keyframes modal-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

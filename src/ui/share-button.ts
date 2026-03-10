@@ -1,5 +1,6 @@
 import type { Sequencer } from '../sequencer/sequencer';
 import { encodeState } from '../state/url-state';
+import { showToast } from './toast';
 
 export class ShareButton {
   constructor(parent: HTMLElement, private sequencer: Sequencer) {
@@ -20,10 +21,9 @@ export class ShareButton {
       window.location.hash = hash;
 
       navigator.clipboard.writeText(url).then(() => {
-        btn.textContent = 'Copied!';
-        setTimeout(() => { btn.textContent = 'Share'; }, 2000);
+        showToast('URL copied to clipboard', 'success');
       }).catch(() => {
-        btn.textContent = 'Share';
+        showToast('Failed to copy URL', 'warning');
       });
     });
 

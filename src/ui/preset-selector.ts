@@ -1,5 +1,6 @@
 import type { Sequencer } from '../sequencer/sequencer';
 import { PRESETS } from '../data/presets';
+import { showToast } from './toast';
 
 export class PresetSelector {
   constructor(parent: HTMLElement, private sequencer: Sequencer) {
@@ -30,6 +31,7 @@ export class PresetSelector {
       const idx = Number(select.value);
       if (!isNaN(idx) && PRESETS[idx]) {
         this.sequencer.loadGrid(PRESETS[idx].grid);
+        showToast(`Preset loaded: ${PRESETS[idx].name}`, 'success');
         select.value = '';
       }
     });

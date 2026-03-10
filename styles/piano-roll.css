@@ -62,6 +62,10 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
 }
 
+.piano-roll-overlay--visible .piano-roll {
+  animation: modal-slide-in 300ms ease-out;
+}
+
 /* Header */
 .piano-roll__header {
   display: flex;

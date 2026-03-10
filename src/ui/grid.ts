@@ -9,6 +9,7 @@ import type { AudioEngine } from '../audio/audio-engine';
 import { EuclideanPopover } from './euclidean-popover';
 import { SoundShaper } from './sound-shaper';
 import { PianoRoll } from './piano-roll';
+import { CellContextMenu } from './cell-context-menu';
 
 export class GridUI {
   private container: HTMLElement;
@@ -22,6 +23,7 @@ export class GridUI {
   private euclideanPopover: EuclideanPopover;
   private soundShaper: SoundShaper;
   private pianoRoll: PianoRoll;
+  private cellContextMenu: CellContextMenu;
 
   // Drag paint state
   private isDragging = false;
@@ -36,6 +38,7 @@ export class GridUI {
     this.euclideanPopover = new EuclideanPopover(sequencer);
     this.soundShaper = new SoundShaper(sequencer);
     this.pianoRoll = new PianoRoll(sequencer, audioEngine);
+    this.cellContextMenu = new CellContextMenu(sequencer);
     this.buildGrid();
     this.bindEvents();
   }
@@ -99,17 +102,21 @@ export class GridUI {
 
       const volKnob = new Knob(mixerCtrl, 'V', this.sequencer.getRowVolume(row) / 1.0, (v) => {
         this.sequencer.setRowVolume(row, v);
-      });
+      }, { formatValue: (v) => `${Math.round(v * 100)}%` });
       this.volumeKnobs[row] = volKnob;
 
       const panKnob = new Knob(mixerCtrl, 'P', (this.sequencer.getRowPan(row) + 1) / 2, (v) => {
         this.sequencer.setRowPan(row, v * 2 - 1); // map 0-1 → -1 to 1
-      });
+      }, { formatValue: (v) => {
+        const pan = v * 2 - 1;
+        if (Math.abs(pan) < 0.05) return 'C';
+        return pan < 0 ? `L${Math.round(Math.abs(pan) * 100)}` : `R${Math.round(pan * 100)}`;
+      }});
       this.panKnobs[row] = panKnob;
 
       const swingKnob = new Knob(mixerCtrl, 'S', this.sequencer.getRowSwing(row) / 0.75, (v) => {
         this.sequencer.setRowSwing(row, v * 0.75);
-      });
+      }, { formatValue: (v) => `${Math.round(v * 75)}%` });
       this.swingKnobs[row] = swingKnob;
 
       rowEl.appendChild(mixerCtrl);
@@ -214,7 +221,7 @@ export class GridUI {
       this.applyDrag(row, step);
     });
 
-    // Right-click: cycle probability, Alt+right-click: cycle gate, Shift+right-click: clear filter lock, Ctrl+right-click: cycle condition
+    // Right-click: open context menu (plain), modifier+right-click: quick shortcuts for power users
     this.container.addEventListener('contextmenu', (e) => {
       const cell = (e.target as HTMLElement).closest('.grid-cell') as HTMLElement | null;
       if (!cell) return;
@@ -222,20 +229,26 @@ export class GridUI {
       const row = Number(cell.dataset.row);
       const step = Number(cell.dataset.step);
       if (e.altKey) {
-        // Cycle gate: 0→1→2→3→0
+        // Quick: cycle gate
         const grid = this.sequencer.getCurrentGrid();
         if (grid[row][step] > 0) {
           const current = this.sequencer.getGate(row, step);
           this.sequencer.setGate(row, step, (current + 1) % GATE_LEVELS.length);
         }
       } else if (e.ctrlKey || e.metaKey) {
-        // Cycle trig condition
+        // Quick: cycle trig condition
         const current = this.sequencer.getCondition(row, step);
         this.sequencer.setCondition(row, step, (current + 1) % TRIG_CONDITIONS.length);
       } else if (e.shiftKey) {
+        // Quick: clear filter lock
         this.sequencer.clearFilterLock(row, step);
       } else {
-        this.sequencer.cycleProbability(row, step);
+        // Plain right-click: open context menu for active cells
+        const grid = this.sequencer.getCurrentGrid();
+        if (grid[row][step] > 0) {
+          const rect = cell.getBoundingClientRect();
+          this.cellContextMenu.show(row, step, rect);
+        }
       }
     });
 
@@ -330,7 +343,12 @@ export class GridUI {
     });
 
     // Full grid refresh events
-    eventBus.on('bank:changed', () => this.refreshAll());
+    eventBus.on('bank:changed', () => {
+      this.refreshAll();
+      // Bank switch flash animation
+      this.container.classList.add('grid--switching');
+      setTimeout(() => this.container.classList.remove('grid--switching'), 200);
+    });
     eventBus.on('grid:cleared', () => this.refreshAll());
 
     // Mute/solo state change

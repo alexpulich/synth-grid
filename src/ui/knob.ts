@@ -8,6 +8,8 @@ export class Knob {
   private el: HTMLElement;
   private indicatorEl: HTMLElement;
   private valueEl: HTMLElement | null = null;
+  private tooltipEl: HTMLElement | null = null;
+  private tooltipTimer: number | null = null;
   private _value: number;
   private isDragging = false;
   private startY = 0;
@@ -77,6 +79,7 @@ export class Knob {
       this.startY = (e as MouseEvent).clientY;
       this.startValue = this._value;
       document.body.style.cursor = 'ns-resize';
+      this.showTooltip();
       e.preventDefault();
     });
 
@@ -85,12 +88,14 @@ export class Knob {
       const me = e as MouseEvent;
       const deltaY = this.startY - me.clientY;
       this.setValue(clamp(this.startValue + deltaY * this.SENSITIVITY, 0, 1));
+      this.updateTooltip();
     });
 
     document.addEventListener('mouseup', () => {
       if (this.isDragging) {
         this.isDragging = false;
         document.body.style.cursor = '';
+        this.scheduleHideTooltip();
       }
     });
 
@@ -98,6 +103,7 @@ export class Knob {
       this.isDragging = true;
       this.startY = (e as TouchEvent).touches[0].clientY;
       this.startValue = this._value;
+      this.showTooltip();
       e.preventDefault();
     }, { passive: false });
 
@@ -106,10 +112,14 @@ export class Knob {
       const te = e as TouchEvent;
       const deltaY = this.startY - te.touches[0].clientY;
       this.setValue(clamp(this.startValue + deltaY * this.SENSITIVITY, 0, 1));
+      this.updateTooltip();
     }, { passive: false });
 
     document.addEventListener('touchend', () => {
-      this.isDragging = false;
+      if (this.isDragging) {
+        this.isDragging = false;
+        this.scheduleHideTooltip();
+      }
     });
 
     knobEl.addEventListener('keydown', (e) => {
@@ -141,5 +151,33 @@ export class Knob {
   setValueSilent(v: number): void {
     this._value = clamp(v, 0, 1);
     this.updateVisual();
+  }
+
+  private showTooltip(): void {
+    if (!this.options?.formatValue) return;
+    if (this.tooltipTimer !== null) {
+      clearTimeout(this.tooltipTimer);
+      this.tooltipTimer = null;
+    }
+    if (!this.tooltipEl) {
+      this.tooltipEl = document.createElement('div');
+      this.tooltipEl.className = 'knob-tooltip';
+      this.el.appendChild(this.tooltipEl);
+    }
+    this.updateTooltip();
+    this.tooltipEl.classList.add('knob-tooltip--visible');
+  }
+
+  private updateTooltip(): void {
+    if (!this.tooltipEl || !this.options?.formatValue) return;
+    this.tooltipEl.textContent = this.options.formatValue(this._value);
+  }
+
+  private scheduleHideTooltip(): void {
+    if (!this.tooltipEl) return;
+    this.tooltipTimer = window.setTimeout(() => {
+      this.tooltipEl?.classList.remove('knob-tooltip--visible');
+      this.tooltipTimer = null;
+    }, 500);
   }
 }

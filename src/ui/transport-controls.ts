@@ -31,7 +31,7 @@ export class TransportControls {
     new Knob(tempoSection, 'Tempo', (this.sequencer.tempo - 30) / 270, (v) => {
       this.sequencer.tempo = Math.round(30 + v * 270);
       this.tempoDisplay.textContent = String(this.sequencer.tempo);
-    });
+    }, { formatValue: (v) => `${Math.round(30 + v * 270)} BPM` });
     container.appendChild(tempoSection);
 
     // Swing knob (sets all per-row swings)
@@ -40,12 +40,12 @@ export class TransportControls {
       for (let r = 0; r < NUM_ROWS; r++) {
         this.sequencer.setRowSwing(r, swing);
       }
-    });
+    }, { formatValue: (v) => `${Math.round(v * 75)}%` });
 
     // Humanize knob
     new Knob(container, 'Human', this.sequencer.humanize, (v) => {
       this.sequencer.humanize = v;
-    });
+    }, { formatValue: (v) => `${Math.round(v * 100)}%` });
 
     // Tap tempo button
     const tapBtn = document.createElement('button');

@@ -86,7 +86,9 @@ export class KeyboardShortcuts {
       case 'Digit2': this.sequencer.setBank(1); break;
       case 'Digit3': this.sequencer.setBank(2); break;
       case 'Digit4': this.sequencer.setBank(3); break;
-      case 'KeyC': this.sequencer.clearCurrentBank(); break;
+      case 'KeyC':
+        this.sequencer.clearCurrentBank();
+        break;
       case 'KeyR':
         if (this.onRandomize) this.onRandomize();
         break;
