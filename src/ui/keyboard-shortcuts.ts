@@ -3,6 +3,7 @@ import type { Sequencer } from '../sequencer/sequencer';
 import type { ThemeSwitcher } from './theme-switcher';
 import type { PerformanceFX } from '../audio/performance-fx';
 import type { HelpOverlay } from './help-overlay';
+import type { MidiLearn } from '../midi/midi-learn';
 
 type FxName = 'tapestop' | 'stutter' | 'bitcrush' | 'reverbwash';
 
@@ -21,6 +22,7 @@ export class KeyboardShortcuts {
     private themeSwitcher?: ThemeSwitcher,
     private performanceFX?: PerformanceFX,
     private helpOverlay?: HelpOverlay,
+    private midiLearn?: MidiLearn,
   ) {
     document.addEventListener('keydown', this.handleKeyDown);
     document.addEventListener('keyup', this.handleKeyUp);
@@ -99,6 +101,12 @@ export class KeyboardShortcuts {
         break;
       case 'BracketRight':
         this.sequencer.rotateRight();
+        break;
+      case 'KeyM':
+        if (this.midiLearn) {
+          if (this.midiLearn.armed) this.midiLearn.cancelLearn();
+          else this.midiLearn.armLearn();
+        }
         break;
     }
   };

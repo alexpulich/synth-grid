@@ -74,6 +74,16 @@ export class HelpOverlay {
         ],
       },
       {
+        title: 'MIDI',
+        rows: [
+          ['M', 'Toggle MIDI CC learn mode'],
+          ['MIDI button', 'Open MIDI settings panel'],
+          ['MIDI Notes 36\u201343', 'Trigger instruments (GM drums)'],
+          ['MIDI Notes 48\u201355', 'Trigger instruments (C3\u2013G3)'],
+          ['MIDI CC', 'Control mapped parameters'],
+        ],
+      },
+      {
         title: 'Other',
         rows: [
           ['T', 'Cycle theme'],

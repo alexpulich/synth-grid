@@ -14,6 +14,10 @@ import { HelpOverlay } from './help-overlay';
 import { PatternChainUI } from './pattern-chain-ui';
 import { PerformanceFX } from '../audio/performance-fx';
 import { PerformanceFXUI } from './performance-fx-ui';
+import { MidiPanel } from './midi-panel';
+import { MidiManager } from '../midi/midi-manager';
+import { MidiInput } from '../midi/midi-input';
+import { MidiLearn } from '../midi/midi-learn';
 import { ParticleSystem } from '../visuals/particle-system';
 import { WaveformVisualizer } from '../visuals/waveform-visualizer';
 import { ReactiveBackground } from '../visuals/reactive-background';
@@ -101,9 +105,85 @@ export class AppUI {
     helpBtn.addEventListener('click', () => helpOverlay.toggle());
 
     // Keyboard shortcuts
+    const midiLearn = new MidiLearn();
     new KeyboardShortcuts(transport, sequencer, () => {
       PatternBankUI.doRandomize(sequencer);
-    }, themeSwitcher, performanceFX, helpOverlay);
+    }, themeSwitcher, performanceFX, helpOverlay, midiLearn);
+
+    // MIDI setup
+    const midiManager = new MidiManager();
+    const midiInput = new MidiInput(audioEngine);
+    new MidiPanel(controlsRow, midiManager, midiLearn);
+
+    midiManager.onNote((note, velocity, channel) => {
+      midiInput.handleNote(note, velocity, channel);
+    });
+    midiManager.onCC((cc, value, channel) => {
+      midiLearn.handleCC(cc, value, channel);
+    });
+
+    // MIDI CC target application
+    midiLearn.onApply((target, value) => {
+      const parts = target.split(':');
+      switch (parts[0]) {
+        case 'tempo':
+          sequencer.tempo = 30 + value * 270;
+          break;
+        case 'master-volume':
+          audioEngine.masterGain.gain.setValueAtTime(value, audioEngine.ctx.currentTime);
+          break;
+        case 'reverb-mix':
+          audioEngine.reverb.setMix(value);
+          break;
+        case 'delay-feedback':
+          audioEngine.delay.setFeedback(value * 0.9);
+          break;
+        case 'delay-mix':
+          audioEngine.delay.setMix(value);
+          break;
+        case 'filter-cutoff':
+          audioEngine.filter.setFrequency(value);
+          break;
+        case 'filter-resonance':
+          audioEngine.filter.setResonance(value);
+          break;
+        case 'saturation-drive':
+          audioEngine.saturation.setDrive(value);
+          break;
+        case 'eq-low':
+          audioEngine.eq.setLow(value);
+          break;
+        case 'eq-mid':
+          audioEngine.eq.setMid(value);
+          break;
+        case 'eq-high':
+          audioEngine.eq.setHigh(value);
+          break;
+        case 'humanize':
+          sequencer.humanize = value;
+          break;
+        case 'volume': {
+          const row = parseInt(parts[1]);
+          if (row >= 0 && row < NUM_ROWS) {
+            sequencer.setRowVolume(row, value);
+            audioEngine.setRowVolume(row, value);
+          }
+          break;
+        }
+        case 'pan': {
+          const row = parseInt(parts[1]);
+          if (row >= 0 && row < NUM_ROWS) {
+            const pan = value * 2 - 1; // Map 0-1 to -1..1
+            sequencer.setRowPan(row, pan);
+            audioEngine.setRowPan(row, pan);
+          }
+          break;
+        }
+      }
+    });
+
+    // Initialize MIDI (async, non-blocking)
+    midiManager.init();
 
     // Wire mixer volume/pan to audio engine
     eventBus.on('volume:changed', ({ row, volume }) => {
@@ -154,7 +234,7 @@ export class AppUI {
     });
 
     // Auto-save (listens for changes)
-    new AutoSave(sequencer, audioEngine);
+    new AutoSave(sequencer, audioEngine, midiLearn);
 
     // Restore state: URL hash takes priority over localStorage
     const hash = window.location.hash.slice(1);
@@ -215,6 +295,10 @@ export class AppUI {
         if (saved.eqLow != null) audioEngine.eq.setLow(saved.eqLow);
         if (saved.eqMid != null) audioEngine.eq.setMid(saved.eqMid);
         if (saved.eqHigh != null) audioEngine.eq.setHigh(saved.eqHigh);
+        // Restore MIDI CC mappings
+        if (saved.midiMappings) {
+          midiLearn.loadMappings(saved.midiMappings);
+        }
       }
     }
   }

@@ -59,3 +59,15 @@ export interface InstrumentConfig {
   trigger: InstrumentTrigger;
   color: string;
 }
+
+export interface MidiCCMapping {
+  channel: number;
+  cc: number;
+  target: string;
+}
+
+export interface MidiDeviceInfo {
+  id: string;
+  name: string;
+  manufacturer: string;
+}

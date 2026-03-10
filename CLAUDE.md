@@ -15,7 +15,7 @@ npx tsc --noEmit  # Type-check only
 ```
 src/
   main.ts                    # Entry: wires AudioEngine → Sequencer → Scheduler → AppUI
-  types.ts                   # Grid = number[][], VelocityLevel, InstrumentTrigger, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, SwingGrid, SoundParams
+  types.ts                   # Grid = number[][], VelocityLevel, InstrumentTrigger, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, SwingGrid, SoundParams, MidiCCMapping, MidiDeviceInfo
   audio/
     audio-engine.ts          # Audio routing hub: per-row GainNode+StereoPanner → dry/effects → master → saturation → EQ → perf insert → compressor → analyser → filter → destination
     scheduler.ts             # Look-ahead scheduler (25ms lookahead, 100ms schedule-ahead)
@@ -38,6 +38,11 @@ src/
     euclidean-popover.ts     # Euclidean rhythm generator popover (hits, rotation, preview, apply)
     sound-shaper.ts          # Per-instrument sound shaping popover (attack, decay, tone, punch knobs)
     piano-roll.ts            # Piano roll modal for melodic rows (visual note editor, drag paint, note preview, playhead)
+    midi-panel.ts            # MIDI settings popover (device list, CC learn, mapping management)
+  midi/
+    midi-manager.ts          # Web MIDI API access, device detection, message routing (note/CC)
+    midi-input.ts            # MIDI note → instrument triggering (GM drum + octave mappings)
+    midi-learn.ts            # CC learn mode: arm → capture CC → assign target → mapping stored
   visuals/                   # Canvas-based: particles, waveform, reactive background
   utils/
     event-bus.ts             # Typed pub/sub singleton — EventMap interface enforces compile-time safety
@@ -78,6 +83,11 @@ styles/
 - **Gate (note length)**: `GateGrid` values 0-3 indexing `GATE_LEVELS = [0.25, 0.5, 0.75, 1.0]`. `gateDuration = stepDuration * GATE_LEVELS[gate]`. Alt+Right-click cycles. Visual: `.grid-cell-gate` bar at bottom
 - **Slide/Glide**: `SlideGrid = boolean[][]` per bank. Only melodic rows (4,5,6). Scheduler searches backward for previous active note pitch. Instruments ramp frequency over 60ms via `exponentialRampToValueAtTime`
 - **InstrumentTrigger signature**: `(ctx, dest, time, velocity?, pitchOffset?, params?, gate?, glideFrom?)` — gate is 7th param, glideFrom is 8th
+- **MIDI manager**: `MidiManager.init()` async, non-blocking. Requests `navigator.requestMIDIAccess()`. Auto-reconnects on device plug/unplug via `onstatechange`. Routes note-on (0x90) to `MidiInput`, CC (0xB0) to `MidiLearn`
+- **MIDI note mapping**: GM drum notes 36-43 and direct octave 48-55 and alt octave 24-31 all map to instrument rows 0-7. Velocity (1-127) normalized to 0-1. Triggers `audioEngine.trigger()` at `ctx.currentTime` for lowest latency
+- **MIDI CC learn**: Flow: `armLearn()` → move MIDI knob → CC captured → user selects target from dropdown → `assignTarget()` creates mapping. One mapping per CC, one mapping per target. `handleCC()` applies mapped value (0-127 → 0-1 normalized) via `onApply` callback
+- **MIDI CC targets**: String identifiers like `'tempo'`, `'volume:0'`, `'pan:3'`, `'reverb-mix'`, `'eq-low'`. Target application wired in `app.ts`. Pan maps 0-1 → -1..1, tempo maps 0-1 → 30-300 BPM
+- **MIDI persistence**: CC mappings stored in localStorage via `SavedState.midiMappings`. `MidiLearn.loadMappings()` restores on page load
 
 ## Gotchas
 
@@ -101,3 +111,8 @@ styles/
 - **Humanize global**: `sequencer.humanize` is global (not per-bank), like soundParams. 0 = no effect, 1 = maximum wobble
 - **Piano roll alignment**: Non-melodic rows use `.grid-piano-btn--spacer` (visibility: hidden) to maintain grid cell alignment with melodic rows that have the ♪ button
 - **setNoteOffsetSilent**: Like `setCell` vs `toggleCell` — skips history push, emits `note:changed`. Use with `pushHistorySnapshot()` for batch operations (drag paint)
+- **AutoSave accepts midiLearn**: `new AutoSave(sequencer, audioEngine, midiLearn)` — 3rd param for MIDI CC mapping persistence
+- **MIDI learn keyboard shortcut**: `M` key toggles learn mode. Added to `keyboard-shortcuts.ts` as `MidiLearn` param (7th constructor arg)
+- **MIDI panel**: Popover pattern (not modal). `position: fixed; z-index: 500`. Toggle via MIDI button in controls row. Activity dot flashes green on any MIDI message (100ms timeout)
+- **Web MIDI API availability**: `MidiManager.init()` silently returns `false` if `navigator.requestMIDIAccess` is undefined (e.g., Firefox, HTTP). The MIDI button still appears but panel shows "No MIDI devices connected"
+- **No innerHTML**: MIDI panel uses `clearChildren()` helper (while loop removeChild) instead of `innerHTML = ''` for XSS safety

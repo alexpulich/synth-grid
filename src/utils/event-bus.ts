@@ -1,4 +1,4 @@
-import type { SoundParams } from '../types';
+import type { SoundParams, MidiDeviceInfo, MidiCCMapping } from '../types';
 
 export interface EventMap {
   'cell:toggled': { row: number; step: number; velocity: number };
@@ -32,6 +32,11 @@ export interface EventMap {
   'swing:changed': { row: number; swing: number };
   'gate:changed': { row: number; step: number; gate: number };
   'slide:changed': { row: number; step: number; slide: boolean };
+  'midi:devices-changed': MidiDeviceInfo[];
+  'midi:activity': void;
+  'midi:learn-toggle': boolean;
+  'midi:cc-captured': { cc: number; channel: number };
+  'midi:mapping-changed': MidiCCMapping[];
 }
 
 type Listener<T> = (payload: T) => void;

@@ -13,6 +13,7 @@
 @import './euclidean.css';
 @import './sound-shaper.css';
 @import './piano-roll.css';
+@import './midi.css';
 
 *,
 *::before,

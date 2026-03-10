@@ -2,12 +2,12 @@
 
 ## Goal
 
-Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 8 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, mobile support, or anything else you see fit.
+Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 9 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, mobile support, or anything else you see fit.
 
 ## Current State
 
-- **58 TypeScript files, 16 CSS files, ~19,300 lines of code**
-- **Latest commit**: `f8c54fb` — Round 8 complete
+- **62 TypeScript files, 17 CSS files, ~20,000 lines of code**
+- **Latest round**: Round 9 — MIDI Integration
 - **No test suite** — verification has been manual via browser
 - **No lint config** — only `npx tsc --noEmit` for type checking
 - **Deployment**: Dockerfile + GitHub Actions CI/CD exist
@@ -24,6 +24,7 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 6 | Ratchets (1-4x), trig conditions (1:2, 2:2, etc.), sound shaper (ADSR per instrument), tape saturation, tempo-synced delay |
 | 7 | Master 3-band EQ, humanize (timing/velocity jitter), per-row swing, note gate (4 lengths), slide/glide (melodic rows) |
 | 8 | Piano roll modal for melodic rows (visual 2D note editor, scale-aware pitch rows, click/drag paint, audible note preview, playhead tracking) |
+| 9 | MIDI integration: device detection, note input (GM drum + octave mappings → instrument triggering), CC learn mode (arm → capture → assign), MIDI panel UI, mapping persistence |
 
 ### Architecture Overview
 
@@ -45,6 +46,9 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **Silent setter pattern**: `setNoteOffsetSilent()` / `setCell()` skip history push for batch drag operations — call `pushHistorySnapshot()` once at drag start. Keeps undo clean
 - **Modal pattern for complex editors**: Piano roll uses a full-screen overlay (like help overlay) rather than a positioned popover — gives enough space for 2D grids. `position: fixed; z-index: 1000` with backdrop blur
 - **Scale-aware pitch computation**: Piano roll dynamically rebuilds pitch rows when scale changes — chromatic shows 25 rows, non-chromatic shows only in-scale notes. Uses `scaleDegreesToSemitones()` to enumerate valid pitches
+- **MIDI as separate module**: `src/midi/` directory with 3 focused files (manager, input, learn) keeps MIDI logic decoupled from audio and UI. Manager routes raw MIDI messages; input and learn handle specific concerns
+- **MIDI learn flow**: Arm → capture CC → select target → assign. This avoids modifying existing Knob/UI components — the learn UI is self-contained in the MIDI panel popover
+- **CC target wiring in app.ts**: The `midiLearn.onApply()` callback in app.ts maps target strings to parameter changes. This keeps the MIDI modules clean (no audio/sequencer deps) while allowing full parameter control
 
 ## What Didn't Work / Gotchas
 
@@ -54,13 +58,16 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **Strict TypeScript + Web Audio**: Need `new Float32Array(new ArrayBuffer(n * 4))` and `Uint8Array<ArrayBuffer>` for strict mode compatibility
 - **File has not been read yet**: The Edit tool requires reading a file first in the same session. Always `Read` before `Edit`
 - **Grid alignment with conditional buttons**: Piano roll ♪ button only shows on melodic rows — non-melodic rows need invisible spacer elements (`.grid-piano-btn--spacer` with `visibility: hidden`) to keep step cells aligned across all rows
+- **Web MIDI API browser support**: Only available in Chromium browsers (Chrome, Edge, Opera) over HTTPS or localhost. Firefox doesn't support it. `MidiManager.init()` silently returns false — the UI degrades gracefully
+- **No innerHTML for security**: The security hook blocks `innerHTML` usage. Use `clearChildren()` pattern (while loop with removeChild) instead
 
 ## Potential Next Directions
 
 These are suggestions, not requirements. Pursue whatever you think would most improve the project:
 
 ### Feature Ideas
-- **MIDI support**: MIDI clock sync, MIDI note output, MIDI controller mapping
+- **MIDI output**: Send MIDI notes to external synths/DAWs via Web MIDI output ports
+- **MIDI clock sync**: Sync to external MIDI clock for hardware integration
 - **Sample loading**: User-uploaded WAV/MP3 samples replacing or layering with synth instruments
 - **Effects per row**: Individual delay/reverb/filter sends per instrument (currently master-only)
 - **Automation lanes**: Per-step automation of any parameter (filter cutoff, volume, pan)
@@ -97,6 +104,9 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 | `src/audio/audio-engine.ts` | Audio routing graph |
 | `src/ui/grid.ts` | Main grid UI (largest UI file) |
 | `src/ui/piano-roll.ts` | Piano roll modal — good example of modal pattern + scale-aware UI |
+| `src/midi/midi-manager.ts` | Web MIDI API access, device detection, message routing |
+| `src/midi/midi-learn.ts` | CC learn mode — arm/capture/assign flow |
+| `src/ui/midi-panel.ts` | MIDI panel UI — popover pattern with learn flow |
 | `src/utils/event-bus.ts` | Event system — `EventMap` interface shows all events |
 
 ## Commands

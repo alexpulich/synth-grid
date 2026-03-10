@@ -1,6 +1,7 @@
 import type { Sequencer } from '../sequencer/sequencer';
 import type { AudioEngine } from '../audio/audio-engine';
-import type { Grid, ProbabilityGrid, NoteGrid, SoundParams } from '../types';
+import type { MidiLearn } from '../midi/midi-learn';
+import type { Grid, ProbabilityGrid, NoteGrid, SoundParams, MidiCCMapping } from '../types';
 import { eventBus } from '../utils/event-bus';
 
 const STORAGE_KEY = 'synth-grid-state';
@@ -32,6 +33,7 @@ interface SavedState {
   eqLow?: number;
   eqMid?: number;
   eqHigh?: number;
+  midiMappings?: MidiCCMapping[];
   tempo: number;
   swing: number;
   activeBank: number;
@@ -40,7 +42,7 @@ interface SavedState {
 export class AutoSave {
   private timer: number | null = null;
 
-  constructor(private sequencer: Sequencer, private audioEngine?: AudioEngine) {
+  constructor(private sequencer: Sequencer, private audioEngine?: AudioEngine, private midiLearn?: MidiLearn) {
     const scheduleSave = () => this.debouncedSave();
 
     eventBus.on('cell:toggled', scheduleSave);
@@ -62,6 +64,7 @@ export class AutoSave {
     eventBus.on('swing:changed', scheduleSave);
     eventBus.on('gate:changed', scheduleSave);
     eventBus.on('slide:changed', scheduleSave);
+    eventBus.on('midi:mapping-changed', scheduleSave);
   }
 
   private debouncedSave(): void {
@@ -100,6 +103,7 @@ export class AutoSave {
       eqLow: this.audioEngine?.eq.low,
       eqMid: this.audioEngine?.eq.mid,
       eqHigh: this.audioEngine?.eq.high,
+      midiMappings: this.midiLearn?.currentMappings,
       tempo: this.sequencer.tempo,
       swing: this.sequencer.swing,
       activeBank: this.sequencer.activeBank,
