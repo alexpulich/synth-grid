@@ -2,6 +2,17 @@ import type { AudioEngine } from './audio-engine';
 import type { Sequencer } from '../sequencer/sequencer';
 import { NUM_STEPS, VELOCITY_MAP } from '../types';
 
+function checkCondition(condIndex: number, loopCount: number): boolean {
+  switch (condIndex) {
+    case 1: return loopCount % 2 === 0;       // 1:2
+    case 2: return loopCount % 2 === 1;       // 2:2
+    case 3: return loopCount % 4 === 0;       // 1:4
+    case 4: return loopCount % 4 === 2;       // 3:4
+    case 5: return loopCount > 0;             // !1
+    default: return true;
+  }
+}
+
 export class Scheduler {
   private readonly LOOKAHEAD_MS = 25;
   private readonly SCHEDULE_AHEAD_S = 0.1;
@@ -19,6 +30,7 @@ export class Scheduler {
   start(): void {
     this.currentStep = 0;
     this.nextStepTime = this.audioEngine.ctx.currentTime;
+    this.sequencer.resetLoopCount();
     this.tick();
   }
 
@@ -45,16 +57,34 @@ export class Scheduler {
     const probs = this.sequencer.getCurrentProbabilities();
     const pitches = this.sequencer.getCurrentPitchOffsets();
     const notes = this.sequencer.getCurrentNoteGrid();
+    const ratchets = this.sequencer.getCurrentRatchets();
+    const conditions = this.sequencer.getCurrentConditions();
+    const stepDuration = 60.0 / this.sequencer.tempo / 4;
 
     let kickFired = false;
 
     for (let row = 0; row < grid.length; row++) {
       const vel = grid[row][step];
       if (vel > 0 && this.sequencer.muteState.isRowAudible(row)) {
+        // Check trig condition
+        const cond = conditions[row][step];
+        if (cond > 0 && !checkCondition(cond, this.sequencer.loopCount)) continue;
+
         const prob = probs[row][step];
         if (prob >= 1.0 || Math.random() < prob) {
           const totalPitch = pitches[row] + notes[row][step];
-          this.audioEngine.trigger(row, time, VELOCITY_MAP[vel], totalPitch);
+          const ratchetCount = ratchets[row][step] ?? 1;
+
+          if (ratchetCount > 1) {
+            // Subdivide step into ratchetCount evenly spaced triggers
+            const subDuration = stepDuration / ratchetCount;
+            for (let r = 0; r < ratchetCount; r++) {
+              this.audioEngine.trigger(row, time + r * subDuration, VELOCITY_MAP[vel], totalPitch);
+            }
+          } else {
+            this.audioEngine.trigger(row, time, VELOCITY_MAP[vel], totalPitch);
+          }
+
           if (row === 0) kickFired = true;
         }
       }
@@ -80,7 +110,6 @@ export class Scheduler {
       }
     }
     if (!isNaN(minLock)) {
-      const stepDuration = 60.0 / this.sequencer.tempo / 4;
       this.audioEngine.filter.scheduleFrequencyPulse(minLock, time, stepDuration * 0.9);
     }
 
@@ -101,11 +130,16 @@ export class Scheduler {
 
     this.currentStep = (this.currentStep + 1) % NUM_STEPS;
 
-    // Song mode: advance chain when wrapping back to step 0
-    if (this.currentStep === 0 && this.sequencer.patternChain.songMode) {
-      const nextBank = this.sequencer.patternChain.advanceChain();
-      if (nextBank !== null) {
-        this.sequencer.setBank(nextBank);
+    // Increment loop count when wrapping
+    if (this.currentStep === 0) {
+      this.sequencer.incrementLoopCount();
+
+      // Song mode: advance chain
+      if (this.sequencer.patternChain.songMode) {
+        const nextBank = this.sequencer.patternChain.advanceChain();
+        if (nextBank !== null) {
+          this.sequencer.setBank(nextBank);
+        }
       }
     }
   }

@@ -1,19 +1,30 @@
 import type { InstrumentTrigger } from '../../types';
 
-export const triggerPad: InstrumentTrigger = (ctx, dest, time, velocity = 1, pitchOffset = 0) => {
+export const triggerPad: InstrumentTrigger = (ctx, dest, time, velocity = 1, pitchOffset = 0, params) => {
   const pitchMult = Math.pow(2, pitchOffset / 12);
+  const a = params?.attack ?? 0.5;
+  const d = params?.decay ?? 0.5;
+  const t = params?.tone ?? 0.5;
+  const p = params?.punch ?? 0.5;
+
+  const swellTime = 0.05 + a * 1.95;                  // 0.05-2.0s
+  const release = 0.5 + d * 2.5;                      // 0.5-3.0s
+  const filterCutoff = (600 + t * 2400) * pitchMult;  // 600-3kHz
+  const brightness = 0.1 + p * 0.15;                  // 0.1-0.25 (initial gain)
+
   const baseFreq = 220 * pitchMult;
   const detunes = [-12, -5, 5, 12];
 
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';
-  filter.frequency.setValueAtTime(1200 * pitchMult, time);
+  filter.frequency.setValueAtTime(filterCutoff, time);
   filter.Q.setValueAtTime(1, time);
 
+  const totalDuration = swellTime + release;
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(0, time);
-  gain.gain.linearRampToValueAtTime(velocity * 0.2, time + 0.3);
-  gain.gain.linearRampToValueAtTime(0.001, time + 1.5);
+  gain.gain.linearRampToValueAtTime(velocity * brightness, time + swellTime);
+  gain.gain.linearRampToValueAtTime(0.001, time + totalDuration);
 
   for (const detune of detunes) {
     const osc = ctx.createOscillator();
@@ -22,7 +33,7 @@ export const triggerPad: InstrumentTrigger = (ctx, dest, time, velocity = 1, pit
     osc.detune.setValueAtTime(detune, time);
     osc.connect(filter);
     osc.start(time);
-    osc.stop(time + 1.5);
+    osc.stop(time + totalDuration);
   }
 
   filter.connect(gain);

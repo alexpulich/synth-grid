@@ -15,16 +15,16 @@ npx tsc --noEmit  # Type-check only
 ```
 src/
   main.ts                    # Entry: wires AudioEngine → Sequencer → Scheduler → AppUI
-  types.ts                   # Grid = number[][], VelocityLevel, InstrumentTrigger, ProbabilityGrid, NoteGrid, FilterLockGrid
+  types.ts                   # Grid = number[][], VelocityLevel, InstrumentTrigger, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, SoundParams
   audio/
-    audio-engine.ts          # Audio routing hub: per-row GainNode+StereoPanner → dry/effects → master → perf insert → compressor → analyser → filter → destination
+    audio-engine.ts          # Audio routing hub: per-row GainNode+StereoPanner → dry/effects → master → saturation → perf insert → compressor → analyser → filter → destination
     scheduler.ts             # Look-ahead scheduler (25ms lookahead, 100ms schedule-ahead)
     performance-fx.ts        # Hold-to-engage FX: tape stop, stutter, bitcrush, reverb wash
     wav-exporter.ts          # Offline render to WAV
     instruments/*.ts         # 8 synth instruments (kick, snare, hihat, clap, bass, lead, pad, perc)
-    effects/*.ts             # Reverb (ConvolverNode), Delay, Filter (BiquadFilter)
+    effects/*.ts             # Reverb (ConvolverNode), Delay (tempo-synced), Filter (BiquadFilter), Saturation (WaveShaperNode)
   sequencer/
-    sequencer.ts             # Central state: grids, probabilities, pitchOffsets, noteGrids, rowVolumes, rowPans, filterLocks, scale, sidechain, clipboard, history
+    sequencer.ts             # Central state: grids, probabilities, pitchOffsets, noteGrids, rowVolumes, rowPans, filterLocks, ratchets, conditions, soundParams, scale, sidechain, clipboard, history
     transport.ts             # Play/stop/tap tempo
     mute-state.ts            # Per-row mute/solo
     pattern-chain.ts         # Song mode chain (max 32 entries)
@@ -36,6 +36,7 @@ src/
     help-overlay.ts          # ? button + overlay showing all controls/shortcuts
     scale-selector.ts        # Root note + scale type dropdowns
     euclidean-popover.ts     # Euclidean rhythm generator popover (hits, rotation, preview, apply)
+    sound-shaper.ts          # Per-instrument sound shaping popover (attack, decay, tone, punch knobs)
   visuals/                   # Canvas-based: particles, waveform, reactive background
   utils/
     event-bus.ts             # Typed pub/sub singleton — EventMap interface enforces compile-time safety
@@ -64,6 +65,11 @@ styles/
 - **Euclidean rhythms**: Bjorklund's algorithm generates evenly-distributed patterns. Applied via `sequencer.applyEuclidean()` (pushes history)
 - **Sidechain ducking**: Kick (row 0) triggers gain envelope on rows 1-7. 5ms attack, configurable depth/release
 - **Filter locks**: `FilterLockGrid` uses NaN for "no lock", 0-1 for normalized frequency. Serialized as null in JSON (localStorage)
+- **Ratchets**: `RatchetGrid` values 1-4 (1 = normal single hit). Ctrl+scroll cycles count. Scheduler subdivides step duration evenly
+- **Trig conditions**: `ConditionGrid` indexes into `TRIG_CONDITIONS` (0=always, 1=1:2, 2=2:2, 3=1:4, 4=3:4, 5=!1). Loop counter increments when step wraps to 0
+- **Sound params**: Per-instrument `SoundParams` (attack, decay, tone, punch) — global, not per-bank. 0.5 = factory default. Double-click label opens shaper popover
+- **Tape saturation**: `WaveShaperNode` with `tanh(drive*x)/tanh(drive)` curve. Drive 0=clean, 1=heavy. Inserted between masterGain and compressor
+- **Tempo-synced delay**: Musical divisions (1/2, 1/4, 1/8, etc.) × (60/bpm). Auto-updates when BPM changes via `syncToBpm()`
 
 ## Gotchas
 
@@ -77,3 +83,6 @@ styles/
 - **New CSS files**: Must be `@import`ed in `styles/main.css` or they won't load
 - **FilterLockGrid NaN/null**: NaN means "no lock" in memory; must convert NaN→null for JSON serialization and null→NaN on restore
 - **Knob `setValueSilent(v)`**: Use for programmatic updates (e.g., bank switch) — avoids triggering onChange callbacks
+- **Ratchet/condition visuals**: Use DOM elements (`.grid-cell-ratchet`, `.grid-cell-condition`), NOT CSS pseudo-elements — `::before` is taken by note display, `::after` by probability stripes
+- **Label double-click vs click**: Plain click = mute, shift+click = solo, double-click = open sound shaper. No conflict because dblclick fires after mousedown
+- **SoundParams global**: Sound params are global (not per-bank), like scale. Not cleared on clearBank. Persisted in localStorage

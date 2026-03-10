@@ -1,8 +1,12 @@
 import type { AudioEngine } from '../audio/audio-engine';
 import type { Sequencer } from '../sequencer/sequencer';
 import { Knob } from './knob';
+import { DELAY_DIVISIONS } from '../audio/effects/delay';
+import { eventBus } from '../utils/event-bus';
 
 export class EffectsPanel {
+  private delayDivisionSelect: HTMLSelectElement;
+
   constructor(parent: HTMLElement, audioEngine: AudioEngine, sequencer?: Sequencer) {
     const container = document.createElement('div');
     container.className = 'effects-panel';
@@ -12,9 +16,34 @@ export class EffectsPanel {
     new Knob(reverbGroup.knobs, 'Mix', 0.3, (v) => audioEngine.reverb.setMix(v));
     container.appendChild(reverbGroup.el);
 
-    // Delay
+    // Delay (with tempo-synced division selector)
     const delayGroup = this.createGroup('Delay');
-    new Knob(delayGroup.knobs, 'Time', 0.375 / 2, (v) => audioEngine.delay.setTime(v * 2));
+
+    const divSelect = document.createElement('select');
+    divSelect.className = 'delay-division-select';
+    for (let i = 0; i < DELAY_DIVISIONS.length; i++) {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = DELAY_DIVISIONS[i].label;
+      divSelect.appendChild(opt);
+    }
+    divSelect.value = '3'; // default to 1/8
+    delayGroup.knobs.appendChild(divSelect);
+    this.delayDivisionSelect = divSelect;
+
+    // Set initial tempo-synced delay
+    if (sequencer) {
+      audioEngine.delay.setTimeFromDivision(sequencer.tempo, DELAY_DIVISIONS[3].mult);
+      divSelect.addEventListener('change', () => {
+        const idx = Number(divSelect.value);
+        audioEngine.delay.setTimeFromDivision(sequencer.tempo, DELAY_DIVISIONS[idx].mult);
+      });
+      // Sync delay when tempo changes
+      eventBus.on('tempo:changed', (bpm) => {
+        audioEngine.delay.syncToBpm(bpm);
+      });
+    }
+
     new Knob(delayGroup.knobs, 'Fdbk', 0.35, (v) => audioEngine.delay.setFeedback(v * 0.9));
     new Knob(delayGroup.knobs, 'Mix', 0.25, (v) => audioEngine.delay.setMix(v));
     container.appendChild(delayGroup.el);
@@ -49,6 +78,12 @@ export class EffectsPanel {
     filterGroup.el.appendChild(typeRow);
     container.appendChild(filterGroup.el);
 
+    // Saturation
+    const satGroup = this.createGroup('Saturation');
+    new Knob(satGroup.knobs, 'Drive', 0, (v) => audioEngine.saturation.setDrive(v));
+    new Knob(satGroup.knobs, 'Tone', 0.7, (v) => audioEngine.saturation.setTone(v));
+    container.appendChild(satGroup.el);
+
     // Sidechain (requires sequencer)
     if (sequencer) {
       const scGroup = this.createGroup('Sidechain');
@@ -76,6 +111,14 @@ export class EffectsPanel {
     }
 
     parent.appendChild(container);
+  }
+
+  getDelayDivisionIndex(): number {
+    return Number(this.delayDivisionSelect.value);
+  }
+
+  setDelayDivisionIndex(idx: number): void {
+    this.delayDivisionSelect.value = String(idx);
   }
 
   private createGroup(title: string): { el: HTMLElement; knobs: HTMLElement } {

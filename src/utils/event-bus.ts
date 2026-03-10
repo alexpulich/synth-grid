@@ -1,3 +1,5 @@
+import type { SoundParams } from '../types';
+
 export interface EventMap {
   'cell:toggled': { row: number; step: number; velocity: number };
   'cell:probability-changed': { row: number; step: number; probability: number };
@@ -23,6 +25,9 @@ export interface EventMap {
   'scale:changed': { scaleIndex: number; rootNote: number };
   'sidechain:changed': { enabled: boolean; depth: number; release: number };
   'filterlock:changed': { row: number; step: number; value: number };
+  'ratchet:changed': { row: number; step: number; count: number };
+  'condition:changed': { row: number; step: number; condition: number };
+  'soundparam:changed': { row: number; params: SoundParams };
 }
 
 type Listener<T> = (payload: T) => void;

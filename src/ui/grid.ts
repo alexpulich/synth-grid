@@ -1,4 +1,4 @@
-import { NUM_ROWS, NUM_STEPS, VELOCITY_OFF, VELOCITY_LOUD, MELODIC_ROWS } from '../types';
+import { NUM_ROWS, NUM_STEPS, VELOCITY_OFF, VELOCITY_LOUD, MELODIC_ROWS, TRIG_CONDITIONS } from '../types';
 import type { VelocityLevel } from '../types';
 import { INSTRUMENTS } from '../audio/instruments';
 import type { Sequencer } from '../sequencer/sequencer';
@@ -6,6 +6,7 @@ import { Knob } from './knob';
 import { eventBus } from '../utils/event-bus';
 import { SCALES, scaleDegreesToSemitones, semitonesToScaleDegree, semitoneToNoteName } from '../utils/scales';
 import { EuclideanPopover } from './euclidean-popover';
+import { SoundShaper } from './sound-shaper';
 
 export class GridUI {
   private container: HTMLElement;
@@ -16,6 +17,7 @@ export class GridUI {
   private volumeKnobs: Knob[] = [];
   private panKnobs: Knob[] = [];
   private euclideanPopover: EuclideanPopover;
+  private soundShaper: SoundShaper;
 
   // Drag paint state
   private isDragging = false;
@@ -28,6 +30,7 @@ export class GridUI {
     parent.appendChild(this.container);
 
     this.euclideanPopover = new EuclideanPopover(sequencer);
+    this.soundShaper = new SoundShaper(sequencer);
     this.buildGrid();
     this.bindEvents();
   }
@@ -127,6 +130,15 @@ export class GridUI {
   }
 
   private bindEvents(): void {
+    // Double-click on label: open sound shaper
+    this.container.addEventListener('dblclick', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.classList.contains('grid-row-label')) {
+        const row = Number(target.dataset.row);
+        this.soundShaper.open(row, target);
+      }
+    });
+
     // Drag paint: mousedown on cells
     this.container.addEventListener('mousedown', (e) => {
       const target = e.target as HTMLElement;
@@ -165,18 +177,41 @@ export class GridUI {
       this.applyDrag(row, step);
     });
 
-    // Right-click: cycle probability (or Shift+right-click: clear filter lock)
+    // Right-click: cycle probability, Shift+right-click: clear filter lock, Ctrl+right-click: cycle condition
     this.container.addEventListener('contextmenu', (e) => {
       const cell = (e.target as HTMLElement).closest('.grid-cell') as HTMLElement | null;
       if (!cell) return;
       e.preventDefault();
       const row = Number(cell.dataset.row);
       const step = Number(cell.dataset.step);
-      if (e.shiftKey) {
+      if (e.ctrlKey || e.metaKey) {
+        // Cycle trig condition
+        const current = this.sequencer.getCondition(row, step);
+        this.sequencer.setCondition(row, step, (current + 1) % TRIG_CONDITIONS.length);
+      } else if (e.shiftKey) {
         this.sequencer.clearFilterLock(row, step);
       } else {
         this.sequencer.cycleProbability(row, step);
       }
+    });
+
+    // Ctrl+scroll on active cells: set ratchet count
+    this.container.addEventListener('wheel', (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+      const cell = (e.target as HTMLElement).closest('.grid-cell') as HTMLElement | null;
+      if (!cell) return;
+      const row = Number(cell.dataset.row);
+      const step = Number(cell.dataset.step);
+      const grid = this.sequencer.getCurrentGrid();
+      if (grid[row][step] === VELOCITY_OFF) return;
+      e.preventDefault();
+      const current = this.sequencer.getRatchet(row, step);
+      const delta = e.deltaY < 0 ? 1 : -1;
+      // Wrap: 1→2→3→4→1
+      let next = current + delta;
+      if (next > 4) next = 1;
+      if (next < 1) next = 4;
+      this.sequencer.setRatchet(row, step, next);
     });
 
     // Shift+scroll on active cells: set filter lock
@@ -292,6 +327,16 @@ export class GridUI {
       this.updateFilterLockVisual(row, step, value);
     });
 
+    // Ratchet changed
+    eventBus.on('ratchet:changed', ({ row, step, count }) => {
+      this.updateRatchetVisual(row, step, count);
+    });
+
+    // Condition changed
+    eventBus.on('condition:changed', ({ row, step, condition }) => {
+      this.updateConditionVisual(row, step, condition);
+    });
+
     // Theme change: update INSTRUMENTS color for particle system
     eventBus.on('theme:changed', () => {
       for (let row = 0; row < NUM_ROWS; row++) {
@@ -345,6 +390,8 @@ export class GridUI {
     const probs = this.sequencer.getCurrentProbabilities();
     const notes = this.sequencer.getCurrentNoteGrid();
     const locks = this.sequencer.getCurrentFilterLocks();
+    const ratchets = this.sequencer.getCurrentRatchets();
+    const conditions = this.sequencer.getCurrentConditions();
     for (let row = 0; row < NUM_ROWS; row++) {
       for (let step = 0; step < NUM_STEPS; step++) {
         const vel = grid[row][step];
@@ -354,6 +401,8 @@ export class GridUI {
         this.cells[row][step].dataset.prob = String(pct);
         this.updateNoteDisplay(row, step, notes[row][step]);
         this.updateFilterLockVisual(row, step, locks[row][step]);
+        this.updateRatchetVisual(row, step, ratchets[row][step]);
+        this.updateConditionVisual(row, step, conditions[row][step]);
       }
     }
     this.refreshPitchDisplays();
@@ -414,5 +463,26 @@ export class GridUI {
       cell.appendChild(bar);
     }
     bar.style.height = `${Math.round(value * 100)}%`;
+  }
+
+  private updateRatchetVisual(row: number, step: number, count: number): void {
+
+    const cell = this.cells[row]?.[step];
+    if (!cell) return;
+    if (count > 1) {
+      cell.dataset.ratchet = String(count);
+    } else {
+      delete cell.dataset.ratchet;
+    }
+  }
+
+  private updateConditionVisual(row: number, step: number, condition: number): void {
+    const cell = this.cells[row]?.[step];
+    if (!cell) return;
+    if (condition > 0) {
+      cell.dataset.condition = TRIG_CONDITIONS[condition];
+    } else {
+      delete cell.dataset.condition;
+    }
   }
 }

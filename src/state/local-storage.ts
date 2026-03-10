@@ -1,5 +1,5 @@
 import type { Sequencer } from '../sequencer/sequencer';
-import type { Grid, ProbabilityGrid, NoteGrid } from '../types';
+import type { Grid, ProbabilityGrid, NoteGrid, SoundParams } from '../types';
 import { eventBus } from '../utils/event-bus';
 
 const STORAGE_KEY = 'synth-grid-state';
@@ -18,6 +18,12 @@ interface SavedState {
   sidechainDepth?: number;
   sidechainRelease?: number;
   filterLocks?: (number | null)[][][]; // NaN → null for JSON
+  ratchets?: number[][][];
+  conditions?: number[][][];
+  soundParams?: SoundParams[];
+  saturationDrive?: number;
+  saturationTone?: number;
+  delayDivision?: number;
   tempo: number;
   swing: number;
   activeBank: number;
@@ -41,6 +47,9 @@ export class AutoSave {
     eventBus.on('scale:changed', scheduleSave);
     eventBus.on('sidechain:changed', scheduleSave);
     eventBus.on('filterlock:changed', scheduleSave);
+    eventBus.on('ratchet:changed', scheduleSave);
+    eventBus.on('condition:changed', scheduleSave);
+    eventBus.on('soundparam:changed', scheduleSave);
   }
 
   private debouncedSave(): void {
@@ -69,6 +78,9 @@ export class AutoSave {
       filterLocks: this.sequencer.getAllFilterLocks().map((bank) =>
         bank.map((row) => row.map((v) => isNaN(v) ? null : v)),
       ),
+      ratchets: this.sequencer.getAllRatchets().map((bank) => bank.map((row) => [...row])),
+      conditions: this.sequencer.getAllConditions().map((bank) => bank.map((row) => [...row])),
+      soundParams: this.sequencer.getAllSoundParams().map((p) => ({ ...p })),
       tempo: this.sequencer.tempo,
       swing: this.sequencer.swing,
       activeBank: this.sequencer.activeBank,

@@ -1,5 +1,5 @@
-import { NUM_ROWS, NUM_STEPS, NUM_BANKS, VELOCITY_OFF, VELOCITY_LOUD, PROBABILITY_LEVELS, MELODIC_ROWS } from '../types';
-import type { Grid, VelocityLevel, ProbabilityGrid, NoteGrid, FilterLockGrid } from '../types';
+import { NUM_ROWS, NUM_STEPS, NUM_BANKS, VELOCITY_OFF, VELOCITY_LOUD, PROBABILITY_LEVELS, MELODIC_ROWS, DEFAULT_SOUND_PARAMS } from '../types';
+import type { Grid, VelocityLevel, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, SoundParams } from '../types';
 import { clamp } from '../utils/math';
 import { euclidean, rotatePattern } from '../utils/euclidean';
 import { eventBus } from '../utils/event-bus';
@@ -19,6 +19,14 @@ function createEmptyFilterLockGrid(): FilterLockGrid {
   return Array.from({ length: NUM_ROWS }, () => new Array<number>(NUM_STEPS).fill(NaN));
 }
 
+function createEmptyRatchetGrid(): RatchetGrid {
+  return Array.from({ length: NUM_ROWS }, () => new Array<number>(NUM_STEPS).fill(1));
+}
+
+function createEmptyConditionGrid(): ConditionGrid {
+  return Array.from({ length: NUM_ROWS }, () => new Array<number>(NUM_STEPS).fill(0));
+}
+
 export class Sequencer {
   private grids: Grid[];
   private probabilities: ProbabilityGrid[];
@@ -27,16 +35,20 @@ export class Sequencer {
   private rowVolumes: number[][];
   private rowPans: number[][];
   private filterLocks: FilterLockGrid[];
+  private ratchets: RatchetGrid[];
+  private conditions: ConditionGrid[];
   private _activeBank = 0;
   private _tempo = 120;
   private _swing = 0;
   private _isPlaying = false;
   private _currentStep = 0;
-  private _selectedScale = 0; // index into SCALES (0 = Chromatic)
-  private _rootNote = 0; // 0-11 (C through B)
+  private _selectedScale = 0;
+  private _rootNote = 0;
   private _sidechainEnabled = false;
   private _sidechainDepth = 0.7;
   private _sidechainRelease = 0.15;
+  private _loopCount = 0;
+  private _soundParams: SoundParams[] = Array.from({ length: NUM_ROWS }, () => ({ ...DEFAULT_SOUND_PARAMS }));
   private clipboard: { grid: Grid; probabilities: ProbabilityGrid; noteGrid: NoteGrid } | null = null;
   readonly history = new History();
   readonly muteState = new MuteState();
@@ -52,6 +64,8 @@ export class Sequencer {
     this.rowVolumes = Array.from({ length: NUM_BANKS }, () => new Array<number>(NUM_ROWS).fill(0.8));
     this.rowPans = Array.from({ length: NUM_BANKS }, () => new Array<number>(NUM_ROWS).fill(0));
     this.filterLocks = Array.from({ length: NUM_BANKS }, () => createEmptyFilterLockGrid());
+    this.ratchets = Array.from({ length: NUM_BANKS }, () => createEmptyRatchetGrid());
+    this.conditions = Array.from({ length: NUM_BANKS }, () => createEmptyConditionGrid());
   }
 
   private pushHistory(): void {
@@ -65,6 +79,10 @@ export class Sequencer {
     this.pushHistory();
     const grid = this.grids[this._activeBank];
     grid[row][step] = grid[row][step] === VELOCITY_OFF ? VELOCITY_LOUD : VELOCITY_OFF;
+    // Reset ratchet when toggling off
+    if (grid[row][step] === VELOCITY_OFF) {
+      this.ratchets[this._activeBank][row][step] = 1;
+    }
     eventBus.emit('cell:toggled', { row, step, velocity: grid[row][step] });
   }
 
@@ -89,6 +107,9 @@ export class Sequencer {
     const grid = this.grids[this._activeBank];
     if (grid[row][step] === velocity) return;
     grid[row][step] = velocity;
+    if (velocity === VELOCITY_OFF) {
+      this.ratchets[this._activeBank][row][step] = 1;
+    }
     eventBus.emit('cell:toggled', { row, step, velocity });
   }
 
@@ -238,6 +259,75 @@ export class Sequencer {
     return this.filterLocks;
   }
 
+  // Ratchets (per-step repeats)
+  getRatchet(row: number, step: number): number {
+    return this.ratchets[this._activeBank][row][step] ?? 1;
+  }
+
+  setRatchet(row: number, step: number, count: number): void {
+    this.ratchets[this._activeBank][row][step] = clamp(count, 1, 4);
+    eventBus.emit('ratchet:changed', { row, step, count: this.ratchets[this._activeBank][row][step] });
+  }
+
+  getCurrentRatchets(): RatchetGrid {
+    return this.ratchets[this._activeBank];
+  }
+
+  getAllRatchets(): RatchetGrid[] {
+    return this.ratchets;
+  }
+
+  // Trig conditions (conditional triggers)
+  getCondition(row: number, step: number): number {
+    return this.conditions[this._activeBank][row][step] ?? 0;
+  }
+
+  setCondition(row: number, step: number, condition: number): void {
+    this.conditions[this._activeBank][row][step] = clamp(condition, 0, 5);
+    eventBus.emit('condition:changed', { row, step, condition: this.conditions[this._activeBank][row][step] });
+  }
+
+  getCurrentConditions(): ConditionGrid {
+    return this.conditions[this._activeBank];
+  }
+
+  getAllConditions(): ConditionGrid[] {
+    return this.conditions;
+  }
+
+  // Loop count (for trig conditions)
+  get loopCount(): number { return this._loopCount; }
+
+  incrementLoopCount(): void {
+    this._loopCount++;
+  }
+
+  resetLoopCount(): void {
+    this._loopCount = 0;
+  }
+
+  // Sound params (global, not per-bank)
+  getSoundParams(row: number): SoundParams {
+    return this._soundParams[row] ?? { ...DEFAULT_SOUND_PARAMS };
+  }
+
+  setSoundParam(row: number, key: keyof SoundParams, value: number): void {
+    this._soundParams[row][key] = clamp(value, 0, 1);
+    eventBus.emit('soundparam:changed', { row, params: { ...this._soundParams[row] } });
+  }
+
+  getAllSoundParams(): SoundParams[] {
+    return this._soundParams;
+  }
+
+  loadSoundParams(params: SoundParams[]): void {
+    for (let i = 0; i < NUM_ROWS; i++) {
+      if (params[i]) {
+        this._soundParams[i] = { ...params[i] };
+      }
+    }
+  }
+
   clearCurrentBank(): void {
     this.pushHistory();
     this.grids[this._activeBank] = Array.from({ length: NUM_ROWS }, () =>
@@ -249,6 +339,8 @@ export class Sequencer {
     this.rowVolumes[this._activeBank] = new Array<number>(NUM_ROWS).fill(0.8);
     this.rowPans[this._activeBank] = new Array<number>(NUM_ROWS).fill(0);
     this.filterLocks[this._activeBank] = createEmptyFilterLockGrid();
+    this.ratchets[this._activeBank] = createEmptyRatchetGrid();
+    this.conditions[this._activeBank] = createEmptyConditionGrid();
     eventBus.emit('grid:cleared');
   }
 
@@ -304,11 +396,15 @@ export class Sequencer {
     const probs = this.probabilities[this._activeBank];
     const notes = this.noteGrids[this._activeBank];
     const locks = this.filterLocks[this._activeBank];
+    const ratch = this.ratchets[this._activeBank];
+    const conds = this.conditions[this._activeBank];
     for (let row = 0; row < NUM_ROWS; row++) {
       grid[row].push(grid[row].shift()!);
       probs[row].push(probs[row].shift()!);
       notes[row].push(notes[row].shift()!);
       locks[row].push(locks[row].shift()!);
+      ratch[row].push(ratch[row].shift()!);
+      conds[row].push(conds[row].shift()!);
     }
     eventBus.emit('grid:cleared');
   }
@@ -319,11 +415,15 @@ export class Sequencer {
     const probs = this.probabilities[this._activeBank];
     const notes = this.noteGrids[this._activeBank];
     const locks = this.filterLocks[this._activeBank];
+    const ratch = this.ratchets[this._activeBank];
+    const conds = this.conditions[this._activeBank];
     for (let row = 0; row < NUM_ROWS; row++) {
       grid[row].unshift(grid[row].pop()!);
       probs[row].unshift(probs[row].pop()!);
       notes[row].unshift(notes[row].pop()!);
       locks[row].unshift(locks[row].pop()!);
+      ratch[row].unshift(ratch[row].pop()!);
+      conds[row].unshift(conds[row].pop()!);
     }
     eventBus.emit('grid:cleared');
   }
@@ -349,6 +449,8 @@ export class Sequencer {
     rowVolumes?: number[][],
     rowPans?: number[][],
     filterLocks?: FilterLockGrid[],
+    ratchets?: RatchetGrid[],
+    conditions?: ConditionGrid[],
   ): void {
     for (let b = 0; b < NUM_BANKS; b++) {
       if (grids[b]) {
@@ -383,6 +485,16 @@ export class Sequencer {
         this.filterLocks[b] = filterLocks[b].map((row) => [...row]);
       } else {
         this.filterLocks[b] = createEmptyFilterLockGrid();
+      }
+      if (ratchets?.[b]) {
+        this.ratchets[b] = ratchets[b].map((row) => [...row]);
+      } else {
+        this.ratchets[b] = createEmptyRatchetGrid();
+      }
+      if (conditions?.[b]) {
+        this.conditions[b] = conditions[b].map((row) => [...row]);
+      } else {
+        this.conditions[b] = createEmptyConditionGrid();
       }
     }
     this._tempo = clamp(tempo, 30, 300);

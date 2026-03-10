@@ -34,6 +34,8 @@ export class HelpOverlay {
           ['Alt + Scroll', 'Change note pitch (scale-aware)'],
           ['Shift + Scroll', 'Set filter lock on active cell'],
           ['Shift + Right-click', 'Clear filter lock'],
+          ['Ctrl + Scroll', 'Set ratchet repeats (\u00d72, \u00d73, \u00d74)'],
+          ['Ctrl + Right-click', 'Cycle trig condition (1:2, 2:2, 1:4, etc.)'],
         ],
       },
       {
@@ -42,6 +44,7 @@ export class HelpOverlay {
           ['V knob (per row)', 'Volume (drag up/down)'],
           ['P knob (per row)', 'Pan (drag up/down)'],
           ['E button (per row)', 'Euclidean rhythm generator'],
+          ['Double-click label', 'Open sound shaper'],
         ],
       },
       {

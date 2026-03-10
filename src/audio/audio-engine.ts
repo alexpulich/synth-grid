@@ -1,8 +1,10 @@
-import { NUM_ROWS } from '../types';
+import { NUM_ROWS, DEFAULT_SOUND_PARAMS } from '../types';
+import type { SoundParams } from '../types';
 import { INSTRUMENTS } from './instruments';
 import { ReverbEffect } from './effects/reverb';
 import { DelayEffect } from './effects/delay';
 import { FilterEffect } from './effects/filter';
+import { SaturationEffect } from './effects/saturation';
 
 export class AudioEngine {
   readonly ctx: AudioContext;
@@ -12,12 +14,16 @@ export class AudioEngine {
   readonly reverb: ReverbEffect;
   readonly delay: DelayEffect;
   readonly filter: FilterEffect;
+  readonly saturation: SaturationEffect;
   readonly analyser: AnalyserNode;
   private readonly compressor: DynamicsCompressorNode;
 
   // Per-row channel strips
   private readonly rowGains: GainNode[] = [];
   private readonly rowPans: StereoPannerNode[] = [];
+
+  // Per-row sound params (synced from sequencer)
+  soundParams: SoundParams[] = Array.from({ length: NUM_ROWS }, () => ({ ...DEFAULT_SOUND_PARAMS }));
 
   constructor() {
     this.ctx = new AudioContext();
@@ -32,6 +38,7 @@ export class AudioEngine {
     this.reverb = new ReverbEffect(this.ctx);
     this.delay = new DelayEffect(this.ctx);
     this.filter = new FilterEffect(this.ctx);
+    this.saturation = new SaturationEffect(this.ctx);
 
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 256;
@@ -69,20 +76,20 @@ export class AudioEngine {
     this.reverb.output.connect(this.masterGain);
     this.delay.output.connect(this.masterGain);
 
-    // Chain: masterGain → compressor → analyser → filter → destination
-    this.masterGain.connect(this.compressor);
+    // Chain: masterGain → saturation → compressor → analyser → filter → destination
+    this.masterGain.connect(this.saturation.input);
+    this.saturation.output.connect(this.compressor);
     this.compressor.connect(this.analyser);
     this.analyser.connect(this.filter.input);
     this.filter.output.connect(this.ctx.destination);
   }
 
   /**
-   * Insert performance FX between masterGain and compressor.
-   * Chain: masterGain → perfInsertIn → perfInsertOut → compressor → analyser → filter → dest
+   * Insert performance FX between saturation and compressor.
    */
   insertPerformanceFX(insertIn: GainNode, insertOut: GainNode): void {
-    this.masterGain.disconnect(this.compressor);
-    this.masterGain.connect(insertIn);
+    this.saturation.output.disconnect(this.compressor);
+    this.saturation.output.connect(insertIn);
     insertOut.connect(this.compressor);
   }
 
@@ -96,7 +103,7 @@ export class AudioEngine {
 
     // Route through per-row channel strip
     const dest = this.rowGains[instrumentIndex] ?? this.dryBus;
-    instrument.trigger(this.ctx, dest, time, velocity, pitchOffset);
+    instrument.trigger(this.ctx, dest, time, velocity, pitchOffset, this.soundParams[instrumentIndex]);
   }
 
   setRowVolume(row: number, value: number): void {

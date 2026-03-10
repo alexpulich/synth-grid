@@ -23,6 +23,7 @@ import { NUM_ROWS } from '../types';
 import { decodeState } from '../state/url-state';
 import { AutoSave } from '../state/local-storage';
 import { ScaleSelector } from './scale-selector';
+import { DELAY_DIVISIONS } from '../audio/effects/delay';
 
 export class AppUI {
   private gridUI: GridUI;
@@ -112,6 +113,11 @@ export class AppUI {
       audioEngine.setRowPan(row, pan);
     });
 
+    // Wire sound params to audio engine
+    eventBus.on('soundparam:changed', ({ row, params }) => {
+      audioEngine.soundParams[row] = { ...params };
+    });
+
     // Sync mixer to audio engine on bank change
     eventBus.on('bank:changed', () => {
       const volumes = sequencer.getCurrentRowVolumes();
@@ -168,12 +174,31 @@ export class AppUI {
           saved.grids, saved.tempo, saved.swing, saved.activeBank,
           saved.probabilities, saved.pitchOffsets, saved.noteGrids,
           saved.rowVolumes, saved.rowPans, restoredFilterLocks,
+          saved.ratchets, saved.conditions,
         );
         if (saved.selectedScale != null) {
           sequencer.setScale(saved.selectedScale, saved.rootNote ?? 0);
         }
         if (saved.sidechainEnabled != null) {
           sequencer.setSidechain(saved.sidechainEnabled, saved.sidechainDepth ?? 0.7, saved.sidechainRelease ?? 0.15);
+        }
+        // Restore sound params
+        if (saved.soundParams) {
+          sequencer.loadSoundParams(saved.soundParams);
+          for (let row = 0; row < NUM_ROWS; row++) {
+            audioEngine.soundParams[row] = { ...sequencer.getSoundParams(row) };
+          }
+        }
+        // Restore saturation
+        if (saved.saturationDrive != null) {
+          audioEngine.saturation.setDrive(saved.saturationDrive);
+        }
+        if (saved.saturationTone != null) {
+          audioEngine.saturation.setTone(saved.saturationTone);
+        }
+        // Restore delay division
+        if (saved.delayDivision != null && saved.delayDivision < DELAY_DIVISIONS.length) {
+          audioEngine.delay.setTimeFromDivision(saved.tempo, DELAY_DIVISIONS[saved.delayDivision].mult);
         }
       }
     }

@@ -11,6 +11,7 @@
 @import './help.css';
 @import './scale-selector.css';
 @import './euclidean.css';
+@import './sound-shaper.css';
 
 *,
 *::before,
