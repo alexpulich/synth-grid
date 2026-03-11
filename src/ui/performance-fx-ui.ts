@@ -26,6 +26,11 @@ export class PerformanceFXUI {
     for (const fx of FX_LIST) {
       const btn = document.createElement('button');
       btn.className = 'perf-fx-btn';
+      btn.dataset.fx = fx.key;
+
+      const led = document.createElement('span');
+      led.className = 'perf-fx-led';
+      btn.appendChild(led);
 
       const keySpan = document.createElement('span');
       keySpan.className = 'perf-fx-key';

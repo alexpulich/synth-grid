@@ -1,6 +1,16 @@
+interface RowRef {
+  el: HTMLElement;
+  text: string; // searchable text (key + description, lowercased)
+  sectionEl: HTMLElement;
+}
+
 export class HelpOverlay {
   private overlay: HTMLElement;
   private visible = false;
+  private searchInput: HTMLInputElement | null = null;
+  private sectionEls: HTMLElement[] = [];
+  private rowRefs: RowRef[] = [];
+  private noResults: HTMLElement | null = null;
 
   constructor(parent: HTMLElement) {
     this.overlay = document.createElement('div');
@@ -17,7 +27,38 @@ export class HelpOverlay {
     title.textContent = 'Controls & Shortcuts';
     panel.appendChild(title);
 
-    const sections: { title: string; rows: [string, string][] }[] = [
+    // Search input
+    const searchWrap = document.createElement('div');
+    searchWrap.className = 'help-search-wrap';
+
+    this.searchInput = document.createElement('input');
+    this.searchInput.className = 'help-search';
+    this.searchInput.type = 'text';
+    this.searchInput.placeholder = 'Search shortcuts\u2026';
+    this.searchInput.addEventListener('input', () => this.filterRows());
+    searchWrap.appendChild(this.searchInput);
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'help-search-clear';
+    clearBtn.textContent = '\u00d7';
+    clearBtn.addEventListener('click', () => {
+      if (this.searchInput) {
+        this.searchInput.value = '';
+        this.filterRows();
+        this.searchInput.focus();
+      }
+    });
+    searchWrap.appendChild(clearBtn);
+
+    panel.appendChild(searchWrap);
+
+    // No results message
+    this.noResults = document.createElement('div');
+    this.noResults.className = 'help-no-results';
+    this.noResults.textContent = 'No matching shortcuts found';
+    panel.appendChild(this.noResults);
+
+    const sections: { title: string; rows: [string, string][]; cssClass?: string }[] = [
       {
         title: 'Playback',
         rows: [
@@ -114,24 +155,23 @@ export class HelpOverlay {
           ['?', 'Toggle this help'],
         ],
       },
+      {
+        title: 'Touch Controls',
+        rows: [
+          ['Tap cell', 'Toggle on/off'],
+          ['Drag across cells', 'Paint / erase multiple cells'],
+          ['Long-press active cell', 'Open context menu'],
+          ['Edit mode (FAB button)', 'Tap active cells to edit properties'],
+          ['Piano roll drag', 'Paint / erase notes'],
+          ['Automation lane drag', 'Draw automation values'],
+        ],
+        cssClass: 'help-section--touch',
+      },
     ];
-
-    // Touch-only section (visible on coarse pointer devices)
-    const touchSection: { title: string; rows: [string, string][] } = {
-      title: 'Touch Controls',
-      rows: [
-        ['Tap cell', 'Toggle on/off'],
-        ['Drag across cells', 'Paint / erase multiple cells'],
-        ['Long-press active cell', 'Open context menu'],
-        ['Edit mode (FAB button)', 'Tap active cells to edit properties'],
-        ['Piano roll drag', 'Paint / erase notes'],
-        ['Automation lane drag', 'Draw automation values'],
-      ],
-    };
 
     for (const section of sections) {
       const sec = document.createElement('div');
-      sec.className = 'help-section';
+      sec.className = 'help-section' + (section.cssClass ? ` ${section.cssClass}` : '');
 
       const heading = document.createElement('div');
       heading.className = 'help-section-title';
@@ -153,37 +193,16 @@ export class HelpOverlay {
         row.appendChild(descEl);
 
         sec.appendChild(row);
+        this.rowRefs.push({
+          el: row,
+          text: `${key} ${desc}`.toLowerCase(),
+          sectionEl: sec,
+        });
       }
 
       panel.appendChild(sec);
+      this.sectionEls.push(sec);
     }
-
-    // Add touch section (hidden on non-touch devices via CSS)
-    const touchSec = document.createElement('div');
-    touchSec.className = 'help-section help-section--touch';
-
-    const touchHeading = document.createElement('div');
-    touchHeading.className = 'help-section-title';
-    touchHeading.textContent = touchSection.title;
-    touchSec.appendChild(touchHeading);
-
-    for (const [key, desc] of touchSection.rows) {
-      const row = document.createElement('div');
-      row.className = 'help-row';
-
-      const keyEl = document.createElement('span');
-      keyEl.className = 'help-key';
-      keyEl.textContent = key;
-      row.appendChild(keyEl);
-
-      const descEl = document.createElement('span');
-      descEl.className = 'help-desc';
-      descEl.textContent = desc;
-      row.appendChild(descEl);
-
-      touchSec.appendChild(row);
-    }
-    panel.appendChild(touchSec);
 
     this.overlay.appendChild(panel);
     parent.appendChild(this.overlay);
@@ -195,6 +214,42 @@ export class HelpOverlay {
     });
   }
 
+  private filterRows(): void {
+    const query = this.searchInput?.value.trim().toLowerCase() ?? '';
+    let anyVisible = false;
+
+    if (!query) {
+      // Show all
+      for (const ref of this.rowRefs) {
+        ref.el.classList.remove('help-row--hidden');
+      }
+      for (const sec of this.sectionEls) {
+        sec.classList.remove('help-section--hidden');
+      }
+      if (this.noResults) this.noResults.classList.remove('help-no-results--visible');
+      return;
+    }
+
+    // Hide non-matching rows
+    for (const ref of this.rowRefs) {
+      const matches = ref.text.includes(query);
+      ref.el.classList.toggle('help-row--hidden', !matches);
+      if (matches) anyVisible = true;
+    }
+
+    // Hide sections with no visible rows
+    for (const sec of this.sectionEls) {
+      const hasVisibleRow = this.rowRefs.some(
+        (ref) => ref.sectionEl === sec && !ref.el.classList.contains('help-row--hidden'),
+      );
+      sec.classList.toggle('help-section--hidden', !hasVisibleRow);
+    }
+
+    if (this.noResults) {
+      this.noResults.classList.toggle('help-no-results--visible', !anyVisible);
+    }
+  }
+
   toggle(): void {
     if (this.visible) this.hide();
     else this.show();
@@ -203,6 +258,12 @@ export class HelpOverlay {
   show(): void {
     this.visible = true;
     this.overlay.classList.add('help-overlay--visible');
+    // Focus search and clear previous query
+    if (this.searchInput) {
+      this.searchInput.value = '';
+      this.filterRows();
+      setTimeout(() => this.searchInput?.focus(), 100);
+    }
   }
 
   hide(): void {

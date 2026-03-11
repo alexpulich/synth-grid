@@ -33,6 +33,8 @@ export class GridUI {
   private touchToolbar: TouchToolbar;
   private automationLanes: AutomationLane[] = [];
   private _lanesVisible = false;
+  private stepLabels: HTMLButtonElement[] = [];
+  private playheadBar: HTMLElement | null = null;
 
   // Drag paint state
   private isDragging = false;
@@ -102,7 +104,14 @@ export class GridUI {
         }
       });
       headerRow.appendChild(stepLabel);
+      this.stepLabels.push(stepLabel);
     }
+
+    // Playhead indicator bar
+    this.playheadBar = document.createElement('div');
+    this.playheadBar.className = 'grid-playhead-bar';
+    headerRow.appendChild(this.playheadBar);
+
     this.container.appendChild(headerRow);
 
     for (let row = 0; row < NUM_ROWS; row++) {
@@ -671,6 +680,16 @@ export class GridUI {
         setTimeout(() => cellRef.classList.remove('grid-cell--triggered'), 200);
       }
     }
+
+    // Update step header playhead
+    this.stepLabels[prev].classList.remove('grid-step-label--playing');
+    this.stepLabels[step].classList.add('grid-step-label--playing');
+    if (this.playheadBar) {
+      const label = this.stepLabels[step];
+      this.playheadBar.style.left = `${label.offsetLeft}px`;
+      this.playheadBar.style.width = `${label.offsetWidth}px`;
+      this.playheadBar.classList.add('grid-playhead-bar--active');
+    }
   }
 
   clearPlayhead(): void {
@@ -678,6 +697,12 @@ export class GridUI {
       for (let step = 0; step < NUM_STEPS; step++) {
         this.cells[row][step].classList.remove('grid-cell--playing');
       }
+    }
+    for (const label of this.stepLabels) {
+      label.classList.remove('grid-step-label--playing');
+    }
+    if (this.playheadBar) {
+      this.playheadBar.classList.remove('grid-playhead-bar--active');
     }
   }
 

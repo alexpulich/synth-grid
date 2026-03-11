@@ -1,11 +1,13 @@
 import type { MuteState } from '../sequencer/mute-state';
 import { MuteScenes, NUM_MUTE_SCENES } from '../sequencer/mute-scenes';
+import { INSTRUMENTS } from '../audio/instruments';
 import { eventBus } from '../utils/event-bus';
 import { showToast } from './toast';
 
 export class MuteScenesUI {
   private buttons: HTMLButtonElement[] = [];
   private activeScene: number | null = null;
+  private tooltip: HTMLElement | null = null;
 
   constructor(parent: HTMLElement, private muteScenes: MuteScenes, private muteState: MuteState) {
     const container = document.createElement('div');
@@ -20,7 +22,6 @@ export class MuteScenesUI {
       const btn = document.createElement('button');
       btn.className = 'mute-scene-btn';
       btn.textContent = String(i + 1);
-      btn.title = `Click: recall scene ${i + 1}\nShift+Click: save to scene ${i + 1}`;
       btn.addEventListener('click', (e) => {
         if (e.shiftKey) {
           this.saveToScene(i);
@@ -28,6 +29,8 @@ export class MuteScenesUI {
           this.recallScene(i);
         }
       });
+      btn.addEventListener('mouseenter', () => this.showTooltip(i, btn));
+      btn.addEventListener('mouseleave', () => this.hideTooltip());
       container.appendChild(btn);
       this.buttons.push(btn);
     }
@@ -59,6 +62,52 @@ export class MuteScenesUI {
     eventBus.emit('mutescene:recalled', index);
     showToast(`Scene ${index + 1} recalled`);
     this.updateVisuals();
+  }
+
+  private showTooltip(index: number, btn: HTMLElement): void {
+    if (!this.tooltip) {
+      this.tooltip = document.createElement('div');
+      this.tooltip.className = 'mute-scene-tooltip';
+      document.body.appendChild(this.tooltip);
+    }
+
+    const scene = this.muteScenes.recallScene(index);
+    if (!scene) {
+      this.tooltip.textContent = '';
+      const dim = document.createElement('span');
+      dim.className = 'mute-scene-tooltip-dim';
+      dim.textContent = 'Empty';
+      this.tooltip.appendChild(dim);
+    } else {
+      // Clear previous content
+      while (this.tooltip.firstChild) this.tooltip.removeChild(this.tooltip.firstChild);
+
+      const mutedNames = scene.muted
+        .map((m, i) => m ? INSTRUMENTS[i].name : null)
+        .filter(Boolean);
+      const soloName = scene.soloRow !== null ? INSTRUMENTS[scene.soloRow].name : null;
+
+      const parts: string[] = [];
+      if (soloName) parts.push(`Solo: ${soloName}`);
+      if (mutedNames.length > 0) parts.push(`Muted: ${mutedNames.join(', ')}`);
+      if (parts.length === 0) parts.push('All unmuted');
+
+      this.tooltip.textContent = parts.join(' · ');
+    }
+
+    const rect = btn.getBoundingClientRect();
+    this.tooltip.style.left = `${rect.left + rect.width / 2}px`;
+    this.tooltip.style.top = `${rect.top - 4}px`;
+    this.tooltip.style.transform = 'translate(-50%, -100%)';
+
+    void this.tooltip.offsetHeight;
+    this.tooltip.classList.add('mute-scene-tooltip--visible');
+  }
+
+  private hideTooltip(): void {
+    if (this.tooltip) {
+      this.tooltip.classList.remove('mute-scene-tooltip--visible');
+    }
   }
 
   private updateVisuals(): void {

@@ -304,6 +304,7 @@
   align-items: center;
   gap: var(--cell-gap);
   margin-bottom: 2px;
+  position: relative;
 }
 
 .grid-step-header-spacer--label { width: 56px; flex-shrink: 0; }
@@ -338,6 +339,29 @@
 
 .grid-step-label--beat-start {
   margin-left: 4px;
+}
+
+.grid-step-label--playing {
+  color: var(--color-text);
+  background: var(--color-surface-light);
+  border-color: var(--color-border);
+}
+
+.grid-playhead-bar {
+  position: absolute;
+  bottom: 0;
+  height: 2px;
+  background: var(--color-text);
+  border-radius: 1px;
+  opacity: 0;
+  transition: left 60ms linear, opacity var(--transition-fast);
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.3);
+}
+
+.grid-playhead-bar--active {
+  opacity: 0.8;
 }
 
 /* Cell copy/paste flash */

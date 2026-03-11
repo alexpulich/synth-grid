@@ -6,8 +6,8 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 
 ## Current State
 
-- **81 TypeScript files, 26 CSS files, ~14,000 lines of code**
-- **Latest round**: Round 15 — Mobile & Touch
+- **81 TypeScript files, 27 CSS files, ~14,200 lines of code**
+- **Latest round**: Round 16 — Visual Polish & UX Feedback
 - **No test suite** — verification has been manual via browser
 - **No lint config** — only `npx tsc --noEmit` for type checking
 - **Deployment**: Dockerfile + GitHub Actions CI/CD exist
@@ -31,20 +31,22 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 13 | MIDI output (send notes to external synths/DAWs), per-row MIDI output config (channel, base note, enable), MIDI clock sync (send/receive 24ppqn), All Notes Off safety (CC123 on stop + beforeunload), MIDI panel output UI (port select, clock mode, per-row config, activity dots) |
 | 14 | Automation lanes: per-step volume/pan/reverb-send/delay-send automation with collapsible visual editor per row. Click/drag to draw values, right-click to clear. Filter cutoff lane reads existing filterLocks. Per-bank state, persisted to localStorage and pattern library. Toggle with A key |
 | 15 | Mobile & touch: touch grid painting (tap/drag), long-press context menu, floating touch toolbar (FAB toggle for edit mode), piano roll + automation lane touch support, responsive CSS (tablet ≤768px, phone ≤480px), touch dismiss on all popovers, PWA setup (manifest, service worker, meta tags), help overlay touch section |
+| 16 | Visual polish & UX: always-visible knob value labels, per-FX color-coded LED indicators with pulse animation, playhead indicator bar on step header, mute scene hover tooltips with instrument names, theme preview cards with color swatches (replaces dropdown), help overlay search/filter |
 
-### Current Progress (Round 15 — just completed)
+### Current Progress (Round 16 — just completed)
 
-Round 15 focused on making the app usable on touch devices and small screens. All features are implemented, type-checked, built, and visually verified at desktop, tablet (768px), and phone (375px) breakpoints. No console errors.
+Round 16 focused on UX polish and visual feedback — making existing features more discoverable and responsive without adding new audio/sequencer capabilities. All features are implemented, type-checked, built, and visually verified. No console errors.
 
-**New files**: `src/utils/touch.ts`, `src/ui/touch-toolbar.ts`, `styles/touch-toolbar.css`, `public/manifest.json`, `public/sw.js`, `public/icons/icon-192.svg`
+**New files**: none (1 CSS file `styles/mute-scenes.css` already existed, tooltip styles added to it)
 
-**Modified files** (18): grid.ts, piano-roll.ts, automation-lane.ts, cell-context-menu.ts, euclidean-popover.ts, sound-shaper.ts, help-overlay.ts, main.ts, index.html, and 9 CSS files with responsive breakpoints and touch overrides.
+**Modified files** (12): `styles/knob.css` (value visibility), `src/ui/performance-fx-ui.ts` + `styles/effects.css` (LED indicators), `src/ui/grid.ts` + `styles/grid.css` (playhead bar), `src/ui/mute-scenes-ui.ts` + `styles/mute-scenes.css` (tooltip), `src/ui/theme-switcher.ts` + `styles/pattern-bank.css` (card UI), `src/ui/help-overlay.ts` + `styles/help.css` (search), `CLAUDE.md`
 
-**Not done / known gaps from Round 15**:
-- Touch toolbar doesn't show visual feedback for current cell state (e.g., which velocity is active) — it cycles blindly
-- No touch support for transport controls (knobs already have touch from `knob.ts`, but the transport area could be friendlier)
-- PWA icons are SVG only — some older Android versions prefer PNG; could generate raster icons
-- No landscape lock hint on mobile — the manifest says `"orientation": "landscape"` but the app works in portrait too
+**Not done / known gaps from Round 16**:
+- Mute scene tooltip doesn't update live if you mute/unmute rows while hovering — need to mouseleave and re-enter
+- Help search doesn't highlight matching text within rows — only shows/hides entire rows
+- Theme card swatches are hardcoded colors per theme — if someone adds a new theme, they must also add `swatches` array
+- Playhead bar `transition: left 60ms` may feel slightly sluggish at very fast tempos (300+ BPM)
+- Touch toolbar still doesn't show visual feedback for current cell state (carried from Round 15)
 
 ### Architecture Overview
 

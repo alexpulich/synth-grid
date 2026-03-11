@@ -50,6 +50,32 @@
   transition: transform 50ms ease-out;
 }
 
+/* Scene tooltip */
+.mute-scene-tooltip {
+  position: fixed;
+  z-index: 1500;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--color-text);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.mute-scene-tooltip--visible {
+  opacity: 1;
+}
+
+.mute-scene-tooltip-dim {
+  color: var(--color-text-dim);
+}
+
 /* === Responsive: Phone (≤480px) === */
 @media (max-width: 480px) {
   .mute-scenes { display: none; }

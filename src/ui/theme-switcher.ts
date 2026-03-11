@@ -4,6 +4,7 @@ interface ThemeDefinition {
   id: string;
   name: string;
   vars: Record<string, string>;
+  swatches: string[]; // 4 representative colors for preview
 }
 
 const THEMES: ThemeDefinition[] = [
@@ -11,6 +12,7 @@ const THEMES: ThemeDefinition[] = [
     id: 'neon-night',
     name: 'Neon Night',
     vars: {},
+    swatches: ['#0a0a0f', '#ff3366', '#6633ff', '#00ccff'],
   },
   {
     id: 'sunset-fade',
@@ -35,6 +37,7 @@ const THEMES: ThemeDefinition[] = [
       '--knob-bg': '#2a1420',
       '--knob-track': '#442030',
     },
+    swatches: ['#1a0a14', '#ff4444', '#ff5577', '#ffaa22'],
   },
   {
     id: 'deep-ocean',
@@ -59,6 +62,7 @@ const THEMES: ThemeDefinition[] = [
       '--knob-bg': '#0c1624',
       '--knob-track': '#1a2840',
     },
+    swatches: ['#050a14', '#2288cc', '#3399ee', '#44ccaa'],
   },
   {
     id: 'phantom',
@@ -83,6 +87,7 @@ const THEMES: ThemeDefinition[] = [
       '--knob-bg': '#1a1a1a',
       '--knob-track': '#333333',
     },
+    swatches: ['#0c0c0c', '#ffffff', '#bbbbbb', '#888888'],
   },
 ];
 
@@ -90,7 +95,7 @@ const STORAGE_KEY = 'synth-grid-theme';
 
 export class ThemeSwitcher {
   private currentIndex = 0;
-  private select: HTMLSelectElement;
+  private cards: HTMLButtonElement[] = [];
 
   constructor(parent: HTMLElement) {
     const container = document.createElement('div');
@@ -101,19 +106,36 @@ export class ThemeSwitcher {
     label.textContent = 'Theme';
     container.appendChild(label);
 
-    this.select = document.createElement('select');
-    this.select.className = 'theme-select';
-    for (const theme of THEMES) {
-      const opt = document.createElement('option');
-      opt.value = theme.id;
-      opt.textContent = theme.name;
-      this.select.appendChild(opt);
+    const cardsRow = document.createElement('div');
+    cardsRow.className = 'theme-cards';
+
+    for (let i = 0; i < THEMES.length; i++) {
+      const theme = THEMES[i];
+      const card = document.createElement('button');
+      card.className = 'theme-card';
+      if (i === 0) card.classList.add('theme-card--active');
+
+      const swatchesRow = document.createElement('div');
+      swatchesRow.className = 'theme-card-swatches';
+      for (const color of theme.swatches) {
+        const swatch = document.createElement('span');
+        swatch.className = 'theme-card-swatch';
+        swatch.style.background = color;
+        swatchesRow.appendChild(swatch);
+      }
+      card.appendChild(swatchesRow);
+
+      const name = document.createElement('span');
+      name.className = 'theme-card-name';
+      name.textContent = theme.name;
+      card.appendChild(name);
+
+      card.addEventListener('click', () => this.setTheme(i));
+      cardsRow.appendChild(card);
+      this.cards.push(card);
     }
-    this.select.addEventListener('change', () => {
-      const idx = THEMES.findIndex((t) => t.id === this.select.value);
-      if (idx >= 0) this.setTheme(idx);
-    });
-    container.appendChild(this.select);
+
+    container.appendChild(cardsRow);
     parent.appendChild(container);
 
     // Restore from localStorage
@@ -146,7 +168,11 @@ export class ThemeSwitcher {
       }
     }
 
-    this.select.value = theme.id;
+    // Update active card
+    for (let i = 0; i < this.cards.length; i++) {
+      this.cards[i].classList.toggle('theme-card--active', i === index);
+    }
+
     localStorage.setItem(STORAGE_KEY, theme.id);
     eventBus.emit('theme:changed', theme.id);
   }

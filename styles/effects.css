@@ -111,14 +111,51 @@
   margin-right: 2px;
 }
 
+/* LED indicator dot */
+.perf-fx-led {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-text-dim);
+  opacity: 0.3;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+/* Per-FX active colors */
+.perf-fx-btn--active[data-fx="tapestop"] {
+  --perf-fx-color: #ff3366;
+}
+.perf-fx-btn--active[data-fx="stutter"] {
+  --perf-fx-color: #ff8833;
+}
+.perf-fx-btn--active[data-fx="bitcrush"] {
+  --perf-fx-color: #00ccff;
+}
+.perf-fx-btn--active[data-fx="reverbwash"] {
+  --perf-fx-color: #aa44ff;
+}
+
 .perf-fx-btn--active {
-  border-color: var(--color-kick);
-  color: var(--color-kick);
-  box-shadow: 0 0 12px rgba(255, 51, 102, 0.4);
-  background: rgba(255, 51, 102, 0.1);
+  border-color: var(--perf-fx-color, var(--color-kick));
+  color: var(--perf-fx-color, var(--color-kick));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--perf-fx-color, var(--color-kick)) 40%, transparent);
+  background: color-mix(in srgb, var(--perf-fx-color, var(--color-kick)) 10%, transparent);
 }
 
 .perf-fx-btn--active .perf-fx-key {
-  border-color: var(--color-kick);
-  color: var(--color-kick);
+  border-color: var(--perf-fx-color, var(--color-kick));
+  color: var(--perf-fx-color, var(--color-kick));
+}
+
+.perf-fx-btn--active .perf-fx-led {
+  background: var(--perf-fx-color, var(--color-kick));
+  opacity: 1;
+  box-shadow: 0 0 6px var(--perf-fx-color, var(--color-kick));
+  animation: perf-fx-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes perf-fx-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
