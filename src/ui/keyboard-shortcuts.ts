@@ -32,6 +32,7 @@ export class KeyboardShortcuts {
     private readonly patternLibrary?: PatternLibrary,
     private readonly muteScenes?: MuteScenes,
     private readonly muteScenesUI?: MuteScenesUI,
+    private readonly onToggleAutomation?: () => void,
   ) {
     document.addEventListener('keydown', this.handleKeyDown);
     document.addEventListener('keyup', this.handleKeyUp);
@@ -143,6 +144,9 @@ export class KeyboardShortcuts {
       case 'KeyN':
         this.sequencer.midiOutputGlobalEnabled = !this.sequencer.midiOutputGlobalEnabled;
         showToast(this.sequencer.midiOutputGlobalEnabled ? 'MIDI output enabled' : 'MIDI output disabled');
+        break;
+      case 'KeyA':
+        if (this.onToggleAutomation) this.onToggleAutomation();
         break;
     }
   };

@@ -1,0 +1,109 @@
+/* Automation Lane — collapsible per-row parameter strip */
+.auto-lane {
+  display: none;
+  align-items: stretch;
+  gap: var(--cell-gap);
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: height var(--transition-med), opacity var(--transition-med);
+}
+
+.auto-lane--visible {
+  display: flex;
+  height: 32px;
+  opacity: 1;
+}
+
+/* Left spacer: matches label + pitch + mixer + euc + piano column widths */
+.auto-lane__header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+  padding-right: 2px;
+}
+
+.auto-lane__spacer--label { width: 56px; flex-shrink: 0; }
+.auto-lane__spacer--pitch { width: 66px; flex-shrink: 0; }
+.auto-lane__spacer--mixer { width: 134px; flex-shrink: 0; }
+.auto-lane__spacer--euc { width: 22px; flex-shrink: 0; }
+.auto-lane__spacer--piano { width: 22px; flex-shrink: 0; }
+
+.auto-lane__param-btn {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  padding: 2px 3px;
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  background: var(--color-surface);
+  color: var(--color-text-dim);
+  cursor: pointer;
+  outline: none;
+  line-height: 1;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.auto-lane__param-btn:hover {
+  border-color: var(--color-text);
+  color: var(--color-text);
+}
+
+.auto-lane__param-btn--active {
+  border-color: var(--auto-color);
+  color: var(--auto-color);
+  background: var(--color-surface-light, rgba(255, 255, 255, 0.05));
+}
+
+/* Step bar grid */
+.auto-lane__grid {
+  display: flex;
+  gap: var(--cell-gap);
+  align-items: flex-end;
+  flex: 0 0 auto;
+}
+
+/* Individual step container */
+.auto-lane__step {
+  width: var(--cell-size);
+  height: 100%;
+  position: relative;
+  cursor: crosshair;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  display: flex;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+
+.auto-lane__step--beat-start {
+  margin-left: 4px;
+}
+
+.auto-lane__step--playing {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* Value bar inside step */
+.auto-lane__bar {
+  width: 100%;
+  background: var(--auto-color, var(--color-text));
+  border-radius: 1px;
+  pointer-events: none;
+  opacity: 0.7;
+  min-height: 0;
+}
+
+/* Pan parameter: center-origin display */
+.auto-lane__step--pan {
+  align-items: center;
+}
+
+.auto-lane__step--pan .auto-lane__bar {
+  position: absolute;
+  left: 0;
+  width: 100%;
+}

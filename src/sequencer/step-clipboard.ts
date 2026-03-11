@@ -7,6 +7,7 @@ export interface StepData {
   conditions: number[];
   gates: number[];
   slides: boolean[];
+  automationData?: number[][]; // [param][row] for one step column
 }
 
 export class StepClipboard {
@@ -23,6 +24,7 @@ export class StepClipboard {
       conditions: [...data.conditions],
       gates: [...data.gates],
       slides: [...data.slides],
+      automationData: data.automationData?.map(p => [...p]),
     };
     this._sourceStep = step;
   }
@@ -41,6 +43,7 @@ export class StepClipboard {
       conditions: [...this.data.conditions],
       gates: [...this.data.gates],
       slides: [...this.data.slides],
+      automationData: this.data.automationData?.map(p => [...p]),
     };
   }
 }

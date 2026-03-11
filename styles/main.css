@@ -20,6 +20,7 @@
 @import './metronome.css';
 @import './mute-scenes.css';
 @import './pattern-library.css';
+@import './automation-lane.css';
 
 *,
 *::before,

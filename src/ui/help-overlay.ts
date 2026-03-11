@@ -38,6 +38,7 @@ export class HelpOverlay {
           ['Ctrl + Right-click', 'Cycle trig condition (1:2, 2:2, 1:4, etc.)'],
           ['Alt + Right-click', 'Cycle note gate: Short \u2192 Normal \u2192 Long \u2192 Held'],
           ['Alt + Click', 'Toggle slide/glide (melodic rows)'],
+          ['A', 'Toggle automation lanes'],
         ],
       },
       {

@@ -105,3 +105,15 @@ export const DEFAULT_MIDI_OUTPUT_CONFIG: MidiOutputConfig = {
 
 // GM drum map for drum rows, middle C region for melodic
 export const DEFAULT_ROW_BASE_NOTES = [36, 38, 42, 39, 33, 48, 60, 56] as const;
+
+// Round 14 — Automation Lanes
+export const AUTO_PARAMS = ['volume', 'pan', 'reverbSend', 'delaySend'] as const;
+export type AutoParam = typeof AUTO_PARAMS[number];
+export const NUM_AUTO_PARAMS = AUTO_PARAMS.length;
+
+// [paramIndex][row][step] — NaN = no lock (use row default)
+// volume: 0-1, pan: 0-1 (mapped to -1..1 at apply time), reverbSend: 0-1, delaySend: 0-1
+export type AutomationData = number[][][];
+
+export const AUTOMATION_LABELS = ['Vol', 'Pan', 'Flt', 'Rev', 'Del'] as const;
+export const AUTOMATION_COLORS = ['#ffcc00', '#33ff66', '#00ccff', '#ff33cc', '#ff6633'] as const;

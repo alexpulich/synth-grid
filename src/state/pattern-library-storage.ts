@@ -27,6 +27,7 @@ export interface PatternData {
   rowSwings: number[][];
   reverbSends: number[][];
   delaySends: number[][];
+  automationData?: (number | null)[][][][]; // NaN → null for JSON, [bank][param][row][step]
   tempo: number;
   selectedScale: number;
   rootNote: number;

@@ -10,6 +10,7 @@ import { EuclideanPopover } from './euclidean-popover';
 import { SoundShaper } from './sound-shaper';
 import { PianoRoll } from './piano-roll';
 import { CellContextMenu } from './cell-context-menu';
+import { AutomationLane } from './automation-lane';
 import { showToast } from './toast';
 
 export class GridUI {
@@ -27,6 +28,8 @@ export class GridUI {
   private soundShaper: SoundShaper;
   private pianoRoll: PianoRoll;
   private cellContextMenu: CellContextMenu;
+  private automationLanes: AutomationLane[] = [];
+  private _lanesVisible = false;
 
   // Drag paint state
   private isDragging = false;
@@ -238,7 +241,20 @@ export class GridUI {
       }
 
       this.container.appendChild(rowEl);
+
+      // Automation lane below each row
+      const lane = new AutomationLane(row, this.sequencer);
+      this.automationLanes[row] = lane;
+      this.container.appendChild(lane.container);
     }
+  }
+
+  toggleAutomationLanes(): void {
+    this._lanesVisible = !this._lanesVisible;
+    for (const lane of this.automationLanes) {
+      lane.setVisible(this._lanesVisible);
+    }
+    eventBus.emit('automation:lanes-toggled', this._lanesVisible);
   }
 
   private bindEvents(): void {

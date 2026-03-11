@@ -2,17 +2,17 @@
 
 ## Goal
 
-Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 13 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, mobile support, or anything else you see fit.
+Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 14 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, mobile support, or anything else you see fit.
 
 ## Current State
 
-- **77 TypeScript files, 23 CSS files, ~13,000 lines of code**
-- **Latest round**: Round 13 — MIDI Output & Hardware Integration
+- **79 TypeScript files, 24 CSS files, ~13,500 lines of code**
+- **Latest round**: Round 14 — Automation Lanes
 - **No test suite** — verification has been manual via browser
 - **No lint config** — only `npx tsc --noEmit` for type checking
 - **Deployment**: Dockerfile + GitHub Actions CI/CD exist
 
-### What's Built (Rounds 1-13)
+### What's Built (Rounds 1-14)
 
 | Round | Features |
 |-------|----------|
@@ -29,6 +29,7 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 11 | Per-row sample loading (drag-and-drop WAV/MP3/OGG), sample playback engine (pitch/velocity/gate/glide), waveform preview with trim handles, per-row reverb/delay sends (R/D knobs), IndexedDB sample persistence, sound shaper dual synth/sample mode, WAV export with sample support |
 | 12 | Metronome (K toggle, beat dots, volume), mute scenes (8 slots, Shift+click save, click recall), step copy/paste (Ctrl+click header), pattern queue (bank switch on loop boundary), pattern library (save/load/import/export named patterns, 4 factory presets, IndexedDB) |
 | 13 | MIDI output (send notes to external synths/DAWs), per-row MIDI output config (channel, base note, enable), MIDI clock sync (send/receive 24ppqn), All Notes Off safety (CC123 on stop + beforeunload), MIDI panel output UI (port select, clock mode, per-row config, activity dots) |
+| 14 | Automation lanes: per-step volume/pan/reverb-send/delay-send automation with collapsible visual editor per row. Click/drag to draw values, right-click to clear. Filter cutoff lane reads existing filterLocks. Per-bank state, persisted to localStorage and pattern library. Toggle with A key |
 
 ### Architecture Overview
 
@@ -45,6 +46,7 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **Metronome**: Independent audio path (bypasses master chain). Sine clicks at 1200Hz (beat 1) / 800Hz (beats 2-4). Toggle with K key
 - **MIDI output**: Per-row output config (channel, base note, enable) → scheduler sends MIDI notes alongside audio triggers via `setTimeout`. Global enable toggle (N key). All Notes Off (CC123) on transport stop + `beforeunload`
 - **MIDI clock sync**: Send mode: 24ppqn `setInterval` synced to tempo. Receive mode: BPM derived from rolling average of incoming clock tick intervals. Start/Stop messages control transport
+- **Automation lanes**: Per-step parameter automation (volume, pan, reverb send, delay send) + filter cutoff display via existing filterLocks. `AutomationData = number[][][]` ([param][row][step], NaN = no lock). Scheduler applies values via `setValueAtTime()`, restores row defaults for non-automated steps. Collapsible UI per row with 5 param buttons + 16 draggable bars
 
 ## What Worked
 
@@ -73,6 +75,8 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **Late binding for circular deps**: `MidiClock` needs Transport (for receive Start/Stop → play/stop) and Transport needs MidiClock (for send mode). Solved with `setTransport()` setter after both are created, avoiding constructor cycle
 - **Scheduler helper method for MIDI**: Extracting `scheduleMidiNote()` as a separate method called after each `audioEngine.trigger()` kept the integration clean — no duplication between ratchet and single-hit code paths
 - **onstatechange chaining**: MidiOutput needs to hook `access.onstatechange` to update output ports, but MidiManager already uses it for input devices. Wrapping the previous handler preserves both without conflict
+- **Automation alongside filterLocks**: Rather than migrating filterLocks into the new automation system (which would risk breaking 12+ files and existing saves), kept filterLocks as-is and added `AutomationData` for 4 new params. The UI displays 5 buttons by mapping filter to existing `getFilterLock()`/`setFilterLock()`. Zero migration risk
+- **UI_TO_AUTO_PARAM index mapping**: Using `-1` to mean "use filterLocks" let the automation lane component handle 5 params in a unified way without special-casing in the main render loop
 
 ## What Didn't Work / Gotchas
 
@@ -93,6 +97,7 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **Step header alignment**: Step header row (1-16) needs spacer elements matching widths of label, pitch, mixer, euclidean, and piano roll button columns to align with grid cells
 - **MIDI output unused imports**: `DEFAULT_ROW_BASE_NOTES` is only used in `sequencer.ts` for defaults — the MIDI panel reads from sequencer, so don't import it in UI files
 - **MidiOutput needs late init**: Created in `main.ts` but `init(access)` called later in `app.ts` after `MidiManager.init()` resolves async. Don't call `sendNoteOn()` before init
+- **Automation vs filterLocks**: These are separate data structures. `AutomationData` holds 4 params (vol=0, pan=1, rev=2, del=3). FilterLocks are the existing `FilterLockGrid`. The automation lane UI maps param button index 2 (Flt) to filterLocks, not automationData. `UI_TO_AUTO_PARAM = [0, 1, -1, 2, 3]` where -1 means use filterLocks API
 
 ## Potential Next Directions
 
@@ -105,7 +110,7 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 - ~~**Effects per row**~~: ✅ Done in Round 11
 - ~~**Pattern library**~~: ✅ Done in Round 12 — save/load/import/export named patterns with factory presets
 - ~~**Metronome**~~: ✅ Done in Round 12
-- **Automation lanes**: Per-step automation of any parameter (filter cutoff, volume, pan)
+- ~~**Automation lanes**~~: ✅ Done in Round 14 — per-step volume/pan/reverb-send/delay-send/filter automation with visual editor
 - **Polyrhythm/polymeter**: Different step counts per row (not just 16)
 - **Collaborative mode**: WebRTC or WebSocket-based real-time jam sessions
 - **Audio input**: Sidechain from mic/line-in, sampler from live input
@@ -154,6 +159,7 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 | `src/ui/pattern-library.ts` | Pattern library modal — save/load/import/export UI |
 | `src/data/factory-presets.ts` | 4 built-in presets (Four on the Floor, Funky Breaks, Ambient Drift, Techno Minimal) |
 | `src/utils/event-bus.ts` | Event system — `EventMap` interface shows all events |
+| `src/ui/automation-lane.ts` | Per-row automation lane — 5 param buttons + 16 draggable value bars |
 | `src/midi/midi-output.ts` | Web MIDI output port management — sendNoteOn/Off/Clock/Start/Stop |
 | `src/midi/midi-clock.ts` | MIDI clock send (24ppqn) and receive (BPM derivation from tick intervals) |
 

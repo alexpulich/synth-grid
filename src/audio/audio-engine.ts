@@ -161,6 +161,27 @@ export class AudioEngine {
     return this.rowGains[row];
   }
 
+  // Scheduled per-step automation (set value at a specific audio time)
+  scheduleRowVolume(row: number, value: number, time: number): void {
+    const gain = this.rowGains[row];
+    if (gain) gain.gain.setValueAtTime(value, time);
+  }
+
+  scheduleRowPan(row: number, value: number, time: number): void {
+    const pan = this.rowPans[row];
+    if (pan) pan.pan.setValueAtTime(value, time);
+  }
+
+  scheduleReverbSend(row: number, value: number, time: number): void {
+    const node = this.rowReverbSends[row];
+    if (node) node.gain.setValueAtTime(value, time);
+  }
+
+  scheduleDelaySend(row: number, value: number, time: number): void {
+    const node = this.rowDelaySends[row];
+    if (node) node.gain.setValueAtTime(value, time);
+  }
+
   /** Duck rows 1-7 when kick fires (sidechain compression effect) */
   scheduleSidechainDuck(time: number, depth: number, release: number, baseVolumes: number[]): void {
     const attackTime = 0.005;

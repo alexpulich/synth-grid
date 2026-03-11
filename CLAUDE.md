@@ -15,7 +15,7 @@ npx tsc --noEmit  # Type-check only
 ```
 src/
   main.ts                    # Entry: wires AudioEngine → Sequencer → Scheduler → MidiOutput → AppUI
-  types.ts                   # Grid = number[][], VelocityLevel, InstrumentTrigger, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, SwingGrid, SoundParams, MidiCCMapping, MidiDeviceInfo, SampleMeta, MidiOutputConfig, ClockMode
+  types.ts                   # Grid = number[][], VelocityLevel, InstrumentTrigger, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, SwingGrid, SoundParams, MidiCCMapping, MidiDeviceInfo, SampleMeta, MidiOutputConfig, ClockMode, AutoParam, AutomationData
   audio/
     audio-engine.ts          # Audio routing hub: per-row GainNode+StereoPanner → dry + per-row reverb/delay sends → master → saturation → EQ → perf insert → compressor → analyser → filter → destination
     sample-engine.ts         # Per-row AudioBuffer storage, decode, cached trigger functions for sample playback
@@ -25,7 +25,7 @@ src/
     instruments/*.ts         # 8 synth instruments (kick, snare, hihat, clap, bass, lead, pad, perc)
     effects/*.ts             # Reverb (ConvolverNode), Delay (tempo-synced), Filter (BiquadFilter), Saturation (WaveShaperNode), EQ (3-band BiquadFilter)
   sequencer/
-    sequencer.ts             # Central state: grids, probabilities, pitchOffsets, noteGrids, rowVolumes, rowPans, reverbSends, delaySends, filterLocks, ratchets, conditions, gates, slides, rowSwings, soundParams, humanize, scale, sidechain, midiOutputConfigs, clipboard, history
+    sequencer.ts             # Central state: grids, probabilities, pitchOffsets, noteGrids, rowVolumes, rowPans, reverbSends, delaySends, filterLocks, ratchets, conditions, gates, slides, rowSwings, soundParams, humanize, scale, sidechain, midiOutputConfigs, automationData, clipboard, history
     transport.ts             # Play/stop/tap tempo, All Notes Off on stop
     mute-state.ts            # Per-row mute/solo
     pattern-chain.ts         # Song mode chain (max 32 entries)
@@ -44,6 +44,7 @@ src/
     midi-panel.ts            # MIDI settings popover (device list, CC learn, mapping management, output config)
     toast.ts                 # Singleton showToast(message, type?) — auto-dismissing notifications (3s, max 3)
     cell-context-menu.ts     # Right-click context menu: velocity, probability, ratchet, condition, gate, slide, note, filter lock
+    automation-lane.ts       # Per-row collapsible automation strip: 5 param buttons (Vol/Pan/Flt/Rev/Del) + 16 draggable value bars
     cell-tooltip.ts          # Hover tooltip for active cells — shows non-default attributes after 400ms delay
   midi/
     midi-manager.ts          # Web MIDI API access, device detection, message routing (note/CC)
@@ -62,6 +63,7 @@ styles/
   toast.css                  # Toast notification styles (fixed bottom-center, z-index 2000)
   cell-context-menu.css      # Cell context menu popover styles (z-index 950)
   sample.css                 # Sample indicator, drop zone, waveform preview, sample controls styling
+  automation-lane.css        # Automation lane styling: collapsible strip, param buttons, value bars, pan center-origin display
 ```
 
 ## Key Patterns
@@ -116,6 +118,9 @@ styles/
 - **MIDI clock**: `MidiClock` class handles send mode (24ppqn `setInterval` synced to tempo) and receive mode (BPM derivation from rolling average of tick intervals). Late-binds `Transport` via `setTransport()` to avoid circular dependency
 - **All Notes Off safety**: Transport sends CC123 (All Notes Off) on all active port/channel combos on stop. Also wired to `beforeunload` for stuck note prevention on page close
 - **MIDI panel output section**: Added after "Active Mappings" section. Global enable checkbox, output port dropdown, clock mode radios (Off/Send/Receive), per-row config table (channel dropdown, note button with scroll-to-change, enable checkbox), per-row activity dots
+- **Automation lanes**: Per-step parameter automation for volume, pan, reverb send, delay send. `AutomationData = number[][][]` — `[paramIndex][row][step]`, NaN = no lock (use row default). UI param indices: 0=Vol, 1=Pan, 2=Flt(filterLocks), 3=Rev, 4=Del. Mapping to data: `UI_TO_AUTO_PARAM = [0, 1, -1, 2, 3]` where -1 means filterLocks. Collapsible via `A` key. Per-bank state, persisted to localStorage and pattern library
+- **Automation scheduler**: Applied after filter locks in `scheduler.ts`. For each row/step: checks automation value, applies via `audioEngine.scheduleRowVolume/Pan/ReverbSend/DelaySend()` using `setValueAtTime()`. Non-automated steps restore to row defaults. Pan automation maps 0-1 → -1..1 via `val * 2 - 1`
+- **Automation lane UI**: Click/drag to draw values (bottom=0, top=1). Right-click to clear. Pan uses center-origin display (bar offset from center). `pushHistorySnapshot()` on mousedown, `setAutomationSilent()` on mousemove (single undo entry per drag). Filter param reads/writes existing filterLocks via `sequencer.getFilterLock()`/`setFilterLock()`
 
 ## Gotchas
 
@@ -172,3 +177,7 @@ styles/
 - **MIDI timing via setTimeout**: ~4ms jitter. At 120 BPM a 16th note is 125ms, so ~3% jitter — acceptable. Future enhancement: `MIDIOutput.send(data, timestamp)` for DOMHighResTimeStamp precision
 - **Clock send interval recreation**: When tempo changes during send mode, the `setInterval` timer must be destroyed and recreated. `MidiClock` listens to `tempo:changed` event for this
 - **N shortcut for MIDI output**: `KeyN` toggles `sequencer.midiOutputGlobalEnabled` + toast. Added to `keyboard-shortcuts.ts` and help overlay
+- **Automation data separate from filterLocks**: FilterLocks kept as-is (no migration). AutomationData has 4 params (vol, pan, rev, del). The automation lane UI shows 5 buttons by mapping filter to the existing filterLocks API. Index -1 in `UI_TO_AUTO_PARAM` means "use filterLocks"
+- **Automation NaN/null serialization**: Same pattern as filterLocks — NaN in memory, null in JSON. Must convert both directions in localStorage, pattern library, and step clipboard
+- **Automation lane alignment**: Uses same `--cell-size` and `--cell-gap` as grid cells. Header spacers match label(56px) + pitch(66px) + mixer(134px) widths. Beat grouping `margin-left: 4px` on steps 0,4,8,12 matches grid
+- **A shortcut for automation**: `KeyA` toggles all 8 automation lanes via `grid.toggleAutomationLanes()`. Passed as `onToggleAutomation` callback (last constructor param in `KeyboardShortcuts`)

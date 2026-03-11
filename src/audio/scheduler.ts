@@ -157,6 +157,47 @@ export class Scheduler {
       this.audioEngine.filter.scheduleFrequencyPulse(minLock, time, stepDuration * 0.9);
     }
 
+    // Per-step automation (volume, pan, reverbSend, delaySend)
+    const automation = this.sequencer.getCurrentAutomation();
+    const rowVolumes = this.sequencer.getCurrentRowVolumes();
+    const rowPans = this.sequencer.getCurrentRowPans();
+    const reverbSends = this.sequencer.getCurrentReverbSends();
+    const delaySends = this.sequencer.getCurrentDelaySends();
+    for (let row = 0; row < grid.length; row++) {
+      const volAuto = automation[0]?.[row]?.[step] ?? NaN;
+      const panAuto = automation[1]?.[row]?.[step] ?? NaN;
+      const revAuto = automation[2]?.[row]?.[step] ?? NaN;
+      const delAuto = automation[3]?.[row]?.[step] ?? NaN;
+
+      // Volume: automation value or restore to row default
+      if (!isNaN(volAuto)) {
+        this.audioEngine.scheduleRowVolume(row, volAuto, time);
+      } else {
+        this.audioEngine.scheduleRowVolume(row, rowVolumes[row] ?? 0.8, time);
+      }
+
+      // Pan: automation 0-1 maps to -1..1
+      if (!isNaN(panAuto)) {
+        this.audioEngine.scheduleRowPan(row, panAuto * 2 - 1, time);
+      } else {
+        this.audioEngine.scheduleRowPan(row, rowPans[row] ?? 0, time);
+      }
+
+      // Reverb send
+      if (!isNaN(revAuto)) {
+        this.audioEngine.scheduleReverbSend(row, revAuto, time);
+      } else {
+        this.audioEngine.scheduleReverbSend(row, reverbSends[row] ?? 0.3, time);
+      }
+
+      // Delay send
+      if (!isNaN(delAuto)) {
+        this.audioEngine.scheduleDelaySend(row, delAuto, time);
+      } else {
+        this.audioEngine.scheduleDelaySend(row, delaySends[row] ?? 0.25, time);
+      }
+    }
+
     // Metronome: click on beat boundaries (steps 0, 4, 8, 12)
     if (step % 4 === 0) {
       this.audioEngine.metronome.scheduleClick(time, step === 0);

@@ -143,6 +143,11 @@ export class AppUI {
       rowSwings: sequencer.getAllRowSwings().map(b => [...b]),
       reverbSends: sequencer.getAllReverbSends().map(b => [...b]),
       delaySends: sequencer.getAllDelaySends().map(b => [...b]),
+      automationData: sequencer.getAllAutomation().map(bank =>
+        bank.map(param =>
+          param.map(row => row.map(v => isNaN(v) ? null : v)),
+        ),
+      ),
       tempo: sequencer.tempo,
       selectedScale: sequencer.selectedScale,
       rootNote: sequencer.rootNote,
@@ -164,6 +169,12 @@ export class AppUI {
       const restoredFilterLocks = data.filterLocks.map(b =>
         b.map(r => r.map(v => v === null ? NaN : v)),
       );
+      // Convert null → NaN for automation data
+      const restoredAutomation = data.automationData?.map(bank =>
+        bank.map(param =>
+          param.map(row => row.map(v => v === null ? NaN : v)),
+        ),
+      );
       sequencer.loadFullState(
         data.grids, data.tempo, 0, 0,
         data.probabilities, data.pitchOffsets, data.noteGrids,
@@ -171,6 +182,7 @@ export class AppUI {
         data.ratchets, data.conditions,
         data.rowSwings, data.gates, data.slides,
         data.reverbSends, data.delaySends,
+        restoredAutomation,
       );
       sequencer.setScale(data.selectedScale, data.rootNote);
       sequencer.setSidechain(data.sidechainEnabled, data.sidechainDepth, data.sidechainRelease);
@@ -198,7 +210,8 @@ export class AppUI {
     new KeyboardShortcuts(transport, sequencer, () => {
       PatternBankUI.doRandomize(sequencer);
     }, themeSwitcher, performanceFX, helpOverlay, midiLearn,
-       metronomeUI, patternLibrary, muteScenes, muteScenesUI);
+       metronomeUI, patternLibrary, muteScenes, muteScenesUI,
+       () => this.gridUI.toggleAutomationLanes());
 
     // MIDI setup
     const midiManager = new MidiManager();
@@ -487,6 +500,12 @@ export class AppUI {
         const restoredFilterLocks = saved.filterLocks?.map((bank) =>
           bank.map((row) => row.map((v) => v === null ? NaN : v)),
         );
+        // Convert null → NaN for automation data from JSON
+        const restoredAutomation = saved.automationData?.map(bank =>
+          bank.map(param =>
+            param.map(row => row.map(v => v === null ? NaN : v)),
+          ),
+        );
         sequencer.loadFullState(
           saved.grids, saved.tempo, saved.swing, saved.activeBank,
           saved.probabilities, saved.pitchOffsets, saved.noteGrids,
@@ -494,6 +513,7 @@ export class AppUI {
           saved.ratchets, saved.conditions,
           saved.rowSwings, saved.gates, saved.slides,
           saved.reverbSends, saved.delaySends,
+          restoredAutomation,
         );
         // Backward compat: distribute global swing to all rows if no per-row swings saved
         if (!saved.rowSwings && saved.swing > 0) {

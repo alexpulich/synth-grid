@@ -61,6 +61,9 @@ export interface EventMap {
   'midi:output-enabled-changed': boolean;
   'midi:clock-mode-changed': ClockMode;
   'midi:output-note': { row: number; note: number; velocity: number; channel: number };
+  // Round 14 — Automation Lanes
+  'automation:changed': { param: number; row: number; step: number; value: number };
+  'automation:lanes-toggled': boolean;
 }
 
 type Listener<T> = (payload: T) => void;

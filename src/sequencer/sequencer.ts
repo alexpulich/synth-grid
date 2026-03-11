@@ -1,5 +1,5 @@
-import { NUM_ROWS, NUM_STEPS, NUM_BANKS, VELOCITY_OFF, VELOCITY_LOUD, PROBABILITY_LEVELS, MELODIC_ROWS, DEFAULT_SOUND_PARAMS, DEFAULT_ROW_BASE_NOTES } from '../types';
-import type { Grid, VelocityLevel, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, SoundParams, MidiOutputConfig, ClockMode } from '../types';
+import { NUM_ROWS, NUM_STEPS, NUM_BANKS, NUM_AUTO_PARAMS, VELOCITY_OFF, VELOCITY_LOUD, PROBABILITY_LEVELS, MELODIC_ROWS, DEFAULT_SOUND_PARAMS, DEFAULT_ROW_BASE_NOTES } from '../types';
+import type { Grid, VelocityLevel, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, SoundParams, MidiOutputConfig, ClockMode, AutomationData } from '../types';
 import { clamp } from '../utils/math';
 import { euclidean, rotatePattern } from '../utils/euclidean';
 import { eventBus } from '../utils/event-bus';
@@ -36,6 +36,12 @@ function createEmptySlideGrid(): SlideGrid {
   return Array.from({ length: NUM_ROWS }, () => new Array<boolean>(NUM_STEPS).fill(false));
 }
 
+function createEmptyAutomationData(): AutomationData {
+  return Array.from({ length: NUM_AUTO_PARAMS }, () =>
+    Array.from({ length: NUM_ROWS }, () => new Array<number>(NUM_STEPS).fill(NaN)),
+  );
+}
+
 export class Sequencer {
   private grids: Grid[];
   private probabilities: ProbabilityGrid[];
@@ -51,6 +57,7 @@ export class Sequencer {
   private rowSwings: number[][];
   private reverbSends: number[][];
   private delaySends: number[][];
+  private automationData: AutomationData[];
   private _activeBank = 0;
   private _tempo = 120;
   private _swing = 0;
@@ -94,6 +101,7 @@ export class Sequencer {
     this.rowSwings = Array.from({ length: NUM_BANKS }, () => new Array<number>(NUM_ROWS).fill(0));
     this.reverbSends = Array.from({ length: NUM_BANKS }, () => new Array<number>(NUM_ROWS).fill(0.3));
     this.delaySends = Array.from({ length: NUM_BANKS }, () => new Array<number>(NUM_ROWS).fill(0.25));
+    this.automationData = Array.from({ length: NUM_BANKS }, () => createEmptyAutomationData());
   }
 
   private pushHistory(): void {
@@ -192,6 +200,7 @@ export class Sequencer {
     const conds = this.conditions[this._activeBank];
     const gts = this.gates[this._activeBank];
     const slds = this.slides[this._activeBank];
+    const auto = this.automationData[this._activeBank];
 
     this.stepClipboard.copy(step, {
       velocities: grid.map(r => r[step]),
@@ -202,6 +211,7 @@ export class Sequencer {
       conditions: conds.map(r => r[step]),
       gates: gts.map(r => r[step]),
       slides: slds.map(r => r[step]),
+      automationData: auto.map(p => p.map(r => r[step])),
     });
     eventBus.emit('step:copied', step);
   }
@@ -219,6 +229,14 @@ export class Sequencer {
       this.conditions[this._activeBank][row][step] = data.conditions[row];
       this.gates[this._activeBank][row][step] = data.gates[row];
       this.slides[this._activeBank][row][step] = data.slides[row];
+    }
+    if (data.automationData) {
+      const auto = this.automationData[this._activeBank];
+      for (let p = 0; p < NUM_AUTO_PARAMS; p++) {
+        for (let row = 0; row < NUM_ROWS; row++) {
+          auto[p][row][step] = data.automationData[p]?.[row] ?? NaN;
+        }
+      }
     }
     eventBus.emit('step:pasted', step);
     eventBus.emit('grid:cleared');
@@ -490,6 +508,42 @@ export class Sequencer {
     return this.delaySends;
   }
 
+  // Per-step automation (volume, pan, reverbSend, delaySend — per-bank)
+  getAutomation(param: number, row: number, step: number): number {
+    return this.automationData[this._activeBank][param]?.[row]?.[step] ?? NaN;
+  }
+
+  setAutomation(param: number, row: number, step: number, value: number): void {
+    this.pushHistory();
+    this.automationData[this._activeBank][param][row][step] = clamp(value, 0, 1);
+    eventBus.emit('automation:changed', { param, row, step, value: this.automationData[this._activeBank][param][row][step] });
+  }
+
+  /** Like setAutomation but without pushing history — for drag painting */
+  setAutomationSilent(param: number, row: number, step: number, value: number): void {
+    this.automationData[this._activeBank][param][row][step] = clamp(value, 0, 1);
+    eventBus.emit('automation:changed', { param, row, step, value: this.automationData[this._activeBank][param][row][step] });
+  }
+
+  clearAutomation(param: number, row: number, step: number): void {
+    this.pushHistory();
+    this.automationData[this._activeBank][param][row][step] = NaN;
+    eventBus.emit('automation:changed', { param, row, step, value: NaN });
+  }
+
+  clearAutomationSilent(param: number, row: number, step: number): void {
+    this.automationData[this._activeBank][param][row][step] = NaN;
+    eventBus.emit('automation:changed', { param, row, step, value: NaN });
+  }
+
+  getCurrentAutomation(): AutomationData {
+    return this.automationData[this._activeBank];
+  }
+
+  getAllAutomation(): AutomationData[] {
+    return this.automationData;
+  }
+
   // Gate (per-step note length)
   getGate(row: number, step: number): number {
     return this.gates[this._activeBank][row][step] ?? 1;
@@ -585,6 +639,7 @@ export class Sequencer {
     this.rowSwings[this._activeBank] = new Array<number>(NUM_ROWS).fill(0);
     this.reverbSends[this._activeBank] = new Array<number>(NUM_ROWS).fill(0.3);
     this.delaySends[this._activeBank] = new Array<number>(NUM_ROWS).fill(0.25);
+    this.automationData[this._activeBank] = createEmptyAutomationData();
     eventBus.emit('grid:cleared');
   }
 
@@ -644,6 +699,7 @@ export class Sequencer {
     const conds = this.conditions[this._activeBank];
     const gts = this.gates[this._activeBank];
     const slds = this.slides[this._activeBank];
+    const auto = this.automationData[this._activeBank];
     for (let row = 0; row < NUM_ROWS; row++) {
       grid[row].push(grid[row].shift()!);
       probs[row].push(probs[row].shift()!);
@@ -653,6 +709,9 @@ export class Sequencer {
       conds[row].push(conds[row].shift()!);
       gts[row].push(gts[row].shift()!);
       slds[row].push(slds[row].shift()!);
+      for (let p = 0; p < NUM_AUTO_PARAMS; p++) {
+        auto[p][row].push(auto[p][row].shift()!);
+      }
     }
     eventBus.emit('grid:cleared');
   }
@@ -667,6 +726,7 @@ export class Sequencer {
     const conds = this.conditions[this._activeBank];
     const gts = this.gates[this._activeBank];
     const slds = this.slides[this._activeBank];
+    const auto = this.automationData[this._activeBank];
     for (let row = 0; row < NUM_ROWS; row++) {
       grid[row].unshift(grid[row].pop()!);
       probs[row].unshift(probs[row].pop()!);
@@ -676,6 +736,9 @@ export class Sequencer {
       conds[row].unshift(conds[row].pop()!);
       gts[row].unshift(gts[row].pop()!);
       slds[row].unshift(slds[row].pop()!);
+      for (let p = 0; p < NUM_AUTO_PARAMS; p++) {
+        auto[p][row].unshift(auto[p][row].pop()!);
+      }
     }
     eventBus.emit('grid:cleared');
   }
@@ -708,6 +771,7 @@ export class Sequencer {
     slides?: SlideGrid[],
     reverbSends?: number[][],
     delaySends?: number[][],
+    automationData?: AutomationData[],
   ): void {
     for (let b = 0; b < NUM_BANKS; b++) {
       if (grids[b]) {
@@ -777,6 +841,13 @@ export class Sequencer {
         this.delaySends[b] = [...delaySends[b]];
       } else {
         this.delaySends[b] = new Array<number>(NUM_ROWS).fill(0.25);
+      }
+      if (automationData?.[b]) {
+        this.automationData[b] = automationData[b].map(param =>
+          param.map(row => [...row]),
+        );
+      } else {
+        this.automationData[b] = createEmptyAutomationData();
       }
     }
     this._tempo = clamp(tempo, 30, 300);
