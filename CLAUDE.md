@@ -31,7 +31,7 @@ src/
     pattern-chain.ts         # Song mode chain (max 32 entries)
   state/
     history.ts               # Undo/redo stack (max 50)
-    url-state.ts             # Binary state encoding: V1 (1-bit), V2 (2-bit velocity), V3 (+probability)
+    url-state.ts             # Binary state encoding: V1 (1-bit), V2 (2-bit velocity), V3 (+probability), V4 (+full state: notes, ratchets, conditions, gates, slides, mixer, scale, sidechain, soundParams)
     local-storage.ts         # Auto-save/restore via localStorage (debounced 500ms)
     sample-storage.ts        # IndexedDB wrapper for persisting raw sample ArrayBuffers (50MB limit)
   ui/                        # Pure DOM manipulation, no framework. Constructor pattern: (parent, ...deps) → create DOM, append, wire eventBus
@@ -74,7 +74,7 @@ styles/
 - **Auto-save**: localStorage persistence with 500ms debounce. URL hash takes priority on load
 - **Step rotation**: `[`/`]` keys shift entire pattern left/right by one step (wraps around)
 - **Theme system**: CSS custom properties on `:root`, 4 themes defined in `theme-switcher.ts`, persisted in localStorage
-- **URL state**: Binary serialization (base64url), backward-compatible V1/V2/V3 formats detected by byte length
+- **URL state**: Binary serialization (base64url), backward-compatible V1/V2/V3/V4 formats detected by byte length. V4 (1321 bytes, ~1762 URL chars) encodes all sequencer state except filterLocks
 - **CSS organization**: One CSS file per feature in `styles/`, imported in `styles/main.css`. BEM naming: `.component-name`, `.component-name--modifier`
 - **Per-row mixer**: Persistent `GainNode[]` + `StereoPannerNode[]` channel strips in audio-engine. Volume/pan are per-bank state
 - **Scale quantization**: Global scale + root note (not per-bank). Alt+scroll converts to scale degrees for non-chromatic scales
@@ -150,3 +150,9 @@ styles/
 - **app.ts wiring hub**: All cross-component wiring lives in app.ts: event → audio engine, bank change sync, state restore from localStorage/IndexedDB, MIDI CC target application, sample load/remove handlers. When adding a new feature, app.ts almost always needs updates
 - **`readonly` for future-use constructor params**: Use `readonly` instead of `private` for constructor params not yet read (e.g., passed through for Phase N+1). Avoids TS6138 "declared but value never read" while keeping the param accessible
 - **Vite stale transform errors**: If Vite reports "Failed to resolve import" for a file that exists, restart the dev server. Vite caches transform errors from previous sessions and doesn't re-check until restart
+- **History pointer is past-the-end**: `pointer = stack.length` means "live state" (nothing to redo). `push()` sets pointer after appending. Undo decrements-then-reads, redo increments-then-reads. Using `stack.length - 1` breaks redo
+- **`grid:cleared` doesn't auto-resync audio**: Many ops (clear, paste, undo, redo, euclidean, presets) emit `grid:cleared` but only `bank:changed` handler originally resynced audio engine GainNodes. A `grid:cleared` handler in app.ts now covers this. New ops modifying sends/volumes must emit one of these events
+- **Keyboard shortcuts use `e.code` not `e.key`**: Handler checks `e.code === 'KeyZ'`, not `e.key === 'z'`. Testing via `dispatchEvent` must include `code` property
+- **URL format detection is by byte length**: V1(68)/V2(132)/V3(260)/V4(1321). Larger formats must be checked first in `decodeState` (V4 > 260 before V3 ≥ 260). Adding V5 would need > 1321 check first
+- **V4 URL float quantization**: 8-bit encoding gives ~0.4% error (e.g., 0.3 → 0.302, 0.5 → 0.502). Acceptable for audio params. Pan uses midpoint encoding: `((pan+1)/2)*255`
+- **Pattern chain drag-to-reorder**: HTML5 drag-and-drop on `.chain-item` elements. `moveItem()` in pattern-chain.ts adjusts `_chainPosition` if playback is active. Click-to-remove checks `draggedIndex` to avoid accidental removal after drag
