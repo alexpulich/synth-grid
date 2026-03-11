@@ -89,6 +89,14 @@ export class HelpOverlay {
         ],
       },
       {
+        title: 'MIDI Output',
+        rows: [
+          ['N', 'Toggle MIDI output on/off'],
+          ['MIDI panel \u2192 Output', 'Configure output port, channels, and clock'],
+          ['Scroll on Note button', 'Change base MIDI note per row'],
+        ],
+      },
+      {
         title: 'Mute Scenes',
         rows: [
           ['Alt + 1\u20138', 'Recall mute scene'],

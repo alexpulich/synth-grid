@@ -1,5 +1,6 @@
 import type { AudioEngine } from './audio-engine';
 import type { Sequencer } from '../sequencer/sequencer';
+import type { MidiOutput } from '../midi/midi-output';
 import { NUM_STEPS, VELOCITY_MAP, GATE_LEVELS, MELODIC_ROWS } from '../types';
 import { eventBus } from '../utils/event-bus';
 
@@ -26,6 +27,7 @@ export class Scheduler {
     private audioEngine: AudioEngine,
     private sequencer: Sequencer,
     private onStepAdvance: (step: number) => void,
+    private readonly midiOutput?: MidiOutput,
   ) {}
 
   start(): void {
@@ -113,6 +115,7 @@ export class Scheduler {
                 subVel = Math.max(0.01, Math.min(1.0, subVel));
               }
               this.audioEngine.trigger(row, subTime, subVel, totalPitch, gateDuration / ratchetCount, r === 0 ? glideFrom : undefined);
+              this.scheduleMidiNote(row, totalPitch, subVel, subTime, gateDuration / ratchetCount, ctxTime);
             }
           } else {
             let tVel = VELOCITY_MAP[vel];
@@ -123,6 +126,7 @@ export class Scheduler {
               tVel = Math.max(0.01, Math.min(1.0, tVel));
             }
             this.audioEngine.trigger(row, triggerTime, tVel, totalPitch, gateDuration, glideFrom);
+            this.scheduleMidiNote(row, totalPitch, tVel, triggerTime, gateDuration, ctxTime);
           }
 
           if (row === 0) kickFired = true;
@@ -163,6 +167,25 @@ export class Scheduler {
     const delayMs = (time - ctxTime) * 1000;
     const s = step;
     setTimeout(() => this.onStepAdvance(s), Math.max(0, delayMs));
+  }
+
+  private scheduleMidiNote(row: number, totalPitch: number, velocity: number, triggerTime: number, gateDuration: number, ctxTime: number): void {
+    if (!this.midiOutput || !this.sequencer.midiOutputGlobalEnabled) return;
+    const cfg = this.sequencer.getMidiOutputConfig(row);
+    if (!cfg.enabled) return;
+
+    const midiNote = Math.max(0, Math.min(127, Math.round(cfg.baseNote + totalPitch)));
+    const delayMs = Math.max(0, (triggerTime - ctxTime) * 1000);
+    const gateMs = gateDuration * 1000;
+
+    setTimeout(() => {
+      this.midiOutput!.sendNoteOn(cfg.portId, cfg.channel, midiNote, velocity);
+      eventBus.emit('midi:output-note', { row, note: midiNote, velocity, channel: cfg.channel });
+    }, delayMs);
+
+    setTimeout(() => {
+      this.midiOutput!.sendNoteOff(cfg.portId, cfg.channel, midiNote);
+    }, delayMs + gateMs);
   }
 
   private advanceStep(): void {

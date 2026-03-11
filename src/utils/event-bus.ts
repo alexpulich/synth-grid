@@ -1,4 +1,4 @@
-import type { SoundParams, MidiDeviceInfo, MidiCCMapping, SampleMeta } from '../types';
+import type { SoundParams, MidiDeviceInfo, MidiCCMapping, SampleMeta, MidiOutputConfig, ClockMode } from '../types';
 
 export interface EventMap {
   'cell:toggled': { row: number; step: number; velocity: number };
@@ -55,6 +55,12 @@ export interface EventMap {
   'pattern:saved': string;
   'pattern:loaded': string;
   'pattern:deleted': string;
+  // Round 13 — MIDI Output
+  'midi:output-ports-changed': MidiDeviceInfo[];
+  'midi:output-config-changed': { row: number; config: MidiOutputConfig };
+  'midi:output-enabled-changed': boolean;
+  'midi:clock-mode-changed': ClockMode;
+  'midi:output-note': { row: number; note: number; velocity: number; channel: number };
 }
 
 type Listener<T> = (payload: T) => void;

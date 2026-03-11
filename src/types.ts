@@ -85,3 +85,23 @@ export const DEFAULT_SAMPLE_META: SampleMeta = {
   trimEnd: 1,
   loop: false,
 };
+
+// MIDI Output (Round 13)
+export type ClockMode = 'off' | 'send' | 'receive';
+
+export interface MidiOutputConfig {
+  enabled: boolean;       // Per-row output enable
+  portId: string | null;  // Selected output port ID (null = use global default)
+  channel: number;        // 0-15 (MIDI channel 1-16)
+  baseNote: number;       // Base MIDI note number for this row
+}
+
+export const DEFAULT_MIDI_OUTPUT_CONFIG: MidiOutputConfig = {
+  enabled: false,
+  portId: null,
+  channel: 0,
+  baseNote: 60,
+};
+
+// GM drum map for drum rows, middle C region for melodic
+export const DEFAULT_ROW_BASE_NOTES = [36, 38, 42, 39, 33, 48, 60, 56] as const;

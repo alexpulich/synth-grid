@@ -3,7 +3,7 @@ import type { AudioEngine } from '../audio/audio-engine';
 import type { MidiLearn } from '../midi/midi-learn';
 import type { MuteScenes } from '../sequencer/mute-scenes';
 import type { MuteSceneData } from '../sequencer/mute-scenes';
-import type { Grid, ProbabilityGrid, NoteGrid, SoundParams, MidiCCMapping, SampleMeta } from '../types';
+import type { Grid, ProbabilityGrid, NoteGrid, SoundParams, MidiCCMapping, SampleMeta, MidiOutputConfig, ClockMode } from '../types';
 import { eventBus } from '../utils/event-bus';
 
 const STORAGE_KEY = 'synth-grid-state';
@@ -42,6 +42,9 @@ interface SavedState {
   sampleMetas?: SampleMeta[];
   metronomeEnabled?: boolean;
   muteScenes?: (MuteSceneData | null)[];
+  midiOutputConfigs?: MidiOutputConfig[];
+  midiOutputGlobalEnabled?: boolean;
+  midiClockMode?: ClockMode;
   tempo: number;
   swing: number;
   activeBank: number;
@@ -83,6 +86,9 @@ export class AutoSave {
     eventBus.on('mutescene:saved', scheduleSave);
     eventBus.on('step:pasted', scheduleSave);
     eventBus.on('pattern:loaded', scheduleSave);
+    eventBus.on('midi:output-config-changed', scheduleSave);
+    eventBus.on('midi:output-enabled-changed', scheduleSave);
+    eventBus.on('midi:clock-mode-changed', scheduleSave);
   }
 
   private debouncedSave(): void {
@@ -128,6 +134,9 @@ export class AutoSave {
       midiMappings: this.midiLearn?.currentMappings,
       metronomeEnabled: this.audioEngine?.metronome.enabled,
       muteScenes: this.muteScenes?.getAllScenes(),
+      midiOutputConfigs: this.sequencer.getAllMidiOutputConfigs().map((c) => ({ ...c })),
+      midiOutputGlobalEnabled: this.sequencer.midiOutputGlobalEnabled,
+      midiClockMode: this.sequencer.midiClockMode,
       tempo: this.sequencer.tempo,
       swing: this.sequencer.swing,
       activeBank: this.sequencer.activeBank,

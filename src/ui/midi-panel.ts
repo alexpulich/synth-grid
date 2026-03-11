@@ -1,6 +1,10 @@
 import type { MidiManager } from '../midi/midi-manager';
 import type { MidiLearn } from '../midi/midi-learn';
-import type { MidiDeviceInfo, MidiCCMapping } from '../types';
+import type { MidiOutput } from '../midi/midi-output';
+import type { MidiClock } from '../midi/midi-clock';
+import type { Sequencer } from '../sequencer/sequencer';
+import type { MidiDeviceInfo, MidiCCMapping, ClockMode } from '../types';
+import { NUM_ROWS } from '../types';
 import { INSTRUMENTS } from '../audio/instruments';
 import { eventBus } from '../utils/event-bus';
 
@@ -28,6 +32,13 @@ function clearChildren(el: HTMLElement): void {
   }
 }
 
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
+
+function midiNoteToName(note: number): string {
+  const octave = Math.floor(note / 12) - 1;
+  return `${NOTE_NAMES[note % 12]}${octave}`;
+}
+
 export class MidiPanel {
   private panel: HTMLElement;
   private visible = false;
@@ -39,11 +50,19 @@ export class MidiPanel {
   private activityDot: HTMLElement;
   private activityTimer: number | null = null;
   private assignRow: HTMLElement;
+  private outputDots: HTMLElement[] = [];
+  private outputDotTimers: (number | null)[] = Array.from({ length: NUM_ROWS }, () => null);
+  private outputPortSelect: HTMLSelectElement | null = null;
+  private outputEnableCheckbox: HTMLInputElement | null = null;
+  private clockRadios: HTMLInputElement[] = [];
 
   constructor(
     parent: HTMLElement,
     midiManager: MidiManager,
     private midiLearn: MidiLearn,
+    private readonly midiOutput?: MidiOutput,
+    private readonly midiClock?: MidiClock,
+    private readonly sequencer?: Sequencer,
   ) {
     // MIDI toggle button in controls row
     const btn = document.createElement('button');
@@ -154,6 +173,11 @@ export class MidiPanel {
     mapSection.appendChild(this.mappingList);
     this.panel.appendChild(mapSection);
 
+    // Output section (Round 13)
+    if (this.midiOutput && this.sequencer) {
+      this.buildOutputSection();
+    }
+
     parent.appendChild(this.panel);
 
     // Wire events
@@ -165,6 +189,11 @@ export class MidiPanel {
     });
     eventBus.on('midi:mapping-changed', (mappings) => this.updateMappings(mappings));
     eventBus.on('midi:activity', () => this.flashActivity());
+    eventBus.on('midi:output-note', ({ row }) => this.flashOutputDot(row));
+    eventBus.on('midi:output-ports-changed', () => this.updateOutputPortSelect());
+    eventBus.on('midi:output-enabled-changed', (enabled) => {
+      if (this.outputEnableCheckbox) this.outputEnableCheckbox.checked = enabled;
+    });
 
     // Init device list
     this.updateDevices(midiManager.connectedDevices);
@@ -241,6 +270,215 @@ export class MidiPanel {
 
       this.mappingList.appendChild(row);
     }
+  }
+
+  private buildOutputSection(): void {
+    const seq = this.sequencer!;
+    const output = this.midiOutput!;
+
+    const section = document.createElement('div');
+    section.className = 'midi-section';
+    const sectionTitle = document.createElement('div');
+    sectionTitle.className = 'midi-section-title';
+    sectionTitle.textContent = 'Output';
+    section.appendChild(sectionTitle);
+
+    // Global enable + port selector row
+    const headerRow = document.createElement('div');
+    headerRow.className = 'midi-output-header';
+
+    const enableLabel = document.createElement('label');
+    enableLabel.className = 'midi-output-enable-label';
+    this.outputEnableCheckbox = document.createElement('input');
+    this.outputEnableCheckbox.type = 'checkbox';
+    this.outputEnableCheckbox.checked = seq.midiOutputGlobalEnabled;
+    this.outputEnableCheckbox.addEventListener('change', () => {
+      seq.midiOutputGlobalEnabled = this.outputEnableCheckbox!.checked;
+    });
+    enableLabel.appendChild(this.outputEnableCheckbox);
+    const enableText = document.createElement('span');
+    enableText.textContent = ' Enabled';
+    enableLabel.appendChild(enableText);
+    headerRow.appendChild(enableLabel);
+
+    const portLabel = document.createElement('span');
+    portLabel.className = 'midi-output-port-label';
+    portLabel.textContent = 'Port:';
+    headerRow.appendChild(portLabel);
+
+    this.outputPortSelect = document.createElement('select');
+    this.outputPortSelect.className = 'midi-output-port-select';
+    this.outputPortSelect.addEventListener('change', () => {
+      output.setGlobalPort(this.outputPortSelect!.value || null);
+    });
+    headerRow.appendChild(this.outputPortSelect);
+    this.updateOutputPortSelect();
+
+    section.appendChild(headerRow);
+
+    // Clock mode row
+    const clockRow = document.createElement('div');
+    clockRow.className = 'midi-output-clock-row';
+    const clockLabel = document.createElement('span');
+    clockLabel.textContent = 'Clock:';
+    clockRow.appendChild(clockLabel);
+
+    const clockModes: ClockMode[] = ['off', 'send', 'receive'];
+    for (const mode of clockModes) {
+      const label = document.createElement('label');
+      label.className = 'midi-output-clock-label';
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = 'midi-clock-mode';
+      radio.value = mode;
+      radio.checked = seq.midiClockMode === mode;
+      radio.addEventListener('change', () => {
+        if (radio.checked && this.midiClock) {
+          this.midiClock.setMode(mode);
+        }
+      });
+      this.clockRadios.push(radio);
+      label.appendChild(radio);
+      const text = document.createElement('span');
+      text.textContent = ` ${mode.charAt(0).toUpperCase() + mode.slice(1)}`;
+      label.appendChild(text);
+      clockRow.appendChild(label);
+    }
+    section.appendChild(clockRow);
+
+    // Per-row config table
+    const table = document.createElement('div');
+    table.className = 'midi-output-table';
+
+    // Header
+    const tableHeader = document.createElement('div');
+    tableHeader.className = 'midi-output-row midi-output-row--header';
+    for (const text of ['Row', 'Ch', 'Note', 'On']) {
+      const cell = document.createElement('span');
+      cell.className = 'midi-output-cell';
+      cell.textContent = text;
+      tableHeader.appendChild(cell);
+    }
+    // Activity header
+    const actHdr = document.createElement('span');
+    actHdr.className = 'midi-output-cell';
+    tableHeader.appendChild(actHdr);
+    table.appendChild(tableHeader);
+
+    // Rows
+    for (let i = 0; i < NUM_ROWS; i++) {
+      const cfg = seq.getMidiOutputConfig(i);
+      const row = document.createElement('div');
+      row.className = 'midi-output-row';
+
+      // Instrument name
+      const nameCell = document.createElement('span');
+      nameCell.className = 'midi-output-cell midi-output-cell--name';
+      nameCell.textContent = INSTRUMENTS[i].name;
+      nameCell.style.color = INSTRUMENTS[i].color;
+      row.appendChild(nameCell);
+
+      // Channel select
+      const chSelect = document.createElement('select');
+      chSelect.className = 'midi-output-ch-select';
+      for (let ch = 0; ch < 16; ch++) {
+        const opt = document.createElement('option');
+        opt.value = String(ch);
+        opt.textContent = String(ch + 1);
+        chSelect.appendChild(opt);
+      }
+      chSelect.value = String(cfg.channel);
+      const rowIdx = i;
+      chSelect.addEventListener('change', () => {
+        const c = seq.getMidiOutputConfig(rowIdx);
+        seq.setMidiOutputConfig(rowIdx, { ...c, channel: parseInt(chSelect.value, 10) });
+      });
+      const chCell = document.createElement('span');
+      chCell.className = 'midi-output-cell';
+      chCell.appendChild(chSelect);
+      row.appendChild(chCell);
+
+      // Base note
+      const noteBtn = document.createElement('button');
+      noteBtn.className = 'midi-output-note-btn';
+      noteBtn.textContent = midiNoteToName(cfg.baseNote);
+      noteBtn.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const c = seq.getMidiOutputConfig(rowIdx);
+        const delta = e.deltaY < 0 ? 1 : -1;
+        const newNote = Math.max(0, Math.min(127, c.baseNote + delta));
+        seq.setMidiOutputConfig(rowIdx, { ...c, baseNote: newNote });
+        noteBtn.textContent = midiNoteToName(newNote);
+      });
+      const noteCell = document.createElement('span');
+      noteCell.className = 'midi-output-cell';
+      noteCell.appendChild(noteBtn);
+      row.appendChild(noteCell);
+
+      // Enable checkbox
+      const enableCb = document.createElement('input');
+      enableCb.type = 'checkbox';
+      enableCb.checked = cfg.enabled;
+      enableCb.addEventListener('change', () => {
+        const c = seq.getMidiOutputConfig(rowIdx);
+        seq.setMidiOutputConfig(rowIdx, { ...c, enabled: enableCb.checked });
+      });
+      const enableCell = document.createElement('span');
+      enableCell.className = 'midi-output-cell';
+      enableCell.appendChild(enableCb);
+      row.appendChild(enableCell);
+
+      // Activity dot
+      const dot = document.createElement('span');
+      dot.className = 'midi-output-dot';
+      this.outputDots.push(dot);
+      const dotCell = document.createElement('span');
+      dotCell.className = 'midi-output-cell';
+      dotCell.appendChild(dot);
+      row.appendChild(dotCell);
+
+      table.appendChild(row);
+    }
+
+    section.appendChild(table);
+    this.panel.appendChild(section);
+  }
+
+  private updateOutputPortSelect(): void {
+    if (!this.outputPortSelect || !this.midiOutput) return;
+    clearChildren(this.outputPortSelect);
+
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '';
+    noneOpt.textContent = '(none)';
+    this.outputPortSelect.appendChild(noneOpt);
+
+    const ports = this.midiOutput.getOutputPorts();
+    for (const port of ports) {
+      const opt = document.createElement('option');
+      opt.value = port.id;
+      opt.textContent = port.name;
+      this.outputPortSelect.appendChild(opt);
+    }
+
+    // Restore selection
+    const currentPort = this.midiOutput.globalPortId;
+    if (currentPort) {
+      this.outputPortSelect.value = currentPort;
+    }
+  }
+
+  private flashOutputDot(row: number): void {
+    const dot = this.outputDots[row];
+    if (!dot) return;
+    dot.classList.add('midi-output-dot--active');
+    if (this.outputDotTimers[row] !== null) {
+      clearTimeout(this.outputDotTimers[row]!);
+    }
+    this.outputDotTimers[row] = window.setTimeout(() => {
+      dot.classList.remove('midi-output-dot--active');
+      this.outputDotTimers[row] = null;
+    }, 100);
   }
 
   private flashActivity(): void {

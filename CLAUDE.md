@@ -14,19 +14,19 @@ npx tsc --noEmit  # Type-check only
 
 ```
 src/
-  main.ts                    # Entry: wires AudioEngine → Sequencer → Scheduler → AppUI
-  types.ts                   # Grid = number[][], VelocityLevel, InstrumentTrigger, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, SwingGrid, SoundParams, MidiCCMapping, MidiDeviceInfo, SampleMeta
+  main.ts                    # Entry: wires AudioEngine → Sequencer → Scheduler → MidiOutput → AppUI
+  types.ts                   # Grid = number[][], VelocityLevel, InstrumentTrigger, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, SwingGrid, SoundParams, MidiCCMapping, MidiDeviceInfo, SampleMeta, MidiOutputConfig, ClockMode
   audio/
     audio-engine.ts          # Audio routing hub: per-row GainNode+StereoPanner → dry + per-row reverb/delay sends → master → saturation → EQ → perf insert → compressor → analyser → filter → destination
     sample-engine.ts         # Per-row AudioBuffer storage, decode, cached trigger functions for sample playback
-    scheduler.ts             # Look-ahead scheduler (25ms lookahead, 100ms schedule-ahead)
+    scheduler.ts             # Look-ahead scheduler (25ms lookahead, 100ms schedule-ahead), MIDI output integration
     performance-fx.ts        # Hold-to-engage FX: tape stop, stutter, bitcrush, reverb wash
     wav-exporter.ts          # Offline render to WAV (supports synth + sample modes)
     instruments/*.ts         # 8 synth instruments (kick, snare, hihat, clap, bass, lead, pad, perc)
     effects/*.ts             # Reverb (ConvolverNode), Delay (tempo-synced), Filter (BiquadFilter), Saturation (WaveShaperNode), EQ (3-band BiquadFilter)
   sequencer/
-    sequencer.ts             # Central state: grids, probabilities, pitchOffsets, noteGrids, rowVolumes, rowPans, reverbSends, delaySends, filterLocks, ratchets, conditions, gates, slides, rowSwings, soundParams, humanize, scale, sidechain, clipboard, history
-    transport.ts             # Play/stop/tap tempo
+    sequencer.ts             # Central state: grids, probabilities, pitchOffsets, noteGrids, rowVolumes, rowPans, reverbSends, delaySends, filterLocks, ratchets, conditions, gates, slides, rowSwings, soundParams, humanize, scale, sidechain, midiOutputConfigs, clipboard, history
+    transport.ts             # Play/stop/tap tempo, All Notes Off on stop
     mute-state.ts            # Per-row mute/solo
     pattern-chain.ts         # Song mode chain (max 32 entries)
   state/
@@ -41,7 +41,7 @@ src/
     sound-shaper.ts          # Per-instrument sound shaping popover — dual mode: synth (ADTP knobs) / sample (waveform, trim, loop, load/remove)
     waveform-preview.ts      # Canvas waveform display with draggable trim start/end handles
     piano-roll.ts            # Piano roll modal for melodic rows (visual note editor, drag paint, note preview, playhead)
-    midi-panel.ts            # MIDI settings popover (device list, CC learn, mapping management)
+    midi-panel.ts            # MIDI settings popover (device list, CC learn, mapping management, output config)
     toast.ts                 # Singleton showToast(message, type?) — auto-dismissing notifications (3s, max 3)
     cell-context-menu.ts     # Right-click context menu: velocity, probability, ratchet, condition, gate, slide, note, filter lock
     cell-tooltip.ts          # Hover tooltip for active cells — shows non-default attributes after 400ms delay
@@ -49,6 +49,8 @@ src/
     midi-manager.ts          # Web MIDI API access, device detection, message routing (note/CC)
     midi-input.ts            # MIDI note → instrument triggering (GM drum + octave mappings)
     midi-learn.ts            # CC learn mode: arm → capture CC → assign target → mapping stored
+    midi-output.ts           # Web MIDI output port management, sendNoteOn/Off/AllNotesOff/Clock/Start/Stop
+    midi-clock.ts            # MIDI clock send (24ppqn) and receive (BPM derivation from tick intervals)
   visuals/                   # Canvas-based: particles, waveform, reactive background
   utils/
     event-bus.ts             # Typed pub/sub singleton — EventMap interface enforces compile-time safety
@@ -108,6 +110,12 @@ styles/
 - **Sample persistence**: Raw `ArrayBuffer` stored in IndexedDB (`sample-storage.ts`, 50MB limit). Metadata (`useSample`, `sampleMetas`) in localStorage. Both restored on page load — IndexedDB async, localStorage sync
 - **Sound shaper dual mode**: Synth mode shows ADTP knobs. Sample mode shows waveform preview + trim handles + loop toggle + load/remove buttons. Mode toggle button in title bar. `useSample` flag per row (global, not per-bank)
 - **Waveform preview**: Canvas 200x60px drawing with min/max envelope. Draggable trim start/end handles (2px cyan lines with triangle grips). Active region highlighted. `onChange` callback emits `sample:meta-changed`
+- **MIDI output engine**: `MidiOutput` class manages Web MIDI output ports. Created in `main.ts`, passed to `Scheduler` (4th param) and `AppUI` (5th param). Initialized with `MIDIAccess` from `MidiManager.init()` in `app.ts`. `resolvePort()` falls back from per-row `portId` to global port
+- **MIDI output in scheduler**: `scheduleMidiNote()` helper called after each `audioEngine.trigger()`. Gated behind `midiOutput && sequencer.midiOutputGlobalEnabled && config.enabled`. Uses `setTimeout` matched to audio schedule time for note-on, note-off after gate duration
+- **MIDI output config**: Global state (not per-bank), same as `soundParams`. `MidiOutputConfig` per row: `{ enabled, portId, channel, baseNote }`. Default base notes match GM drum map (36=kick, 38=snare, 42=hihat, 39=clap) and C region for melodic (33/48/60/56)
+- **MIDI clock**: `MidiClock` class handles send mode (24ppqn `setInterval` synced to tempo) and receive mode (BPM derivation from rolling average of tick intervals). Late-binds `Transport` via `setTransport()` to avoid circular dependency
+- **All Notes Off safety**: Transport sends CC123 (All Notes Off) on all active port/channel combos on stop. Also wired to `beforeunload` for stuck note prevention on page close
+- **MIDI panel output section**: Added after "Active Mappings" section. Global enable checkbox, output port dropdown, clock mode radios (Off/Send/Receive), per-row config table (channel dropdown, note button with scroll-to-change, enable checkbox), per-row activity dots
 
 ## Gotchas
 
@@ -156,3 +164,11 @@ styles/
 - **URL format detection is by byte length**: V1(68)/V2(132)/V3(260)/V4(1321). Larger formats must be checked first in `decodeState` (V4 > 260 before V3 ≥ 260). Adding V5 would need > 1321 check first
 - **V4 URL float quantization**: 8-bit encoding gives ~0.4% error (e.g., 0.3 → 0.302, 0.5 → 0.502). Acceptable for audio params. Pan uses midpoint encoding: `((pan+1)/2)*255`
 - **Pattern chain drag-to-reorder**: HTML5 drag-and-drop on `.chain-item` elements. `moveItem()` in pattern-chain.ts adjusts `_chainPosition` if playback is active. Click-to-remove checks `draggedIndex` to avoid accidental removal after drag
+- **MIDI output config is global**: Like `soundParams`, MIDI output configs are not per-bank. Physical hardware routing should not change when switching pattern banks. Not cleared by `clearCurrentBank()`
+- **MidiOutput init timing**: `MidiOutput.init(access)` must be called AFTER `MidiManager.init()` resolves, since it needs the `MIDIAccess` object. Done in `app.ts` via `.then()` callback
+- **MidiClock circular dependency**: `MidiClock` needs `Transport` for receive mode (Start/Stop → play/stop), but `Transport` needs `MidiClock` for send mode. Solved with late binding: `midiClock.setTransport(transport)` after both are created
+- **MidiManager onstatechange chaining**: `MidiOutput.init()` wraps the existing `access.onstatechange` to chain both input and output device updates. When modifying further, preserve the chain
+- **MIDI note calculation**: `baseNote + pitchOffset + noteOffset`, clamped 0-127 and rounded. Scheduler uses `Math.round()` since pitch offsets can be fractional semitones
+- **MIDI timing via setTimeout**: ~4ms jitter. At 120 BPM a 16th note is 125ms, so ~3% jitter — acceptable. Future enhancement: `MIDIOutput.send(data, timestamp)` for DOMHighResTimeStamp precision
+- **Clock send interval recreation**: When tempo changes during send mode, the `setInterval` timer must be destroyed and recreated. `MidiClock` listens to `tempo:changed` event for this
+- **N shortcut for MIDI output**: `KeyN` toggles `sequencer.midiOutputGlobalEnabled` + toast. Added to `keyboard-shortcuts.ts` and help overlay

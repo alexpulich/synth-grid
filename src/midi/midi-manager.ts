@@ -3,15 +3,18 @@ import { eventBus } from '../utils/event-bus';
 
 type NoteHandler = (note: number, velocity: number, channel: number) => void;
 type CCHandler = (cc: number, value: number, channel: number) => void;
+type ClockHandler = (status: number) => void;
 
 export class MidiManager {
   private access: MIDIAccess | null = null;
   private inputs: MIDIInput[] = [];
   private noteHandler: NoteHandler | null = null;
   private ccHandler: CCHandler | null = null;
+  private clockHandler: ClockHandler | null = null;
   private _available = false;
 
   get available(): boolean { return this._available; }
+  get midiAccess(): MIDIAccess | null { return this.access; }
 
   get connectedDevices(): MidiDeviceInfo[] {
     return this.inputs.map((i) => ({
@@ -46,6 +49,10 @@ export class MidiManager {
     this.ccHandler = handler;
   }
 
+  onClock(handler: ClockHandler): void {
+    this.clockHandler = handler;
+  }
+
   private updateDevices(): void {
     if (!this.access) return;
 
@@ -68,7 +75,17 @@ export class MidiManager {
 
   private handleMessage(event: MIDIMessageEvent): void {
     const data = event.data;
-    if (!data || data.length < 2) return;
+    if (!data || data.length < 1) return;
+
+    // System real-time messages (single byte, no channel)
+    if (data[0] >= 0xf0) {
+      if (this.clockHandler) {
+        this.clockHandler(data[0]);
+      }
+      return;
+    }
+
+    if (data.length < 2) return;
 
     const status = data[0] & 0xf0;
     const channel = data[0] & 0x0f;

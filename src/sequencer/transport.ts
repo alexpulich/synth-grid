@@ -1,17 +1,33 @@
 import type { Sequencer } from './sequencer';
 import type { Scheduler } from '../audio/scheduler';
 import type { AudioEngine } from '../audio/audio-engine';
+import type { MidiOutput } from '../midi/midi-output';
+import type { MidiClock } from '../midi/midi-clock';
+import { NUM_ROWS } from '../types';
 import { eventBus } from '../utils/event-bus';
 
 export class Transport {
   private tapTimes: number[] = [];
   private readonly MAX_TAP_INTERVAL = 2000;
+  private midiOutput: MidiOutput | null = null;
+  private midiClock: MidiClock | null = null;
 
   constructor(
     private sequencer: Sequencer,
     private scheduler: Scheduler,
     private audioEngine: AudioEngine,
-  ) {}
+  ) {
+    // Stuck note prevention on page unload
+    window.addEventListener('beforeunload', () => this.sendAllNotesOff());
+  }
+
+  setMidiOutput(output: MidiOutput): void {
+    this.midiOutput = output;
+  }
+
+  setMidiClock(clock: MidiClock): void {
+    this.midiClock = clock;
+  }
 
   play(): void {
     if (this.sequencer.isPlaying) return;
@@ -28,15 +44,33 @@ export class Transport {
     }
 
     this.scheduler.start();
+    this.midiClock?.onTransportPlay();
     eventBus.emit('transport:play');
   }
 
   stop(): void {
     this.sequencer.isPlaying = false;
     this.scheduler.stop();
+    this.sendAllNotesOff();
+    this.midiClock?.onTransportStop();
     this.sequencer.currentStep = 0;
     this.sequencer.clearQueue();
     eventBus.emit('transport:stop');
+  }
+
+  private sendAllNotesOff(): void {
+    if (!this.midiOutput) return;
+    const sentChannels = new Set<string>();
+    for (let row = 0; row < NUM_ROWS; row++) {
+      const cfg = this.sequencer.getMidiOutputConfig(row);
+      if (cfg.enabled) {
+        const key = `${cfg.portId ?? 'global'}:${cfg.channel}`;
+        if (!sentChannels.has(key)) {
+          sentChannels.add(key);
+          this.midiOutput.sendAllNotesOff(cfg.portId, cfg.channel);
+        }
+      }
+    }
   }
 
   toggle(): void {

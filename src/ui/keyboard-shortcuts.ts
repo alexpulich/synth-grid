@@ -8,6 +8,7 @@ import type { MetronomeUI } from './metronome-ui';
 import type { PatternLibrary } from './pattern-library';
 import type { MuteScenes } from '../sequencer/mute-scenes';
 import type { MuteScenesUI } from './mute-scenes-ui';
+import { showToast } from './toast';
 
 type FxName = 'tapestop' | 'stutter' | 'bitcrush' | 'reverbwash';
 
@@ -138,6 +139,10 @@ export class KeyboardShortcuts {
         break;
       case 'KeyP':
         if (this.patternLibrary) this.patternLibrary.toggle();
+        break;
+      case 'KeyN':
+        this.sequencer.midiOutputGlobalEnabled = !this.sequencer.midiOutputGlobalEnabled;
+        showToast(this.sequencer.midiOutputGlobalEnabled ? 'MIDI output enabled' : 'MIDI output disabled');
         break;
     }
   };

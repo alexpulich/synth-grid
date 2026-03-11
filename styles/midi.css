@@ -47,7 +47,7 @@
   border-radius: 8px;
   padding: 0;
   min-width: 300px;
-  max-width: 380px;
+  max-width: 420px;
   z-index: 500;
   opacity: 0;
   pointer-events: none;
@@ -233,4 +233,132 @@
 
 .midi-mapping-delete:hover {
   color: var(--color-kick);
+}
+
+/* Output section (Round 13) */
+.midi-output-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.midi-output-enable-label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.midi-output-port-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-dim);
+  margin-left: auto;
+}
+
+.midi-output-port-select {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  padding: 0.2rem 0.3rem;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  max-width: 140px;
+}
+
+.midi-output-clock-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-dim);
+}
+
+.midi-output-clock-label {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.midi-output-table {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.midi-output-row {
+  display: grid;
+  grid-template-columns: 4fr 2fr 3fr 1.5fr 1.5fr;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0;
+  font-size: var(--font-size-sm);
+}
+
+.midi-output-row--header {
+  color: var(--color-text-dim);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.3rem;
+  margin-bottom: 0.15rem;
+}
+
+.midi-output-cell {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.midi-output-cell--name {
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+}
+
+.midi-output-ch-select {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  padding: 0.15rem 0.2rem;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs, 0.65rem);
+  width: 100%;
+}
+
+.midi-output-note-btn {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  padding: 0.15rem 0.3rem;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs, 0.65rem);
+  cursor: ns-resize;
+  min-width: 36px;
+  text-align: center;
+}
+
+.midi-output-note-btn:hover {
+  border-color: var(--color-text-dim);
+}
+
+.midi-output-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border);
+  transition: background 60ms;
+}
+
+.midi-output-dot--active {
+  background: #33ff66;
+  box-shadow: 0 0 6px #33ff6680;
 }

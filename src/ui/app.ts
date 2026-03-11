@@ -1,6 +1,7 @@
 import type { Sequencer } from '../sequencer/sequencer';
 import type { Transport } from '../sequencer/transport';
 import type { AudioEngine } from '../audio/audio-engine';
+import type { MidiOutput } from '../midi/midi-output';
 import { GridUI } from './grid';
 import { TransportControls } from './transport-controls';
 import { PatternBankUI } from './pattern-bank';
@@ -18,6 +19,7 @@ import { MidiPanel } from './midi-panel';
 import { MidiManager } from '../midi/midi-manager';
 import { MidiInput } from '../midi/midi-input';
 import { MidiLearn } from '../midi/midi-learn';
+import { MidiClock } from '../midi/midi-clock';
 import { ParticleSystem } from '../visuals/particle-system';
 import { WaveformVisualizer } from '../visuals/waveform-visualizer';
 import { ReactiveBackground } from '../visuals/reactive-background';
@@ -48,6 +50,7 @@ export class AppUI {
     sequencer: Sequencer,
     transport: Transport,
     audioEngine: AudioEngine,
+    midiOutput?: MidiOutput,
   ) {
     // Audio reactive background (behind everything)
     new ReactiveBackground(root, audioEngine.analyser);
@@ -200,7 +203,11 @@ export class AppUI {
     // MIDI setup
     const midiManager = new MidiManager();
     const midiInput = new MidiInput(audioEngine);
-    new MidiPanel(controlsRow, midiManager, midiLearn);
+    const midiClock = midiOutput ? new MidiClock(midiOutput, sequencer) : undefined;
+    if (midiClock) midiClock.setTransport(transport);
+    if (midiOutput) transport.setMidiOutput(midiOutput);
+    if (midiClock) transport.setMidiClock(midiClock);
+    new MidiPanel(controlsRow, midiManager, midiLearn, midiOutput, midiClock, sequencer);
 
     midiManager.onNote((note, velocity, channel) => {
       midiInput.handleNote(note, velocity, channel);
@@ -208,6 +215,11 @@ export class AppUI {
     midiManager.onCC((cc, value, channel) => {
       midiLearn.handleCC(cc, value, channel);
     });
+    if (midiClock) {
+      midiManager.onClock((status) => {
+        midiClock.handleClockByte(status);
+      });
+    }
 
     // MIDI CC target application
     midiLearn.onApply((target, value) => {
@@ -286,7 +298,11 @@ export class AppUI {
     });
 
     // Initialize MIDI (async, non-blocking)
-    midiManager.init();
+    midiManager.init().then(() => {
+      if (midiOutput && midiManager.midiAccess) {
+        midiOutput.init(midiManager.midiAccess);
+      }
+    });
 
     // Wire mixer volume/pan/sends to audio engine
     eventBus.on('volume:changed', ({ row, volume }) => {
@@ -537,6 +553,16 @@ export class AppUI {
         // Restore mute scenes
         if (saved.muteScenes) {
           muteScenes.loadScenes(saved.muteScenes);
+        }
+        // Restore MIDI output config
+        if (saved.midiOutputConfigs) {
+          sequencer.loadMidiOutputConfigs(saved.midiOutputConfigs);
+        }
+        if (saved.midiOutputGlobalEnabled != null) {
+          sequencer.midiOutputGlobalEnabled = saved.midiOutputGlobalEnabled;
+        }
+        if (saved.midiClockMode && midiClock) {
+          midiClock.setMode(saved.midiClockMode);
         }
       }
     }

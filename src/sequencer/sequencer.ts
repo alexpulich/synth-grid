@@ -1,5 +1,5 @@
-import { NUM_ROWS, NUM_STEPS, NUM_BANKS, VELOCITY_OFF, VELOCITY_LOUD, PROBABILITY_LEVELS, MELODIC_ROWS, DEFAULT_SOUND_PARAMS } from '../types';
-import type { Grid, VelocityLevel, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, SoundParams } from '../types';
+import { NUM_ROWS, NUM_STEPS, NUM_BANKS, VELOCITY_OFF, VELOCITY_LOUD, PROBABILITY_LEVELS, MELODIC_ROWS, DEFAULT_SOUND_PARAMS, DEFAULT_ROW_BASE_NOTES } from '../types';
+import type { Grid, VelocityLevel, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, SoundParams, MidiOutputConfig, ClockMode } from '../types';
 import { clamp } from '../utils/math';
 import { euclidean, rotatePattern } from '../utils/euclidean';
 import { eventBus } from '../utils/event-bus';
@@ -64,6 +64,12 @@ export class Sequencer {
   private _loopCount = 0;
   private _humanize = 0;
   private _soundParams: SoundParams[] = Array.from({ length: NUM_ROWS }, () => ({ ...DEFAULT_SOUND_PARAMS }));
+  private _midiOutputConfigs: MidiOutputConfig[] = Array.from(
+    { length: NUM_ROWS },
+    (_, i) => ({ enabled: false, portId: null, channel: 0, baseNote: DEFAULT_ROW_BASE_NOTES[i] }),
+  );
+  private _midiOutputGlobalEnabled = false;
+  private _midiClockMode: ClockMode = 'off';
   private clipboard: { grid: Grid; probabilities: ProbabilityGrid; noteGrid: NoteGrid } | null = null;
   private _queuedBank: number | null = null;
   readonly history = new History();
@@ -527,6 +533,38 @@ export class Sequencer {
         this._soundParams[i] = { ...params[i] };
       }
     }
+  }
+
+  // MIDI output config (global, not per-bank)
+  getMidiOutputConfig(row: number): MidiOutputConfig {
+    return this._midiOutputConfigs[row] ?? { enabled: false, portId: null, channel: 0, baseNote: 60 };
+  }
+
+  setMidiOutputConfig(row: number, config: MidiOutputConfig): void {
+    this._midiOutputConfigs[row] = { ...config };
+    eventBus.emit('midi:output-config-changed', { row, config: { ...config } });
+  }
+
+  getAllMidiOutputConfigs(): MidiOutputConfig[] {
+    return this._midiOutputConfigs;
+  }
+
+  loadMidiOutputConfigs(configs: MidiOutputConfig[]): void {
+    for (let i = 0; i < NUM_ROWS; i++) {
+      if (configs[i]) this._midiOutputConfigs[i] = { ...configs[i] };
+    }
+  }
+
+  get midiOutputGlobalEnabled(): boolean { return this._midiOutputGlobalEnabled; }
+  set midiOutputGlobalEnabled(val: boolean) {
+    this._midiOutputGlobalEnabled = val;
+    eventBus.emit('midi:output-enabled-changed', val);
+  }
+
+  get midiClockMode(): ClockMode { return this._midiClockMode; }
+  set midiClockMode(val: ClockMode) {
+    this._midiClockMode = val;
+    eventBus.emit('midi:clock-mode-changed', val);
   }
 
   clearCurrentBank(): void {
