@@ -8,6 +8,7 @@ export class PatternChainUI {
   private chainContainer: HTMLElement;
   private chainItems: HTMLElement[] = [];
   private modeBtn: HTMLButtonElement;
+  private draggedIndex: number | null = null;
 
   constructor(parent: HTMLElement, private sequencer: Sequencer) {
     const wrapper = document.createElement('div');
@@ -79,9 +80,54 @@ export class PatternChainUI {
       const item = document.createElement('button');
       item.className = 'chain-item';
       item.textContent = BANK_LABELS[bankIndex];
+      item.draggable = true;
+
+      // Click to remove
       item.addEventListener('click', () => {
+        // Don't remove if we just finished a drag
+        if (this.draggedIndex !== null) return;
         this.sequencer.patternChain.removeFromChain(position);
       });
+
+      // Drag to reorder
+      item.addEventListener('dragstart', (e) => {
+        this.draggedIndex = position;
+        item.classList.add('chain-item--dragging');
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', String(position));
+        }
+      });
+
+      item.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        if (this.draggedIndex !== null && this.draggedIndex !== position) {
+          item.classList.add('chain-item--drag-over');
+        }
+      });
+
+      item.addEventListener('dragleave', () => {
+        item.classList.remove('chain-item--drag-over');
+      });
+
+      item.addEventListener('drop', (e) => {
+        e.preventDefault();
+        item.classList.remove('chain-item--drag-over');
+        if (this.draggedIndex !== null && this.draggedIndex !== position) {
+          this.sequencer.patternChain.moveItem(this.draggedIndex, position);
+        }
+        this.draggedIndex = null;
+      });
+
+      item.addEventListener('dragend', () => {
+        item.classList.remove('chain-item--dragging');
+        // Clear drag-over from all items
+        this.chainItems.forEach((el) => el.classList.remove('chain-item--drag-over'));
+        // Use setTimeout so the click handler can check draggedIndex
+        setTimeout(() => { this.draggedIndex = null; }, 0);
+      });
+
       this.chainContainer.appendChild(item);
       this.chainItems.push(item);
     });

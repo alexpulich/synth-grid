@@ -32,6 +32,23 @@ export class PatternChain {
     eventBus.emit('chain:updated', this.getChain());
   }
 
+  moveItem(fromIndex: number, toIndex: number): void {
+    if (fromIndex < 0 || fromIndex >= this.chain.length) return;
+    if (toIndex < 0 || toIndex >= this.chain.length) return;
+    if (fromIndex === toIndex) return;
+    const [item] = this.chain.splice(fromIndex, 1);
+    this.chain.splice(toIndex, 0, item);
+    // Keep chain position tracking the same bank during playback
+    if (this._chainPosition === fromIndex) {
+      this._chainPosition = toIndex;
+    } else if (fromIndex < this._chainPosition && toIndex >= this._chainPosition) {
+      this._chainPosition--;
+    } else if (fromIndex > this._chainPosition && toIndex <= this._chainPosition) {
+      this._chainPosition++;
+    }
+    eventBus.emit('chain:updated', this.getChain());
+  }
+
   clearChain(): void {
     this.chain = [];
     this._chainPosition = 0;

@@ -1,5 +1,6 @@
 import type { Sequencer } from '../sequencer/sequencer';
 import { SCALES, NOTE_NAMES } from '../utils/scales';
+import { eventBus } from '../utils/event-bus';
 
 export class ScaleSelector {
   constructor(parent: HTMLElement, sequencer: Sequencer) {
@@ -42,6 +43,11 @@ export class ScaleSelector {
 
     scaleSelect.addEventListener('change', () => {
       sequencer.setScale(Number(scaleSelect.value), sequencer.rootNote);
+    });
+
+    eventBus.on('scale:changed', ({ scaleIndex, rootNote }) => {
+      rootSelect.value = String(rootNote);
+      scaleSelect.value = String(scaleIndex);
     });
 
     selects.appendChild(rootSelect);

@@ -354,6 +354,23 @@ export class AppUI {
     eventBus.on('bank:copied', (bank) => showToast(`Pattern ${bankNames[bank]} copied`, 'success'));
     eventBus.on('bank:pasted', (bank) => showToast(`Pattern pasted to ${bankNames[bank]}`, 'success'));
     eventBus.on('grid:cleared', () => showToast('Bank cleared'));
+
+    // Resync audio engine on any grid state change (clear, paste, undo, redo)
+    // Needed because clearCurrentBank/pasteBank modify sends in sequencer
+    // but only emit grid:cleared, not bank:changed
+    eventBus.on('grid:cleared', () => {
+      const volumes = sequencer.getCurrentRowVolumes();
+      const pans = sequencer.getCurrentRowPans();
+      const reverbSends = sequencer.getCurrentReverbSends();
+      const delaySends = sequencer.getCurrentDelaySends();
+      for (let row = 0; row < NUM_ROWS; row++) {
+        audioEngine.setRowVolume(row, volumes[row]);
+        audioEngine.setRowPan(row, pans[row]);
+        audioEngine.setRowReverbSend(row, reverbSends[row]);
+        audioEngine.setRowDelaySend(row, delaySends[row]);
+      }
+    });
+
     eventBus.on('midi:devices-changed', (devices) => {
       if (devices.length > 0) {
         showToast(`MIDI: ${devices.map((d) => d.name).join(', ')}`);
@@ -422,7 +439,30 @@ export class AppUI {
     if (hash) {
       const state = decodeState(hash);
       if (state) {
-        sequencer.loadFullState(state.grids, state.tempo, state.swing, state.activeBank, state.probabilities);
+        sequencer.loadFullState(
+          state.grids, state.tempo, state.swing, state.activeBank,
+          state.probabilities, state.pitchOffsets, state.noteGrids,
+          state.rowVolumes, state.rowPans, undefined, // filterLocks not in URL
+          state.ratchets, state.conditions,
+          state.rowSwings, state.gates, state.slides,
+          state.reverbSends, state.delaySends,
+        );
+        // V4 extension: restore global state (scale, sidechain, soundParams, humanize)
+        if (state.scale != null) {
+          sequencer.setScale(state.scale, state.rootNote ?? 0);
+        }
+        if (state.sidechainEnabled != null) {
+          sequencer.setSidechain(state.sidechainEnabled, state.sidechainDepth ?? 0.7, state.sidechainRelease ?? 0.15);
+        }
+        if (state.soundParams) {
+          sequencer.loadSoundParams(state.soundParams);
+          for (let row = 0; row < NUM_ROWS; row++) {
+            audioEngine.soundParams[row] = { ...sequencer.getSoundParams(row) };
+          }
+        }
+        if (state.humanize != null) {
+          sequencer.humanize = state.humanize;
+        }
       }
     } else {
       const saved = AutoSave.load();

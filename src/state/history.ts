@@ -9,11 +9,11 @@ export interface HistoryEntry {
 
 export class History {
   private stack: HistoryEntry[] = [];
-  private pointer = -1;
+  private pointer = 0;
   private readonly MAX_SIZE = 50;
 
   push(grid: Grid, bank: number, probabilities?: ProbabilityGrid, noteGrid?: NoteGrid): void {
-    this.stack = this.stack.slice(0, this.pointer + 1);
+    this.stack = this.stack.slice(0, this.pointer);
     const clone: Grid = grid.map((row) => [...row]);
     const entry: HistoryEntry = { grid: clone, bank };
     if (probabilities) {
@@ -26,7 +26,7 @@ export class History {
     if (this.stack.length > this.MAX_SIZE) {
       this.stack.shift();
     }
-    this.pointer = this.stack.length - 1;
+    this.pointer = this.stack.length;
   }
 
   undo(): HistoryEntry | null {
