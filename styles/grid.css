@@ -416,3 +416,55 @@
 .cell-tooltip--visible {
   opacity: 1;
 }
+
+/* === Touch device overrides === */
+@media (pointer: coarse) {
+  .grid-cell {
+    touch-action: none;
+  }
+
+  /* Prevent sticky hover state on touch devices */
+  .grid-cell:hover {
+    background: var(--cell-inactive);
+  }
+
+  .grid-step-label:hover {
+    color: var(--color-text-dim);
+    border-color: transparent;
+    background: transparent;
+  }
+}
+
+/* === Responsive: Tablet (≤768px) === */
+@media (max-width: 768px) {
+  .grid-row-label {
+    width: 40px;
+    font-size: 0.6rem;
+    padding-right: 4px;
+  }
+
+  .grid-pitch-ctrl { display: none; }
+  .grid-mixer-ctrl { display: none; }
+  .grid-euc-btn { display: none; }
+  .grid-piano-btn { display: none; }
+
+  .grid-step-header-spacer--pitch { display: none; }
+  .grid-step-header-spacer--mixer { display: none; }
+  .grid-step-header-spacer--euc { display: none; }
+  .grid-step-header-spacer--piano { display: none; }
+  .grid-step-header-spacer--label { width: 40px; }
+}
+
+/* === Responsive: Phone (≤480px) === */
+@media (max-width: 480px) {
+  .grid-row-label {
+    width: 32px;
+    font-size: 0.55rem;
+  }
+
+  .grid-step-header-spacer--label { width: 32px; }
+
+  .grid-step-label {
+    font-size: 6px;
+  }
+}

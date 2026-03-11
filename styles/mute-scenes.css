@@ -49,3 +49,8 @@
   transform: scale(0.95);
   transition: transform 50ms ease-out;
 }
+
+/* === Responsive: Phone (≤480px) === */
+@media (max-width: 480px) {
+  .mute-scenes { display: none; }
+}

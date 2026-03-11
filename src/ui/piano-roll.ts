@@ -5,6 +5,7 @@ import type { Sequencer } from '../sequencer/sequencer';
 import type { AudioEngine } from '../audio/audio-engine';
 import { eventBus } from '../utils/event-bus';
 import { SCALES, scaleDegreesToSemitones, semitoneToNoteName } from '../utils/scales';
+import { elementAtTouch } from '../utils/touch';
 
 const INSTRUMENT_CLASS: Record<number, string> = {
   4: 'bass',
@@ -87,17 +88,50 @@ export class PianoRoll {
     this.panel.appendChild(body);
     this.overlay.appendChild(this.panel);
 
-    // Close on backdrop click
+    // Close on backdrop click/touch
     this.overlay.addEventListener('mousedown', (e) => {
       if (e.target === this.overlay) this.close();
     });
+    this.overlay.addEventListener('touchstart', (e) => {
+      if (e.target === this.overlay) this.close();
+    }, { passive: true });
 
     // Close on Escape
     this.onKeyDown = this.onKeyDown.bind(this);
 
     // Drag end
     this.onMouseUp = this.onMouseUp.bind(this);
+    this.onTouchEnd = this.onTouchEnd.bind(this);
 
+    // Touch paint on grid
+    this.gridEl.addEventListener('touchstart', (e) => {
+      const touch = e.touches[0];
+      const cell = elementAtTouch(touch, '.piano-roll__cell') as HTMLElement | null;
+      if (!cell) return;
+      e.preventDefault();
+      const step = Number(cell.dataset.step);
+      const pitch = Number(cell.dataset.pitch);
+      this.sequencer.pushHistorySnapshot();
+      const result = this.handleCellToggle(step, pitch);
+      this.isDragging = true;
+      this.dragMode = result;
+      this.draggedCells.clear();
+      this.draggedCells.add(`${step},${pitch}`);
+    }, { passive: false });
+
+    this.gridEl.addEventListener('touchmove', (e) => {
+      if (!this.isDragging) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const cell = elementAtTouch(touch, '.piano-roll__cell') as HTMLElement | null;
+      if (!cell) return;
+      const step = Number(cell.dataset.step);
+      const pitch = Number(cell.dataset.pitch);
+      const key = `${step},${pitch}`;
+      if (this.draggedCells.has(key)) return;
+      this.draggedCells.add(key);
+      this.handleDragCell(step, pitch);
+    }, { passive: false });
     // Wire event bus
     eventBus.on('step:advance', (step) => {
       if (!this.visible) return;
@@ -165,6 +199,8 @@ export class PianoRoll {
     this.visible = true;
     document.addEventListener('keydown', this.onKeyDown);
     document.addEventListener('mouseup', this.onMouseUp);
+    document.addEventListener('touchend', this.onTouchEnd);
+    document.addEventListener('touchcancel', this.onTouchEnd);
   }
 
   close(): void {
@@ -174,6 +210,8 @@ export class PianoRoll {
     this.clearPlayhead();
     document.removeEventListener('keydown', this.onKeyDown);
     document.removeEventListener('mouseup', this.onMouseUp);
+    document.removeEventListener('touchend', this.onTouchEnd);
+    document.removeEventListener('touchcancel', this.onTouchEnd);
   }
 
   private onKeyDown(e: KeyboardEvent): void {
@@ -185,6 +223,11 @@ export class PianoRoll {
   }
 
   private onMouseUp(): void {
+    this.isDragging = false;
+    this.draggedCells.clear();
+  }
+
+  private onTouchEnd(): void {
     this.isDragging = false;
     this.draggedCells.clear();
   }

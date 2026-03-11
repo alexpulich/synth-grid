@@ -116,6 +116,19 @@ export class HelpOverlay {
       },
     ];
 
+    // Touch-only section (visible on coarse pointer devices)
+    const touchSection: { title: string; rows: [string, string][] } = {
+      title: 'Touch Controls',
+      rows: [
+        ['Tap cell', 'Toggle on/off'],
+        ['Drag across cells', 'Paint / erase multiple cells'],
+        ['Long-press active cell', 'Open context menu'],
+        ['Edit mode (FAB button)', 'Tap active cells to edit properties'],
+        ['Piano roll drag', 'Paint / erase notes'],
+        ['Automation lane drag', 'Draw automation values'],
+      ],
+    };
+
     for (const section of sections) {
       const sec = document.createElement('div');
       sec.className = 'help-section';
@@ -144,6 +157,33 @@ export class HelpOverlay {
 
       panel.appendChild(sec);
     }
+
+    // Add touch section (hidden on non-touch devices via CSS)
+    const touchSec = document.createElement('div');
+    touchSec.className = 'help-section help-section--touch';
+
+    const touchHeading = document.createElement('div');
+    touchHeading.className = 'help-section-title';
+    touchHeading.textContent = touchSection.title;
+    touchSec.appendChild(touchHeading);
+
+    for (const [key, desc] of touchSection.rows) {
+      const row = document.createElement('div');
+      row.className = 'help-row';
+
+      const keyEl = document.createElement('span');
+      keyEl.className = 'help-key';
+      keyEl.textContent = key;
+      row.appendChild(keyEl);
+
+      const descEl = document.createElement('span');
+      descEl.className = 'help-desc';
+      descEl.textContent = desc;
+      row.appendChild(descEl);
+
+      touchSec.appendChild(row);
+    }
+    panel.appendChild(touchSec);
 
     this.overlay.appendChild(panel);
     parent.appendChild(this.overlay);

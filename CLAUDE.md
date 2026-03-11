@@ -46,6 +46,7 @@ src/
     cell-context-menu.ts     # Right-click context menu: velocity, probability, ratchet, condition, gate, slide, note, filter lock
     automation-lane.ts       # Per-row collapsible automation strip: 5 param buttons (Vol/Pan/Flt/Rev/Del) + 16 draggable value bars
     cell-tooltip.ts          # Hover tooltip for active cells — shows non-default attributes after 400ms delay
+    touch-toolbar.ts         # Floating toolbar for touch — FAB toggle edit mode, cell property cycling (vel/prob/ratch/gate/cond/note/slide/delete)
   midi/
     midi-manager.ts          # Web MIDI API access, device detection, message routing (note/CC)
     midi-input.ts            # MIDI note → instrument triggering (GM drum + octave mappings)
@@ -57,6 +58,7 @@ src/
     event-bus.ts             # Typed pub/sub singleton — EventMap interface enforces compile-time safety
     scales.ts                # 7 musical scales (chromatic→mixolydian), degree/semitone conversion
     euclidean.ts             # Bjorklund's Euclidean rhythm algorithm + pattern rotation
+    touch.ts                 # Touch utilities: elementAtTouch() (document.elementFromPoint + closest), isTouchDevice()
 styles/
   variables.css              # CSS custom properties (colors, sizing) — themes override these
   help.css                   # Help overlay styles
@@ -64,6 +66,7 @@ styles/
   cell-context-menu.css      # Cell context menu popover styles (z-index 950)
   sample.css                 # Sample indicator, drop zone, waveform preview, sample controls styling
   automation-lane.css        # Automation lane styling: collapsible strip, param buttons, value bars, pan center-origin display
+  touch-toolbar.css          # Touch toolbar FAB + popover styles (pointer: coarse only)
 ```
 
 ## Key Patterns
@@ -121,6 +124,11 @@ styles/
 - **Automation lanes**: Per-step parameter automation for volume, pan, reverb send, delay send. `AutomationData = number[][][]` — `[paramIndex][row][step]`, NaN = no lock (use row default). UI param indices: 0=Vol, 1=Pan, 2=Flt(filterLocks), 3=Rev, 4=Del. Mapping to data: `UI_TO_AUTO_PARAM = [0, 1, -1, 2, 3]` where -1 means filterLocks. Collapsible via `A` key. Per-bank state, persisted to localStorage and pattern library
 - **Automation scheduler**: Applied after filter locks in `scheduler.ts`. For each row/step: checks automation value, applies via `audioEngine.scheduleRowVolume/Pan/ReverbSend/DelaySend()` using `setValueAtTime()`. Non-automated steps restore to row defaults. Pan automation maps 0-1 → -1..1 via `val * 2 - 1`
 - **Automation lane UI**: Click/drag to draw values (bottom=0, top=1). Right-click to clear. Pan uses center-origin display (bar offset from center). `pushHistorySnapshot()` on mousedown, `setAutomationSilent()` on mousemove (single undo entry per drag). Filter param reads/writes existing filterLocks via `sequencer.getFilterLock()`/`setFilterLock()`
+- **Touch grid painting**: `touchstart`/`touchmove`/`touchend` on grid container with `{ passive: false }` + `e.preventDefault()` to suppress scroll. Uses `elementAtTouch()` (`document.elementFromPoint` + `.closest()`) since touch events fire on original target. Same paint/erase drag mode logic as mouse
+- **Long-press context menu**: 500ms timer on `touchstart`, cleared if finger moves >10px or `touchend` fires. On fire: `isDragging = false` + `navigator.vibrate?.(50)` + `cellContextMenu.show()`. Only fires on active cells
+- **Touch toolbar (FAB)**: Floating action button visible on `@media (pointer: coarse)`. `editMode` flag: when on, tapping active cells shows toolbar instead of erasing. Toolbar buttons cycle velocity, probability, ratchet, gate, condition, note ±, slide, delete via existing sequencer methods. z-index: FAB=900, toolbar=960
+- **Responsive breakpoints**: `≤768px` (tablet): hide pitch/mixer/euclidean/piano controls. `≤480px` (phone): hide header, pattern chain, mute scenes; larger cells (32px). `@media (pointer: coarse)`: `touch-action: none`, disable sticky hover, min-height on piano roll cells
+- **PWA**: Service worker (`public/sw.js`) with cache-first for `/assets/` (Vite hashed), network-first for HTML. Manifest at `public/manifest.json`. SVG icon at `public/icons/icon-192.svg`. SW registered in `main.ts` with silent failure fallback
 
 ## Gotchas
 
@@ -181,3 +189,9 @@ styles/
 - **Automation NaN/null serialization**: Same pattern as filterLocks — NaN in memory, null in JSON. Must convert both directions in localStorage, pattern library, and step clipboard
 - **Automation lane alignment**: Uses same `--cell-size` and `--cell-gap` as grid cells. Header spacers match label(56px) + pitch(66px) + mixer(134px) widths. Beat grouping `margin-left: 4px` on steps 0,4,8,12 matches grid
 - **A shortcut for automation**: `KeyA` toggles all 8 automation lanes via `grid.toggleAutomationLanes()`. Passed as `onToggleAutomation` callback (last constructor param in `KeyboardShortcuts`)
+- **Touch events fire on original target**: Unlike mouse events, `touchmove` fires on the element that received `touchstart`, not the element under the finger. Must use `document.elementFromPoint(touch.clientX, touch.clientY).closest(selector)` for drag-across behavior. The `elementAtTouch()` utility in `src/utils/touch.ts` encapsulates this
+- **Touch dismiss on all popovers**: Cell context menu, euclidean popover, sound shaper, and touch toolbar all need `touchstart` listeners for outside-touch dismiss alongside existing `mousedown` listeners. Use `{ passive: true }` for dismiss listeners
+- **Touch toolbar z-index stacking**: FAB (z-index 900) < context-menu (950) < touch-toolbar popover (960) < modals (1000). Toolbar must be above context menu since both can be open simultaneously
+- **Responsive CSS hides grid controls**: At ≤768px, pitch controls, mixer knobs, euclidean buttons, and piano roll buttons are hidden via CSS `display: none`. The underlying JS still works — only visual hiding. At ≤480px, header, pattern chain, and mute scenes also hide
+- **PWA service worker in public/**: `sw.js` lives in `public/` (copied as-is by Vite). Manifest at `public/manifest.json`. SW registration in `main.ts` uses silent `.catch()` — PWA is optional
+- **Help overlay touch section**: `.help-section--touch` class shown only on `@media (pointer: coarse)` via CSS in `help.css`. Added as separate DOM section after the main sections loop in `help-overlay.ts`

@@ -107,3 +107,24 @@
   left: 0;
   width: 100%;
 }
+
+/* === Touch device overrides === */
+@media (pointer: coarse) {
+  .auto-lane__step {
+    touch-action: none;
+  }
+}
+
+/* === Responsive: Tablet (≤768px) === */
+@media (max-width: 768px) {
+  .auto-lane__spacer--pitch { display: none; }
+  .auto-lane__spacer--mixer { display: none; }
+  .auto-lane__spacer--euc { display: none; }
+  .auto-lane__spacer--piano { display: none; }
+  .auto-lane__spacer--label { width: 40px; }
+}
+
+/* === Responsive: Phone (≤480px) === */
+@media (max-width: 480px) {
+  .auto-lane__spacer--label { width: 32px; }
+}

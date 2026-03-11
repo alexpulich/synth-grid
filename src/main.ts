@@ -25,3 +25,10 @@ app = new AppUI(
   audioEngine,
   midiOutput,
 );
+
+// Register service worker for PWA
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {
+    // Silent failure — PWA is optional
+  });
+}

@@ -119,3 +119,14 @@
   color: var(--color-text);
   box-shadow: 0 0 8px rgba(192, 192, 208, 0.2);
 }
+
+/* Touch Controls section — hidden on mouse devices */
+.help-section--touch {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .help-section--touch {
+    display: block;
+  }
+}

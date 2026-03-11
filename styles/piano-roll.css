@@ -238,3 +238,11 @@
   color: var(--color-text);
   font-weight: 700;
 }
+
+/* === Touch device overrides === */
+@media (pointer: coarse) {
+  .piano-roll__cell {
+    touch-action: none;
+    min-height: 28px;
+  }
+}

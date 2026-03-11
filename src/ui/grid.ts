@@ -11,7 +11,9 @@ import { SoundShaper } from './sound-shaper';
 import { PianoRoll } from './piano-roll';
 import { CellContextMenu } from './cell-context-menu';
 import { AutomationLane } from './automation-lane';
+import { TouchToolbar } from './touch-toolbar';
 import { showToast } from './toast';
+import { elementAtTouch } from '../utils/touch';
 
 export class GridUI {
   private container: HTMLElement;
@@ -28,6 +30,7 @@ export class GridUI {
   private soundShaper: SoundShaper;
   private pianoRoll: PianoRoll;
   private cellContextMenu: CellContextMenu;
+  private touchToolbar: TouchToolbar;
   private automationLanes: AutomationLane[] = [];
   private _lanesVisible = false;
 
@@ -35,6 +38,10 @@ export class GridUI {
   private isDragging = false;
   private dragMode: 'paint' | 'erase' = 'paint';
   private draggedCells = new Set<string>();
+
+  // Touch long-press state
+  private longPressTimer: number | null = null;
+  private touchStartPos = { x: 0, y: 0 };
 
   constructor(parent: HTMLElement, private sequencer: Sequencer, audioEngine: AudioEngine) {
     this.container = document.createElement('div');
@@ -45,6 +52,7 @@ export class GridUI {
     this.soundShaper = new SoundShaper(sequencer, audioEngine);
     this.pianoRoll = new PianoRoll(sequencer, audioEngine);
     this.cellContextMenu = new CellContextMenu(sequencer);
+    this.touchToolbar = new TouchToolbar(sequencer);
     this.buildGrid();
     this.bindEvents();
   }
@@ -247,6 +255,17 @@ export class GridUI {
       this.automationLanes[row] = lane;
       this.container.appendChild(lane.container);
     }
+
+    // Touch toolbar FAB (visible only on coarse-pointer devices via CSS)
+    const fab = document.createElement('button');
+    fab.className = 'touch-fab';
+    fab.textContent = '\u270E'; // ✎
+    fab.title = 'Toggle cell edit mode';
+    fab.addEventListener('click', () => {
+      this.touchToolbar.toggleEditMode();
+      fab.classList.toggle('touch-fab--active', this.touchToolbar.editMode);
+    });
+    this.container.appendChild(fab);
   }
 
   toggleAutomationLanes(): void {
@@ -418,6 +437,93 @@ export class GridUI {
 
     // Drag paint: end drag
     document.addEventListener('mouseup', () => {
+      this.isDragging = false;
+      this.draggedCells.clear();
+    });
+
+    // === Touch support ===
+
+    // Touch paint: touchstart on cells
+    this.container.addEventListener('touchstart', (e) => {
+      const target = e.target as HTMLElement;
+
+      // Labels: let default mousedown handle mute/solo
+      if (target.classList.contains('grid-row-label')) return;
+
+      const cell = target.closest('.grid-cell') as HTMLElement | null;
+      if (!cell) return;
+
+      e.preventDefault();
+      const touch = e.touches[0];
+      const row = Number(cell.dataset.row);
+      const step = Number(cell.dataset.step);
+
+      // Start long-press detection
+      this.touchStartPos = { x: touch.clientX, y: touch.clientY };
+      if (this.longPressTimer !== null) clearTimeout(this.longPressTimer);
+      this.longPressTimer = window.setTimeout(() => {
+        this.longPressTimer = null;
+        const grid = this.sequencer.getCurrentGrid();
+        if (grid[row][step] > 0) {
+          this.isDragging = false;
+          navigator.vibrate?.(50);
+          const rect = cell.getBoundingClientRect();
+          this.cellContextMenu.show(row, step, rect);
+        }
+      }, 500);
+
+      // Touch toolbar edit mode: open toolbar instead of toggling
+      if (this.touchToolbar.editMode) {
+        const grid = this.sequencer.getCurrentGrid();
+        if (grid[row][step] > 0) {
+          // Active cell in edit mode → show toolbar
+          if (this.longPressTimer !== null) clearTimeout(this.longPressTimer);
+          this.longPressTimer = null;
+          const rect = cell.getBoundingClientRect();
+          this.touchToolbar.show(row, step, rect);
+          return;
+        }
+      }
+
+      // Start drag paint
+      const grid = this.sequencer.getCurrentGrid();
+      this.isDragging = true;
+      this.dragMode = grid[row][step] > 0 ? 'erase' : 'paint';
+      this.draggedCells.clear();
+      this.sequencer.pushHistorySnapshot();
+      this.applyDrag(row, step);
+    }, { passive: false });
+
+    // Touch paint: touchmove for drag paint
+    this.container.addEventListener('touchmove', (e) => {
+      const touch = e.touches[0];
+
+      // Cancel long-press if finger moved > 10px
+      if (this.longPressTimer !== null) {
+        const dx = touch.clientX - this.touchStartPos.x;
+        const dy = touch.clientY - this.touchStartPos.y;
+        if (Math.sqrt(dx * dx + dy * dy) > 10) {
+          clearTimeout(this.longPressTimer);
+          this.longPressTimer = null;
+        }
+      }
+
+      if (!this.isDragging) return;
+      e.preventDefault();
+
+      const cell = elementAtTouch(touch, '.grid-cell');
+      if (!cell) return;
+      const row = Number(cell.dataset.row);
+      const step = Number(cell.dataset.step);
+      this.applyDrag(row, step);
+    }, { passive: false });
+
+    // Touch paint: touchend
+    document.addEventListener('touchend', () => {
+      if (this.longPressTimer !== null) {
+        clearTimeout(this.longPressTimer);
+        this.longPressTimer = null;
+      }
       this.isDragging = false;
       this.draggedCells.clear();
     });

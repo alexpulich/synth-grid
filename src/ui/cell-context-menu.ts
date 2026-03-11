@@ -164,12 +164,17 @@ export class CellContextMenu {
     filterSection.appendChild(this.filterClearBtn);
     this.el.appendChild(filterSection);
 
-    // Close on outside click
+    // Close on outside click/touch
     document.addEventListener('mousedown', (e) => {
       if (this.visible && !this.el.contains(e.target as Node)) {
         this.hide();
       }
     });
+    document.addEventListener('touchstart', (e) => {
+      if (this.visible && !this.el.contains(e.target as Node)) {
+        this.hide();
+      }
+    }, { passive: true });
 
     // Close on Escape
     document.addEventListener('keydown', (e) => {

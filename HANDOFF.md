@@ -6,8 +6,8 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 
 ## Current State
 
-- **79 TypeScript files, 24 CSS files, ~13,500 lines of code**
-- **Latest round**: Round 14 — Automation Lanes
+- **81 TypeScript files, 26 CSS files, ~14,000 lines of code**
+- **Latest round**: Round 15 — Mobile & Touch
 - **No test suite** — verification has been manual via browser
 - **No lint config** — only `npx tsc --noEmit` for type checking
 - **Deployment**: Dockerfile + GitHub Actions CI/CD exist
@@ -30,6 +30,7 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 12 | Metronome (K toggle, beat dots, volume), mute scenes (8 slots, Shift+click save, click recall), step copy/paste (Ctrl+click header), pattern queue (bank switch on loop boundary), pattern library (save/load/import/export named patterns, 4 factory presets, IndexedDB) |
 | 13 | MIDI output (send notes to external synths/DAWs), per-row MIDI output config (channel, base note, enable), MIDI clock sync (send/receive 24ppqn), All Notes Off safety (CC123 on stop + beforeunload), MIDI panel output UI (port select, clock mode, per-row config, activity dots) |
 | 14 | Automation lanes: per-step volume/pan/reverb-send/delay-send automation with collapsible visual editor per row. Click/drag to draw values, right-click to clear. Filter cutoff lane reads existing filterLocks. Per-bank state, persisted to localStorage and pattern library. Toggle with A key |
+| 15 | Mobile & touch: touch grid painting (tap/drag), long-press context menu, floating touch toolbar (FAB toggle for edit mode), piano roll + automation lane touch support, responsive CSS (tablet ≤768px, phone ≤480px), touch dismiss on all popovers, PWA setup (manifest, service worker, meta tags), help overlay touch section |
 
 ### Architecture Overview
 
@@ -39,7 +40,10 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **State**: Sequencer holds all grid state. 4 pattern banks (A-D). localStorage auto-save with 500ms debounce. URL hash encoding (backward-compatible V1/V2/V3)
 - **UI**: Pure DOM manipulation, no framework. Constructor pattern: `(parent, ...deps) → create DOM, append, wire eventBus`
 - **Visuals**: Canvas-based particles, waveform display, reactive background
-- **z-index stacking**: toast (2000) > cell-tooltip (1500) > modals/pattern-library (1000) > context-menu (950) > MIDI panel (500)
+- **z-index stacking**: toast (2000) > cell-tooltip (1500) > modals/pattern-library (1000) > touch-toolbar (960) > context-menu (950) > FAB (900) > MIDI panel (500)
+- **Touch support**: Touch grid painting (tap/drag with `elementFromPoint`), long-press context menu (500ms, >10px cancels), FAB-toggled touch toolbar for cell property editing, piano roll + automation lane touch painting. CSS `touch-action: none` on interactive elements, `@media (pointer: coarse)` for touch-specific styles
+- **PWA**: Service worker (cache-first for hashed assets, network-first for HTML), manifest (standalone, landscape), SVG icon. SW registered in main.ts with silent failure
+- **Responsive layout**: Tablet (≤768px): hide pitch/mixer/euclidean/piano controls, narrower labels. Phone (≤480px): larger cells, hide header/pattern-chain/mute-scenes
 - **Pattern library**: IndexedDB storage for named patterns. Save/load full sequencer + effects state. Import/export as JSON files. 4 factory presets seeded on first run
 - **Mute scenes**: 8 scene slots store mute/solo states. Save with Shift+click, recall with click. Persisted in localStorage
 - **Pattern queue**: Bank switches during playback are queued and applied at loop boundary (step 0). Immediate switch when stopped. Blinking indicator on queued bank button
@@ -77,6 +81,10 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **onstatechange chaining**: MidiOutput needs to hook `access.onstatechange` to update output ports, but MidiManager already uses it for input devices. Wrapping the previous handler preserves both without conflict
 - **Automation alongside filterLocks**: Rather than migrating filterLocks into the new automation system (which would risk breaking 12+ files and existing saves), kept filterLocks as-is and added `AutomationData` for 4 new params. The UI displays 5 buttons by mapping filter to existing `getFilterLock()`/`setFilterLock()`. Zero migration risk
 - **UI_TO_AUTO_PARAM index mapping**: Using `-1` to mean "use filterLocks" let the automation lane component handle 5 params in a unified way without special-casing in the main render loop
+- **`elementFromPoint` for touch drag**: Touch events fire on the original target, not the element under the finger. The `elementAtTouch()` utility uses `document.elementFromPoint()` + `.closest()` to find the cell under the finger during drag — same pattern for grid, piano roll, and automation lane
+- **Long-press vs drag conflict resolution**: Start 500ms timer on touchstart, clear if finger moves >10px or touchend fires. When timer fires, set `isDragging = false` to stop any drag paint. Simple, no extra state
+- **FAB toggle for touch toolbar**: Rather than changing tap semantics (which would break single-tap toggle), added a floating action button visible only on `pointer: coarse`. Edit mode makes tapping active cells open the toolbar instead of erasing them — separate concern from normal tap behavior
+- **CSS-only touch detection**: `@media (pointer: coarse)` for showing FAB and touch help section, `touch-action: none` to prevent browser gestures. No JavaScript feature detection needed for styling
 
 ## What Didn't Work / Gotchas
 
@@ -121,15 +129,15 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 ### Technical Improvements
 - **Testing**: Add Vitest for unit tests (audio logic, sequencer state, serialization)
 - **Accessibility**: Screen reader support, keyboard navigation through grid
-- **Mobile/touch**: Touch events for grid painting, responsive layout for small screens
+- ~~**Mobile/touch**~~: ✅ Done in Round 15 — touch grid painting, responsive layout, long-press context menu, touch toolbar
 - **Performance**: Profile and optimize hot paths (scheduler, particle system, grid refresh)
-- **PWA**: Service worker for offline use, installable app
+- ~~**PWA**~~: ✅ Done in Round 15 — service worker, manifest, installable app
 - **Code splitting**: Lazy-load heavy modules (performance FX, wav exporter)
 
 ### UX/Visual Polish
 - **Onboarding**: First-time user tutorial or interactive walkthrough
 - **More themes**: Community themes, custom theme editor
-- **Better mobile layout**: Collapsible panels, touch-optimized controls
+- ~~**Better mobile layout**~~: ✅ Done in Round 15 — responsive breakpoints, touch targets, hidden controls on small screens
 - **Keyboard shortcut customization**: User-configurable keybindings
 
 ## Key Files to Start With
@@ -162,6 +170,8 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 | `src/ui/automation-lane.ts` | Per-row automation lane — 5 param buttons + 16 draggable value bars |
 | `src/midi/midi-output.ts` | Web MIDI output port management — sendNoteOn/Off/Clock/Start/Stop |
 | `src/midi/midi-clock.ts` | MIDI clock send (24ppqn) and receive (BPM derivation from tick intervals) |
+| `src/utils/touch.ts` | Touch utilities — `elementAtTouch()` helper for drag-across touch events |
+| `src/ui/touch-toolbar.ts` | Floating toolbar for touch — cell property editing (velocity, probability, ratchet, gate, condition, note, slide) |
 
 ## Commands
 

@@ -1,6 +1,7 @@
 import { NUM_STEPS, AUTOMATION_LABELS, AUTOMATION_COLORS } from '../types';
 import type { Sequencer } from '../sequencer/sequencer';
 import { eventBus } from '../utils/event-bus';
+import { elementAtTouch } from '../utils/touch';
 
 /**
  * Per-row automation lane: collapsible strip showing per-step parameter values.
@@ -121,6 +122,34 @@ export class AutomationLane {
       this.isDragging = false;
     });
 
+    // Touch drawing on step bars
+    this.container.addEventListener('touchstart', (e) => {
+      const touch = e.touches[0];
+      const stepEl = elementAtTouch(touch, '.auto-lane__step') as HTMLElement | null;
+      if (!stepEl || stepEl.closest('.auto-lane') !== this.container) return;
+      e.preventDefault();
+      this.isDragging = true;
+      this.sequencer.pushHistorySnapshot();
+      const step = Number(stepEl.dataset.step);
+      const value = this.touchToValue(touch, stepEl);
+      this.applyValue(step, value);
+    }, { passive: false });
+
+    this.container.addEventListener('touchmove', (e) => {
+      if (!this.isDragging) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const stepEl = elementAtTouch(touch, '.auto-lane__step') as HTMLElement | null;
+      if (!stepEl || stepEl.closest('.auto-lane') !== this.container) return;
+      const step = Number(stepEl.dataset.step);
+      const value = this.touchToValue(touch, stepEl);
+      this.applyValue(step, value);
+    }, { passive: false });
+
+    this.container.addEventListener('touchend', () => {
+      this.isDragging = false;
+    });
+
     // Right-click to clear
     this.container.addEventListener('contextmenu', (e) => {
       const stepEl = (e.target as HTMLElement).closest('.auto-lane__step') as HTMLElement | null;
@@ -219,6 +248,12 @@ export class AutomationLane {
     // Bottom = 0, top = 1
     const y = 1 - Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
     return Math.round(y * 100) / 100; // 2 decimal precision
+  }
+
+  private touchToValue(touch: Touch, stepEl: HTMLElement): number {
+    const rect = stepEl.getBoundingClientRect();
+    const y = 1 - Math.max(0, Math.min(1, (touch.clientY - rect.top) / rect.height));
+    return Math.round(y * 100) / 100;
   }
 
   private refreshBar(step: number): void {

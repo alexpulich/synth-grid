@@ -34,6 +34,11 @@ export class SoundShaper {
         this.close();
       }
     });
+    document.addEventListener('touchstart', (e) => {
+      if (this.visible && !this.el.contains(e.target as Node)) {
+        this.close();
+      }
+    }, { passive: true });
   }
 
   private build(): void {

@@ -22,6 +22,11 @@ export class EuclideanPopover {
         this.hide();
       }
     });
+    document.addEventListener('touchstart', (e) => {
+      if (this.visible && !this.el.contains(e.target as Node)) {
+        this.hide();
+      }
+    }, { passive: true });
   }
 
   private build(): void {
