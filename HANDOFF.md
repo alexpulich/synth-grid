@@ -2,7 +2,7 @@
 
 ## Goal
 
-Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 14 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, mobile support, or anything else you see fit.
+Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 15 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, or anything else you see fit.
 
 ## Current State
 
@@ -12,7 +12,7 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **No lint config** — only `npx tsc --noEmit` for type checking
 - **Deployment**: Dockerfile + GitHub Actions CI/CD exist
 
-### What's Built (Rounds 1-14)
+### What's Built (Rounds 1-15)
 
 | Round | Features |
 |-------|----------|
@@ -31,6 +31,20 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 13 | MIDI output (send notes to external synths/DAWs), per-row MIDI output config (channel, base note, enable), MIDI clock sync (send/receive 24ppqn), All Notes Off safety (CC123 on stop + beforeunload), MIDI panel output UI (port select, clock mode, per-row config, activity dots) |
 | 14 | Automation lanes: per-step volume/pan/reverb-send/delay-send automation with collapsible visual editor per row. Click/drag to draw values, right-click to clear. Filter cutoff lane reads existing filterLocks. Per-bank state, persisted to localStorage and pattern library. Toggle with A key |
 | 15 | Mobile & touch: touch grid painting (tap/drag), long-press context menu, floating touch toolbar (FAB toggle for edit mode), piano roll + automation lane touch support, responsive CSS (tablet ≤768px, phone ≤480px), touch dismiss on all popovers, PWA setup (manifest, service worker, meta tags), help overlay touch section |
+
+### Current Progress (Round 15 — just completed)
+
+Round 15 focused on making the app usable on touch devices and small screens. All features are implemented, type-checked, built, and visually verified at desktop, tablet (768px), and phone (375px) breakpoints. No console errors.
+
+**New files**: `src/utils/touch.ts`, `src/ui/touch-toolbar.ts`, `styles/touch-toolbar.css`, `public/manifest.json`, `public/sw.js`, `public/icons/icon-192.svg`
+
+**Modified files** (18): grid.ts, piano-roll.ts, automation-lane.ts, cell-context-menu.ts, euclidean-popover.ts, sound-shaper.ts, help-overlay.ts, main.ts, index.html, and 9 CSS files with responsive breakpoints and touch overrides.
+
+**Not done / known gaps from Round 15**:
+- Touch toolbar doesn't show visual feedback for current cell state (e.g., which velocity is active) — it cycles blindly
+- No touch support for transport controls (knobs already have touch from `knob.ts`, but the transport area could be friendlier)
+- PWA icons are SVG only — some older Android versions prefer PNG; could generate raster icons
+- No landscape lock hint on mobile — the manifest says `"orientation": "landscape"` but the app works in portrait too
 
 ### Architecture Overview
 
