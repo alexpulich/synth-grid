@@ -2,7 +2,7 @@
 
 ## Goal
 
-Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 15 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, or anything else you see fit.
+Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 17 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, or anything else you see fit.
 
 ## Current State
 
@@ -12,7 +12,7 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **No lint config** — only `npx tsc --noEmit` for type checking
 - **Deployment**: Dockerfile + GitHub Actions CI/CD exist
 
-### What's Built (Rounds 1-15)
+### What's Built (Rounds 1-17)
 
 | Round | Features |
 |-------|----------|
@@ -62,6 +62,7 @@ Round 17 adds **per-row step length (polyrhythm)** — each row can have an inde
 - **MIDI output**: Per-row output config (channel, base note, enable) → scheduler sends MIDI notes alongside audio triggers via `setTimeout`. Global enable toggle (N key). All Notes Off (CC123) on transport stop + `beforeunload`
 - **MIDI clock sync**: Send mode: 24ppqn `setInterval` synced to tempo. Receive mode: BPM derived from rolling average of incoming clock tick intervals. Start/Stop messages control transport
 - **Automation lanes**: Per-step parameter automation (volume, pan, reverb send, delay send) + filter cutoff display via existing filterLocks. `AutomationData = number[][][]` ([param][row][step], NaN = no lock). Scheduler applies values via `setValueAtTime()`, restores row defaults for non-automated steps. Collapsible UI per row with 5 param buttons + 16 draggable bars
+- **Polyrhythm**: `rowLengths: number[][]` per-bank (like rowVolumes). Each row loops independently (1-16 steps) via `rowStep = currentStep % rowLength[row]` in scheduler. Grid renders 16 columns; beyond-length cells dimmed. Per-row playheads, automation/piano-roll/euclidean respect row lengths. Ctrl+Scroll on row label to adjust
 
 ## What Worked
 
@@ -96,6 +97,9 @@ Round 17 adds **per-row step length (polyrhythm)** — each row can have an inde
 - **Long-press vs drag conflict resolution**: Start 500ms timer on touchstart, clear if finger moves >10px or touchend fires. When timer fires, set `isDragging = false` to stop any drag paint. Simple, no extra state
 - **FAB toggle for touch toolbar**: Rather than changing tap semantics (which would break single-tap toggle), added a floating action button visible only on `pointer: coarse`. Edit mode makes tapping active cells open the toolbar instead of erasing them — separate concern from normal tap behavior
 - **CSS-only touch detection**: `@media (pointer: coarse)` for showing FAB and touch help section, `touch-action: none` to prevent browser gestures. No JavaScript feature detection needed for styling
+- **Polyrhythm via modulo**: Keeping a single global `currentStep` (0-15) and computing `rowStep = step % rowLength[row]` per row in the scheduler was much simpler than variable-width rows. Grid still renders 16 columns — beyond-length cells are just dimmed CSS
+- **Per-bank state checklist**: Following the established 9-step checklist (sequencer → EventMap → localStorage → app.ts → UI) made adding `rowLengths` as per-bank state predictable and error-free
+- **Touch toolbar `updateLabels()` after each action**: Calling a single refresh method after every cycle action avoids duplicating display logic per button. Stores `btnEls[]` references from `build()` for O(1) updates
 
 ## What Didn't Work / Gotchas
 
