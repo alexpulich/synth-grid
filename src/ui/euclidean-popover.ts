@@ -5,10 +5,13 @@ import { euclidean, rotatePattern } from '../utils/euclidean';
 export class EuclideanPopover {
   private el: HTMLElement;
   private previewCells: HTMLElement[] = [];
+  private randomPreviewCells: HTMLElement[] = [];
   private hitsSlider!: HTMLInputElement;
   private rotationSlider!: HTMLInputElement;
+  private densitySlider!: HTMLInputElement;
   private hitsLabel!: HTMLElement;
   private rotationLabel!: HTMLElement;
+  private densityLabel!: HTMLElement;
   private currentRow = 0;
   private visible = false;
 
@@ -74,6 +77,49 @@ export class EuclideanPopover {
 
     this.hitsSlider.addEventListener('input', () => this.updatePreview());
     this.rotationSlider.addEventListener('input', () => this.updatePreview());
+
+    // Separator
+    const separator = document.createElement('div');
+    separator.className = 'euclidean-separator';
+    this.el.appendChild(separator);
+
+    // Random section title
+    const randomTitle = document.createElement('div');
+    randomTitle.className = 'euclidean-title';
+    randomTitle.textContent = 'Random';
+    this.el.appendChild(randomTitle);
+
+    // Density slider
+    const densityRow = this.createSliderRow('Den', 0, 100, 50);
+    this.densitySlider = densityRow.slider;
+    this.densityLabel = densityRow.label;
+    this.el.appendChild(densityRow.container);
+
+    // Random preview
+    const randomPreview = document.createElement('div');
+    randomPreview.className = 'euclidean-preview';
+    for (let i = 0; i < NUM_STEPS; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'euclidean-preview-cell';
+      randomPreview.appendChild(cell);
+      this.randomPreviewCells.push(cell);
+    }
+    this.el.appendChild(randomPreview);
+
+    // Randomize button
+    const randomBtn = document.createElement('button');
+    randomBtn.className = 'euclidean-apply';
+    randomBtn.textContent = 'Randomize';
+    randomBtn.addEventListener('click', () => {
+      this.sequencer.randomizeRow(
+        this.currentRow,
+        Number(this.densitySlider.value) / 100,
+      );
+      this.hide();
+    });
+    this.el.appendChild(randomBtn);
+
+    this.densitySlider.addEventListener('input', () => this.updateRandomPreview());
   }
 
   private createSliderRow(label: string, min: number, max: number, initial: number) {
@@ -130,6 +176,31 @@ export class EuclideanPopover {
     }
   }
 
+  private updateRandomPreview(): void {
+    const rowLen = this.sequencer.getRowLength(this.currentRow);
+    const density = Number(this.densitySlider.value) / 100;
+
+    // Rebuild preview cells for current row length
+    const preview = this.randomPreviewCells[0]?.parentElement;
+    if (preview && this.randomPreviewCells.length !== rowLen) {
+      preview.replaceChildren();
+      this.randomPreviewCells = [];
+      for (let i = 0; i < rowLen; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'euclidean-preview-cell';
+        preview.appendChild(cell);
+        this.randomPreviewCells.push(cell);
+      }
+    }
+
+    for (let i = 0; i < this.randomPreviewCells.length; i++) {
+      this.randomPreviewCells[i].classList.toggle(
+        'euclidean-preview-cell--active',
+        Math.random() < density,
+      );
+    }
+  }
+
   show(row: number, anchor: HTMLElement): void {
     this.currentRow = row;
     const rowLen = this.sequencer.getRowLength(row);
@@ -143,6 +214,11 @@ export class EuclideanPopover {
     this.hitsLabel.textContent = this.hitsSlider.value;
     this.rotationLabel.textContent = '0';
     this.updatePreview();
+
+    // Reset density slider
+    this.densitySlider.value = '50';
+    this.densityLabel.textContent = '50';
+    this.updateRandomPreview();
 
     // Position near anchor
     const rect = anchor.getBoundingClientRect();

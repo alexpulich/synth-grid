@@ -685,6 +685,19 @@ export class Sequencer {
     eventBus.emit('grid:cleared');
   }
 
+  randomizeRow(row: number, density: number): void {
+    this.pushHistory();
+    const grid = this.grids[this._activeBank];
+    const len = this.getRowLength(row);
+    for (let step = 0; step < len; step++) {
+      grid[row][step] = Math.random() < density ? VELOCITY_LOUD : VELOCITY_OFF;
+    }
+    for (let step = len; step < NUM_STEPS; step++) {
+      grid[row][step] = VELOCITY_OFF;
+    }
+    eventBus.emit('grid:cleared');
+  }
+
   applyEuclidean(row: number, hits: number, rotation: number): void {
     this.pushHistory();
     const len = this.getRowLength(row);

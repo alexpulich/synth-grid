@@ -121,6 +121,13 @@
   border-color: var(--color-lead);
 }
 
+/* Separator between euclidean and random sections */
+.euclidean-separator {
+  height: 1px;
+  background: var(--color-border);
+  margin: 10px 0;
+}
+
 /* Apply button */
 .euclidean-apply {
   display: block;
