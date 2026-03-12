@@ -2,17 +2,17 @@
 
 ## Goal
 
-Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 17 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, or anything else you see fit.
+Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 18 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, or anything else you see fit.
 
 ## Current State
 
-- **81 TypeScript files, 27 CSS files, ~14,600 lines of code**
+- **83 TypeScript files, 28 CSS files, ~16,000 lines of code**
 - **Latest round**: Round 18 — Reliability & Accessibility
 - **No test suite** — verification has been manual via browser
 - **No lint config** — only `npx tsc --noEmit` for type checking
 - **Deployment**: Dockerfile + GitHub Actions CI/CD exist
 
-### What's Built (Rounds 1-17)
+### What's Built (Rounds 1-18)
 
 | Round | Features |
 |-------|----------|
@@ -65,6 +65,8 @@ Round 18 makes the existing feature set **robust and inclusive**. Undo/redo now 
 - **MIDI clock sync**: Send mode: 24ppqn `setInterval` synced to tempo. Receive mode: BPM derived from rolling average of incoming clock tick intervals. Start/Stop messages control transport
 - **Automation lanes**: Per-step parameter automation (volume, pan, reverb send, delay send) + filter cutoff display via existing filterLocks. `AutomationData = number[][][]` ([param][row][step], NaN = no lock). Scheduler applies values via `setValueAtTime()`, restores row defaults for non-automated steps. Collapsible UI per row with 5 param buttons + 16 draggable bars
 - **Polyrhythm**: `rowLengths: number[][]` per-bank (like rowVolumes). Each row loops independently (1-16 steps) via `rowStep = currentStep % rowLength[row]` in scheduler. Grid renders 16 columns; beyond-length cells dimmed. Per-row playheads, automation/piano-roll/euclidean respect row lengths. Ctrl+Scroll on row label to adjust
+- **Accessibility**: ARIA grid pattern (`role="grid"`/`"row"`/`"gridcell"`, `aria-pressed`, `aria-label`). Keyboard grid navigation (arrow keys, Enter/Space, Escape). Focus-visible styles via `styles/accessibility.css`. `prefers-reduced-motion` CSS + JS (particles, reactive background). Toast live region (`aria-live="polite"`). Dialog roles on help/piano-roll overlays. Knob `aria-valuetext`
+- **Undo/redo**: History captures all 17 per-bank data layers per entry (~12KB × 50 max = 600KB). `restoreEntry()` in sequencer restores all layers atomically
 
 ## What Worked
 
