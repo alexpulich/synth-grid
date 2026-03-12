@@ -1,5 +1,9 @@
 interface RowRef {
   el: HTMLElement;
+  keyEl: HTMLElement;
+  descEl: HTMLElement;
+  keyText: string;
+  descText: string;
   text: string; // searchable text (key + description, lowercased)
   sectionEl: HTMLElement;
 }
@@ -80,6 +84,7 @@ export class HelpOverlay {
           ['Alt + Right-click', 'Cycle note gate: Short \u2192 Normal \u2192 Long \u2192 Held'],
           ['Alt + Click', 'Toggle slide/glide (melodic rows)'],
           ['A', 'Toggle automation lanes'],
+          ['Ctrl + Scroll on label', 'Set row step length (1\u201316, polyrhythm)'],
         ],
       },
       {
@@ -195,6 +200,10 @@ export class HelpOverlay {
         sec.appendChild(row);
         this.rowRefs.push({
           el: row,
+          keyEl: keyEl,
+          descEl: descEl,
+          keyText: key,
+          descText: desc,
           text: `${key} ${desc}`.toLowerCase(),
           sectionEl: sec,
         });
@@ -219,9 +228,11 @@ export class HelpOverlay {
     let anyVisible = false;
 
     if (!query) {
-      // Show all
+      // Show all, clear highlights
       for (const ref of this.rowRefs) {
         ref.el.classList.remove('help-row--hidden');
+        ref.keyEl.textContent = ref.keyText;
+        ref.descEl.textContent = ref.descText;
       }
       for (const sec of this.sectionEls) {
         sec.classList.remove('help-section--hidden');
@@ -230,11 +241,18 @@ export class HelpOverlay {
       return;
     }
 
-    // Hide non-matching rows
+    // Hide non-matching rows, highlight matches
     for (const ref of this.rowRefs) {
       const matches = ref.text.includes(query);
       ref.el.classList.toggle('help-row--hidden', !matches);
-      if (matches) anyVisible = true;
+      if (matches) {
+        anyVisible = true;
+        this.highlightText(ref.keyEl, ref.keyText, query);
+        this.highlightText(ref.descEl, ref.descText, query);
+      } else {
+        ref.keyEl.textContent = ref.keyText;
+        ref.descEl.textContent = ref.descText;
+      }
     }
 
     // Hide sections with no visible rows
@@ -247,6 +265,39 @@ export class HelpOverlay {
 
     if (this.noResults) {
       this.noResults.classList.toggle('help-no-results--visible', !anyVisible);
+    }
+  }
+
+  private highlightText(el: HTMLElement, original: string, query: string): void {
+    // Clear previous content
+    while (el.firstChild) el.removeChild(el.firstChild);
+
+    const lower = original.toLowerCase();
+    let lastIndex = 0;
+    let idx = lower.indexOf(query, lastIndex);
+
+    if (idx === -1) {
+      // No match in this specific element, just set text
+      el.textContent = original;
+      return;
+    }
+
+    while (idx !== -1) {
+      // Text before match
+      if (idx > lastIndex) {
+        el.appendChild(document.createTextNode(original.slice(lastIndex, idx)));
+      }
+      // Highlighted match
+      const mark = document.createElement('mark');
+      mark.textContent = original.slice(idx, idx + query.length);
+      el.appendChild(mark);
+      lastIndex = idx + query.length;
+      idx = lower.indexOf(query, lastIndex);
+    }
+
+    // Remaining text after last match
+    if (lastIndex < original.length) {
+      el.appendChild(document.createTextNode(original.slice(lastIndex)));
     }
   }
 

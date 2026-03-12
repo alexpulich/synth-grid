@@ -44,16 +44,18 @@ export class TouchToolbar {
     if (!this._editMode) this.hide();
   }
 
+  private btnEls: HTMLButtonElement[] = [];
+
   private build(): void {
     const btns: { label: string; action: () => void }[] = [
-      { label: 'Vel', action: () => this.cycleVelocity() },
-      { label: 'Prob', action: () => this.cycleProbability() },
-      { label: 'Ratch', action: () => this.cycleRatchet() },
-      { label: 'Gate', action: () => this.cycleGate() },
-      { label: 'Cond', action: () => this.cycleCondition() },
-      { label: '\u2013', action: () => this.adjustNote(-1) }, // –
-      { label: '+', action: () => this.adjustNote(1) },
-      { label: 'Slide', action: () => this.toggleSlide() },
+      { label: 'Vel', action: () => { this.cycleVelocity(); this.updateLabels(); } },
+      { label: 'Prob', action: () => { this.cycleProbability(); this.updateLabels(); } },
+      { label: 'Ratch', action: () => { this.cycleRatchet(); this.updateLabels(); } },
+      { label: 'Gate', action: () => { this.cycleGate(); this.updateLabels(); } },
+      { label: 'Cond', action: () => { this.cycleCondition(); this.updateLabels(); } },
+      { label: '\u2013', action: () => { this.adjustNote(-1); this.updateLabels(); } }, // –
+      { label: '+', action: () => { this.adjustNote(1); this.updateLabels(); } },
+      { label: 'Slide', action: () => { this.toggleSlide(); this.updateLabels(); } },
       { label: '\u2716', action: () => this.deleteCell() }, // ✖
     ];
 
@@ -66,6 +68,7 @@ export class TouchToolbar {
         action();
       });
       this.el.appendChild(btn);
+      this.btnEls.push(btn);
     }
   }
 
@@ -87,6 +90,7 @@ export class TouchToolbar {
 
     this.el.classList.add('touch-toolbar--visible');
     this.visible = true;
+    this.updateLabels();
 
     requestAnimationFrame(() => this.position(anchorRect));
   }
@@ -112,6 +116,37 @@ export class TouchToolbar {
 
     this.el.style.left = `${left}px`;
     this.el.style.top = `${top}px`;
+  }
+
+  private updateLabels(): void {
+    const r = this.currentRow;
+    const s = this.currentStep;
+
+    // Velocity (index 0)
+    const vel = this.sequencer.getCurrentGrid()[r][s];
+    const velLabels = ['', 'V:Soft', 'V:Med', 'V:Loud'];
+    this.btnEls[0].textContent = vel > 0 ? velLabels[vel] : 'Vel';
+
+    // Probability (index 1)
+    const prob = this.sequencer.getCurrentProbabilities()[r][s];
+    this.btnEls[1].textContent = prob < 1 ? `P:${Math.round(prob * 100)}%` : 'Prob';
+
+    // Ratchet (index 2)
+    const ratch = this.sequencer.getRatchet(r, s);
+    this.btnEls[2].textContent = ratch > 1 ? `R:\u00d7${ratch}` : 'Ratch';
+
+    // Gate (index 3)
+    const gate = this.sequencer.getGate(r, s);
+    const gateLabels = ['G:S', 'G:N', 'G:L', 'G:H'];
+    this.btnEls[3].textContent = gate !== 1 ? gateLabels[gate] : 'Gate';
+
+    // Condition (index 4)
+    const cond = this.sequencer.getCondition(r, s);
+    this.btnEls[4].textContent = cond > 0 ? `C:${TRIG_CONDITIONS[cond]}` : 'Cond';
+
+    // Slide (index 7)
+    const slide = this.sequencer.getSlide(r, s);
+    this.btnEls[7].classList.toggle('touch-toolbar__btn--active', slide);
   }
 
   private cycleVelocity(): void {

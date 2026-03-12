@@ -148,6 +148,7 @@ export class AppUI {
           param.map(row => row.map(v => isNaN(v) ? null : v)),
         ),
       ),
+      rowLengths: sequencer.getAllRowLengths().map(b => [...b]),
       tempo: sequencer.tempo,
       selectedScale: sequencer.selectedScale,
       rootNote: sequencer.rootNote,
@@ -183,6 +184,7 @@ export class AppUI {
         data.rowSwings, data.gates, data.slides,
         data.reverbSends, data.delaySends,
         restoredAutomation,
+        data.rowLengths,
       );
       sequencer.setScale(data.selectedScale, data.rootNote);
       sequencer.setSidechain(data.sidechainEnabled, data.sidechainDepth, data.sidechainRelease);
@@ -350,12 +352,15 @@ export class AppUI {
       }
     });
 
-    // Wire particle bursts to cell triggers
+    // Wire particle bursts to cell triggers (per-row step for polyrhythm)
     eventBus.on('step:advance', (step) => {
       const grid = sequencer.getCurrentGrid();
+      const rowLengths = sequencer.getCurrentRowLengths();
       for (let row = 0; row < NUM_ROWS; row++) {
-        if (grid[row][step] > 0 && sequencer.muteState.isRowAudible(row)) {
-          const rect = this.gridUI.getCellRect(row, step);
+        const rowLen = rowLengths[row] ?? 16;
+        const rowStep = step % rowLen;
+        if (grid[row][rowStep] > 0 && sequencer.muteState.isRowAudible(row)) {
+          const rect = this.gridUI.getCellRect(row, rowStep);
           this.particles.burst(
             rect.left + rect.width / 2,
             rect.top + rect.height / 2,
@@ -514,6 +519,7 @@ export class AppUI {
           saved.rowSwings, saved.gates, saved.slides,
           saved.reverbSends, saved.delaySends,
           restoredAutomation,
+          saved.rowLengths,
         );
         // Backward compat: distribute global swing to all rows if no per-row swings saved
         if (!saved.rowSwings && saved.swing > 0) {

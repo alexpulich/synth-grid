@@ -28,6 +28,7 @@ export interface PatternData {
   reverbSends: number[][];
   delaySends: number[][];
   automationData?: (number | null)[][][][]; // NaN → null for JSON, [bank][param][row][step]
+  rowLengths?: number[][];
   tempo: number;
   selectedScale: number;
   rootNote: number;

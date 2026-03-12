@@ -70,3 +70,8 @@
   background: var(--color-border);
   border-color: var(--color-text);
 }
+
+.touch-toolbar__btn--active {
+  border-color: var(--color-lead);
+  color: var(--color-lead);
+}

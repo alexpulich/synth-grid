@@ -108,6 +108,12 @@
   width: 100%;
 }
 
+/* Beyond-length dimming (polyrhythm) */
+.auto-lane__step--beyond-length {
+  opacity: 0.15;
+  pointer-events: none;
+}
+
 /* === Touch device overrides === */
 @media (pointer: coarse) {
   .auto-lane__step {

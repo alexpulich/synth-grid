@@ -441,6 +441,36 @@
   opacity: 1;
 }
 
+/* === Beyond-length (polyrhythm) === */
+.grid-cell--beyond-length {
+  opacity: 0.15;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--cell-inactive),
+    var(--cell-inactive) 3px,
+    transparent 3px,
+    transparent 6px
+  ) !important;
+  box-shadow: none !important;
+}
+
+/* Row length badge */
+.grid-row-length {
+  display: none;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  color: var(--color-text-dim);
+  opacity: 0.7;
+  margin-left: 2px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.grid-row-length--visible {
+  display: inline;
+}
+
 /* === Touch device overrides === */
 @media (pointer: coarse) {
   .grid-cell {

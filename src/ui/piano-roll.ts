@@ -1,4 +1,4 @@
-import { NUM_STEPS, VELOCITY_OFF, VELOCITY_LOUD, MELODIC_ROWS } from '../types';
+import { VELOCITY_OFF, VELOCITY_LOUD, MELODIC_ROWS } from '../types';
 import type { VelocityLevel } from '../types';
 import { INSTRUMENTS } from '../audio/instruments';
 import type { Sequencer } from '../sequencer/sequencer';
@@ -135,7 +135,8 @@ export class PianoRoll {
     // Wire event bus
     eventBus.on('step:advance', (step) => {
       if (!this.visible) return;
-      this.updatePlayhead(step);
+      const rowLen = this.sequencer.getRowLength(this.currentRow);
+      this.updatePlayhead(step % rowLen);
     });
 
     eventBus.on('transport:stop', () => {
@@ -276,12 +277,17 @@ export class PianoRoll {
     this.cellMap.clear();
     this.stepHeaders = [];
 
+    const rowLen = this.sequencer.getRowLength(this.currentRow);
+
     // Clear existing children safely
     this.labelsEl.replaceChildren();
     this.gridEl.replaceChildren();
 
+    // Dynamic grid columns based on row length
+    this.gridEl.style.gridTemplateColumns = `repeat(${rowLen}, 1fr)`;
+
     // Step header numbers
-    for (let step = 0; step < NUM_STEPS; step++) {
+    for (let step = 0; step < rowLen; step++) {
       const header = document.createElement('div');
       header.className = 'piano-roll__step-num';
       header.textContent = String(step + 1);
@@ -300,8 +306,8 @@ export class PianoRoll {
       label.textContent = `${noteName}${pitch > 0 ? '+' + pitch : pitch < 0 ? String(pitch) : ''}`;
       this.labelsEl.appendChild(label);
 
-      // Cells for each step
-      for (let step = 0; step < NUM_STEPS; step++) {
+      // Cells for each step (only up to row length)
+      for (let step = 0; step < rowLen; step++) {
         const cell = document.createElement('button');
         cell.className = 'piano-roll__cell';
         if (step % 4 === 0 && step > 0) cell.classList.add('piano-roll__cell--beat-start');
@@ -338,6 +344,7 @@ export class PianoRoll {
     const grid = this.sequencer.getCurrentGrid();
     const noteGrid = this.sequencer.getCurrentNoteGrid();
     const row = this.currentRow;
+    const rowLen = this.sequencer.getRowLength(row);
 
     // Clear all active states
     for (const cell of this.cellMap.values()) {
@@ -345,8 +352,8 @@ export class PianoRoll {
       delete cell.dataset.velocity;
     }
 
-    // Mark active cells
-    for (let step = 0; step < NUM_STEPS; step++) {
+    // Mark active cells (only within row length)
+    for (let step = 0; step < rowLen; step++) {
       const velocity = grid[row][step];
       if (velocity === VELOCITY_OFF) continue;
 

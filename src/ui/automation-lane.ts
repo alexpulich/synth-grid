@@ -178,14 +178,16 @@ export class AutomationLane {
     eventBus.on('bank:changed', () => this.refreshAll());
     eventBus.on('grid:cleared', () => this.refreshAll());
 
-    // Playhead tracking
+    // Playhead tracking (per-row step for polyrhythm)
     eventBus.on('step:advance', (step) => {
       if (this.playingStep >= 0 && this.playingStep < NUM_STEPS) {
         this.steps[this.playingStep].classList.remove('auto-lane__step--playing');
       }
-      this.playingStep = step;
-      if (step >= 0 && step < NUM_STEPS) {
-        this.steps[step].classList.add('auto-lane__step--playing');
+      const rowLen = this.sequencer.getRowLength(this.row);
+      const rowStep = step % rowLen;
+      this.playingStep = rowStep;
+      if (rowStep >= 0 && rowStep < NUM_STEPS) {
+        this.steps[rowStep].classList.add('auto-lane__step--playing');
       }
     });
 
@@ -224,6 +226,7 @@ export class AutomationLane {
   }
 
   private applyValue(step: number, value: number): void {
+    if (step >= this.sequencer.getRowLength(this.row)) return;
     if (this.selectedUIParam === 2) {
       // Filter — writes to filterLocks (setFilterLock pushes history, but we already did pushHistorySnapshot)
       // Use the raw internal access pattern to avoid double-push
@@ -235,6 +238,7 @@ export class AutomationLane {
   }
 
   private clearValue(step: number): void {
+    if (step >= this.sequencer.getRowLength(this.row)) return;
     if (this.selectedUIParam === 2) {
       this.sequencer.clearFilterLock(this.row, step);
     } else {
@@ -285,8 +289,10 @@ export class AutomationLane {
   }
 
   refreshAll(): void {
+    const rowLen = this.sequencer.getRowLength(this.row);
     for (let step = 0; step < NUM_STEPS; step++) {
       this.refreshBar(step);
+      this.steps[step].classList.toggle('auto-lane__step--beyond-length', step >= rowLen);
     }
   }
 

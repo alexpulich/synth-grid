@@ -58,6 +58,7 @@ export class Sequencer {
   private reverbSends: number[][];
   private delaySends: number[][];
   private automationData: AutomationData[];
+  private rowLengths: number[][];
   private _activeBank = 0;
   private _tempo = 120;
   private _swing = 0;
@@ -102,6 +103,7 @@ export class Sequencer {
     this.reverbSends = Array.from({ length: NUM_BANKS }, () => new Array<number>(NUM_ROWS).fill(0.3));
     this.delaySends = Array.from({ length: NUM_BANKS }, () => new Array<number>(NUM_ROWS).fill(0.25));
     this.automationData = Array.from({ length: NUM_BANKS }, () => createEmptyAutomationData());
+    this.rowLengths = Array.from({ length: NUM_BANKS }, () => new Array<number>(NUM_ROWS).fill(NUM_STEPS));
   }
 
   private pushHistory(): void {
@@ -544,6 +546,29 @@ export class Sequencer {
     return this.automationData;
   }
 
+  // Per-row step length (polyrhythm, per-bank, 1-16)
+  getRowLength(row: number): number {
+    return this.rowLengths[this._activeBank][row] ?? NUM_STEPS;
+  }
+
+  setRowLength(row: number, length: number): void {
+    this.rowLengths[this._activeBank][row] = clamp(length, 1, NUM_STEPS);
+    eventBus.emit('rowlength:changed', { row, length: this.rowLengths[this._activeBank][row] });
+  }
+
+  getCurrentRowLengths(): number[] {
+    return this.rowLengths[this._activeBank];
+  }
+
+  getAllRowLengths(): number[][] {
+    return this.rowLengths;
+  }
+
+  /** Get the maximum row length in the current bank (for loop detection) */
+  getMaxRowLength(): number {
+    return Math.max(...this.rowLengths[this._activeBank]);
+  }
+
   // Gate (per-step note length)
   getGate(row: number, step: number): number {
     return this.gates[this._activeBank][row][step] ?? 1;
@@ -640,15 +665,21 @@ export class Sequencer {
     this.reverbSends[this._activeBank] = new Array<number>(NUM_ROWS).fill(0.3);
     this.delaySends[this._activeBank] = new Array<number>(NUM_ROWS).fill(0.25);
     this.automationData[this._activeBank] = createEmptyAutomationData();
+    this.rowLengths[this._activeBank] = new Array<number>(NUM_ROWS).fill(NUM_STEPS);
     eventBus.emit('grid:cleared');
   }
 
   applyEuclidean(row: number, hits: number, rotation: number): void {
     this.pushHistory();
-    const pattern = rotatePattern(euclidean(NUM_STEPS, hits), rotation);
+    const len = this.getRowLength(row);
+    const pattern = rotatePattern(euclidean(len, hits), rotation);
     const grid = this.grids[this._activeBank];
-    for (let step = 0; step < NUM_STEPS; step++) {
+    for (let step = 0; step < len; step++) {
       grid[row][step] = pattern[step] ? VELOCITY_LOUD : VELOCITY_OFF;
+    }
+    // Clear steps beyond row length
+    for (let step = len; step < NUM_STEPS; step++) {
+      grid[row][step] = VELOCITY_OFF;
     }
     eventBus.emit('grid:cleared');
   }
@@ -701,16 +732,23 @@ export class Sequencer {
     const slds = this.slides[this._activeBank];
     const auto = this.automationData[this._activeBank];
     for (let row = 0; row < NUM_ROWS; row++) {
-      grid[row].push(grid[row].shift()!);
-      probs[row].push(probs[row].shift()!);
-      notes[row].push(notes[row].shift()!);
-      locks[row].push(locks[row].shift()!);
-      ratch[row].push(ratch[row].shift()!);
-      conds[row].push(conds[row].shift()!);
-      gts[row].push(gts[row].shift()!);
-      slds[row].push(slds[row].shift()!);
+      const len = this.getRowLength(row);
+      // Rotate within row length only
+      const rotateArr = <T>(arr: T[]): void => {
+        const first = arr[0];
+        for (let i = 0; i < len - 1; i++) arr[i] = arr[i + 1];
+        arr[len - 1] = first;
+      };
+      rotateArr(grid[row]);
+      rotateArr(probs[row]);
+      rotateArr(notes[row]);
+      rotateArr(locks[row]);
+      rotateArr(ratch[row]);
+      rotateArr(conds[row]);
+      rotateArr(gts[row]);
+      rotateArr(slds[row]);
       for (let p = 0; p < NUM_AUTO_PARAMS; p++) {
-        auto[p][row].push(auto[p][row].shift()!);
+        rotateArr(auto[p][row]);
       }
     }
     eventBus.emit('grid:cleared');
@@ -728,16 +766,23 @@ export class Sequencer {
     const slds = this.slides[this._activeBank];
     const auto = this.automationData[this._activeBank];
     for (let row = 0; row < NUM_ROWS; row++) {
-      grid[row].unshift(grid[row].pop()!);
-      probs[row].unshift(probs[row].pop()!);
-      notes[row].unshift(notes[row].pop()!);
-      locks[row].unshift(locks[row].pop()!);
-      ratch[row].unshift(ratch[row].pop()!);
-      conds[row].unshift(conds[row].pop()!);
-      gts[row].unshift(gts[row].pop()!);
-      slds[row].unshift(slds[row].pop()!);
+      const len = this.getRowLength(row);
+      // Rotate within row length only
+      const rotateArr = <T>(arr: T[]): void => {
+        const last = arr[len - 1];
+        for (let i = len - 1; i > 0; i--) arr[i] = arr[i - 1];
+        arr[0] = last;
+      };
+      rotateArr(grid[row]);
+      rotateArr(probs[row]);
+      rotateArr(notes[row]);
+      rotateArr(locks[row]);
+      rotateArr(ratch[row]);
+      rotateArr(conds[row]);
+      rotateArr(gts[row]);
+      rotateArr(slds[row]);
       for (let p = 0; p < NUM_AUTO_PARAMS; p++) {
-        auto[p][row].unshift(auto[p][row].pop()!);
+        rotateArr(auto[p][row]);
       }
     }
     eventBus.emit('grid:cleared');
@@ -772,6 +817,7 @@ export class Sequencer {
     reverbSends?: number[][],
     delaySends?: number[][],
     automationData?: AutomationData[],
+    rowLengths?: number[][],
   ): void {
     for (let b = 0; b < NUM_BANKS; b++) {
       if (grids[b]) {
@@ -848,6 +894,11 @@ export class Sequencer {
         );
       } else {
         this.automationData[b] = createEmptyAutomationData();
+      }
+      if (rowLengths?.[b]) {
+        this.rowLengths[b] = [...rowLengths[b]];
+      } else {
+        this.rowLengths[b] = new Array<number>(NUM_ROWS).fill(NUM_STEPS);
       }
     }
     this._tempo = clamp(tempo, 30, 300);

@@ -41,6 +41,7 @@ interface SavedState {
   useSample?: boolean[];
   sampleMetas?: SampleMeta[];
   automationData?: (number | null)[][][][]; // NaN → null for JSON, [bank][param][row][step]
+  rowLengths?: number[][];
   metronomeEnabled?: boolean;
   muteScenes?: (MuteSceneData | null)[];
   midiOutputConfigs?: MidiOutputConfig[];
@@ -91,6 +92,7 @@ export class AutoSave {
     eventBus.on('midi:output-enabled-changed', scheduleSave);
     eventBus.on('midi:clock-mode-changed', scheduleSave);
     eventBus.on('automation:changed', scheduleSave);
+    eventBus.on('rowlength:changed', scheduleSave);
   }
 
   private debouncedSave(): void {
@@ -133,6 +135,7 @@ export class AutoSave {
           param.map(row => row.map(v => isNaN(v) ? null : v)),
         ),
       ),
+      rowLengths: this.sequencer.getAllRowLengths().map(bank => [...bank]),
       useSample: this.audioEngine ? [...this.audioEngine.useSample] : undefined,
       sampleMetas: this.audioEngine?.sampleEngine.getAllMetas().map((m) => ({ ...m })),
       eqLow: this.audioEngine?.eq.low,

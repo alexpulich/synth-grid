@@ -107,20 +107,40 @@ export class EuclideanPopover {
   }
 
   private updatePreview(): void {
+    const rowLen = this.sequencer.getRowLength(this.currentRow);
     const hits = Number(this.hitsSlider.value);
     const rotation = Number(this.rotationSlider.value);
-    const pattern = rotatePattern(euclidean(NUM_STEPS, hits), rotation);
+    const pattern = rotatePattern(euclidean(rowLen, hits), rotation);
 
-    for (let i = 0; i < NUM_STEPS; i++) {
-      this.previewCells[i].classList.toggle('euclidean-preview-cell--active', pattern[i]);
+    // Rebuild preview cells for current row length
+    const preview = this.previewCells[0]?.parentElement;
+    if (preview && this.previewCells.length !== rowLen) {
+      preview.replaceChildren();
+      this.previewCells = [];
+      for (let i = 0; i < rowLen; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'euclidean-preview-cell';
+        preview.appendChild(cell);
+        this.previewCells.push(cell);
+      }
+    }
+
+    for (let i = 0; i < this.previewCells.length; i++) {
+      this.previewCells[i].classList.toggle('euclidean-preview-cell--active', !!pattern[i]);
     }
   }
 
   show(row: number, anchor: HTMLElement): void {
     this.currentRow = row;
-    this.hitsSlider.value = '4';
+    const rowLen = this.sequencer.getRowLength(row);
+
+    // Update slider max values based on row length
+    this.hitsSlider.max = String(rowLen);
+    this.rotationSlider.max = String(rowLen - 1);
+
+    this.hitsSlider.value = String(Math.min(4, rowLen));
     this.rotationSlider.value = '0';
-    this.hitsLabel.textContent = '4';
+    this.hitsLabel.textContent = this.hitsSlider.value;
     this.rotationLabel.textContent = '0';
     this.updatePreview();
 

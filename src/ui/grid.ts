@@ -35,6 +35,7 @@ export class GridUI {
   private _lanesVisible = false;
   private stepLabels: HTMLButtonElement[] = [];
   private playheadBar: HTMLElement | null = null;
+  private lengthBadges: HTMLElement[] = [];
 
   // Drag paint state
   private isDragging = false;
@@ -129,7 +130,23 @@ export class GridUI {
       label.style.color = `var(${varName})`;
       label.dataset.row = String(row);
       this.labelElements[row] = label;
+
+      // Length badge (shows non-default row length)
+      const lengthBadge = document.createElement('span');
+      lengthBadge.className = 'grid-row-length';
+      label.appendChild(lengthBadge);
+      this.lengthBadges[row] = lengthBadge;
+
       rowEl.appendChild(label);
+
+      // Ctrl+Scroll on label: adjust row length
+      label.addEventListener('wheel', (e) => {
+        if (!(e.ctrlKey || e.metaKey)) return;
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 1 : -1;
+        const current = this.sequencer.getRowLength(row);
+        this.sequencer.setRowLength(row, current + delta);
+      });
 
       // Drag-and-drop sample loading on row labels
       label.addEventListener('dragover', (e) => {
@@ -618,6 +635,16 @@ export class GridUI {
       this.updateSlideVisual(row, step, slide);
     });
 
+    // Row length changed: update beyond-length dimming and badge
+    eventBus.on('rowlength:changed', ({ row, length }) => {
+      for (let step = 0; step < NUM_STEPS; step++) {
+        this.cells[row][step].classList.toggle('grid-cell--beyond-length', step >= length);
+      }
+      this.updateLengthBadge(row, length);
+      // Refresh automation lane for this row
+      this.automationLanes[row]?.refreshAll();
+    });
+
     // Sample loaded/removed: update label visual
     eventBus.on('sample:loaded', ({ row, filename }) => {
       this.labelElements[row].classList.add('grid-row-label--sample');
@@ -660,6 +687,8 @@ export class GridUI {
   }
 
   private applyDrag(row: number, step: number): void {
+    // Skip cells beyond row length
+    if (step >= this.sequencer.getRowLength(row)) return;
     const key = `${row},${step}`;
     if (this.draggedCells.has(key)) return;
     this.draggedCells.add(key);
@@ -669,26 +698,36 @@ export class GridUI {
   }
 
   highlightStep(step: number): void {
-    const prev = (step - 1 + NUM_STEPS) % NUM_STEPS;
-    for (let row = 0; row < NUM_ROWS; row++) {
-      this.cells[row][prev].classList.remove('grid-cell--playing');
-      this.cells[row][step].classList.add('grid-cell--playing');
+    const prevGlobal = (step - 1 + NUM_STEPS) % NUM_STEPS;
+    const rowLengths = this.sequencer.getCurrentRowLengths();
 
-      if (this.cells[row][step].classList.contains('grid-cell--active')) {
-        this.cells[row][step].classList.add('grid-cell--triggered');
-        const cellRef = this.cells[row][step];
+    for (let row = 0; row < NUM_ROWS; row++) {
+      const rowLen = rowLengths[row] ?? NUM_STEPS;
+      const rowStep = step % rowLen;
+      const prevRowStep = prevGlobal % rowLen;
+
+      this.cells[row][prevRowStep].classList.remove('grid-cell--playing');
+      this.cells[row][rowStep].classList.add('grid-cell--playing');
+
+      if (this.cells[row][rowStep].classList.contains('grid-cell--active')) {
+        this.cells[row][rowStep].classList.add('grid-cell--triggered');
+        const cellRef = this.cells[row][rowStep];
         setTimeout(() => cellRef.classList.remove('grid-cell--triggered'), 200);
       }
     }
 
-    // Update step header playhead
-    this.stepLabels[prev].classList.remove('grid-step-label--playing');
+    // Update step header playhead (global step)
+    this.stepLabels[prevGlobal].classList.remove('grid-step-label--playing');
     this.stepLabels[step].classList.add('grid-step-label--playing');
     if (this.playheadBar) {
       const label = this.stepLabels[step];
       this.playheadBar.style.left = `${label.offsetLeft}px`;
       this.playheadBar.style.width = `${label.offsetWidth}px`;
       this.playheadBar.classList.add('grid-playhead-bar--active');
+      // Tempo-adaptive transition
+      const stepDurationMs = (60000 / this.sequencer.tempo) / 4;
+      const transMs = Math.min(stepDurationMs * 0.8, 60);
+      this.playheadBar.style.transition = `left ${transMs}ms linear, opacity var(--transition-fast)`;
     }
   }
 
@@ -719,8 +758,12 @@ export class GridUI {
     const conditions = this.sequencer.getCurrentConditions();
     const gates = this.sequencer.getCurrentGates();
     const slides = this.sequencer.getCurrentSlides();
+    const rowLengths = this.sequencer.getCurrentRowLengths();
     for (let row = 0; row < NUM_ROWS; row++) {
+      const rowLen = rowLengths[row] ?? NUM_STEPS;
       for (let step = 0; step < NUM_STEPS; step++) {
+        const beyond = step >= rowLen;
+        this.cells[row][step].classList.toggle('grid-cell--beyond-length', beyond);
         const vel = grid[row][step];
         this.cells[row][step].classList.toggle('grid-cell--active', vel > 0);
         this.cells[row][step].dataset.velocity = String(vel);
@@ -733,9 +776,22 @@ export class GridUI {
         this.updateGateVisual(row, step, gates[row][step]);
         this.updateSlideVisual(row, step, slides[row][step]);
       }
+      this.updateLengthBadge(row, rowLen);
     }
     this.refreshPitchDisplays();
     this.refreshMixerKnobs();
+  }
+
+  private updateLengthBadge(row: number, length: number): void {
+    const badge = this.lengthBadges[row];
+    if (!badge) return;
+    if (length < NUM_STEPS) {
+      badge.textContent = `\u00d7${length}`;
+      badge.style.display = '';
+    } else {
+      badge.textContent = '';
+      badge.style.display = 'none';
+    }
   }
 
   private updatePitchDisplay(row: number, offset: number): void {

@@ -64,6 +64,8 @@ export interface EventMap {
   // Round 14 — Automation Lanes
   'automation:changed': { param: number; row: number; step: number; value: number };
   'automation:lanes-toggled': boolean;
+  // Round 17 — Polyrhythm
+  'rowlength:changed': { row: number; length: number };
 }
 
 type Listener<T> = (payload: T) => void;

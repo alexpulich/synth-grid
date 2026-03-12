@@ -65,6 +65,7 @@ export class Scheduler {
     const gates = this.sequencer.getCurrentGates();
     const slides = this.sequencer.getCurrentSlides();
     const rowSwings = this.sequencer.getCurrentRowSwings();
+    const rowLengths = this.sequencer.getCurrentRowLengths();
     const stepDuration = 60.0 / this.sequencer.tempo / 4;
     const humanize = this.sequencer.humanize;
     const ctxTime = this.audioEngine.ctx.currentTime;
@@ -72,30 +73,32 @@ export class Scheduler {
     let kickFired = false;
 
     for (let row = 0; row < grid.length; row++) {
-      const vel = grid[row][step];
+      const rowLen = rowLengths[row] ?? NUM_STEPS;
+      const rowStep = step % rowLen;
+      const vel = grid[row][rowStep];
       if (vel > 0 && this.sequencer.muteState.isRowAudible(row)) {
         // Check trig condition
-        const cond = conditions[row][step];
+        const cond = conditions[row][rowStep];
         if (cond > 0 && !checkCondition(cond, this.sequencer.loopCount)) continue;
 
-        const prob = probs[row][step];
+        const prob = probs[row][rowStep];
         if (prob >= 1.0 || Math.random() < prob) {
-          const totalPitch = pitches[row] + notes[row][step];
-          const ratchetCount = ratchets[row][step] ?? 1;
-          const gateLevel = gates[row][step] ?? 1;
+          const totalPitch = pitches[row] + notes[row][rowStep];
+          const ratchetCount = ratchets[row][rowStep] ?? 1;
+          const gateLevel = gates[row][rowStep] ?? 1;
           const gateDuration = stepDuration * GATE_LEVELS[gateLevel];
 
-          // Per-row swing: offset odd steps
+          // Per-row swing: offset odd steps (based on rowStep)
           let triggerTime = time;
-          if (step % 2 === 1) {
+          if (rowStep % 2 === 1) {
             triggerTime += rowSwings[row] * stepDuration;
           }
 
           // Slide/glide: find previous active note pitch for melodic rows
           let glideFrom: number | undefined;
-          if (MELODIC_ROWS.includes(row as typeof MELODIC_ROWS[number]) && slides[row][step]) {
-            for (let s = 1; s <= NUM_STEPS; s++) {
-              const prevStep = (step - s + NUM_STEPS) % NUM_STEPS;
+          if (MELODIC_ROWS.includes(row as typeof MELODIC_ROWS[number]) && slides[row][rowStep]) {
+            for (let s = 1; s <= rowLen; s++) {
+              const prevStep = (rowStep - s + rowLen) % rowLen;
               if (grid[row][prevStep] > 0) {
                 glideFrom = pitches[row] + notes[row][prevStep];
                 break;
@@ -148,8 +151,10 @@ export class Scheduler {
     const filterLocks = this.sequencer.getCurrentFilterLocks();
     let minLock = NaN;
     for (let row = 0; row < grid.length; row++) {
-      const lock = filterLocks[row][step];
-      if (!isNaN(lock) && grid[row][step] > 0) {
+      const rowLen = rowLengths[row] ?? NUM_STEPS;
+      const rowStep = step % rowLen;
+      const lock = filterLocks[row][rowStep];
+      if (!isNaN(lock) && grid[row][rowStep] > 0) {
         if (isNaN(minLock) || lock < minLock) minLock = lock;
       }
     }
@@ -164,10 +169,12 @@ export class Scheduler {
     const reverbSends = this.sequencer.getCurrentReverbSends();
     const delaySends = this.sequencer.getCurrentDelaySends();
     for (let row = 0; row < grid.length; row++) {
-      const volAuto = automation[0]?.[row]?.[step] ?? NaN;
-      const panAuto = automation[1]?.[row]?.[step] ?? NaN;
-      const revAuto = automation[2]?.[row]?.[step] ?? NaN;
-      const delAuto = automation[3]?.[row]?.[step] ?? NaN;
+      const rowLen = rowLengths[row] ?? NUM_STEPS;
+      const rowStep = step % rowLen;
+      const volAuto = automation[0]?.[row]?.[rowStep] ?? NaN;
+      const panAuto = automation[1]?.[row]?.[rowStep] ?? NaN;
+      const revAuto = automation[2]?.[row]?.[rowStep] ?? NaN;
+      const delAuto = automation[3]?.[row]?.[rowStep] ?? NaN;
 
       // Volume: automation value or restore to row default
       if (!isNaN(volAuto)) {

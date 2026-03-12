@@ -8,6 +8,8 @@ export class MuteScenesUI {
   private buttons: HTMLButtonElement[] = [];
   private activeScene: number | null = null;
   private tooltip: HTMLElement | null = null;
+  private hoveredSceneIndex: number | null = null;
+  private hoveredBtn: HTMLElement | null = null;
 
   constructor(parent: HTMLElement, private muteScenes: MuteScenes, private muteState: MuteState) {
     const container = document.createElement('div');
@@ -29,8 +31,16 @@ export class MuteScenesUI {
           this.recallScene(i);
         }
       });
-      btn.addEventListener('mouseenter', () => this.showTooltip(i, btn));
-      btn.addEventListener('mouseleave', () => this.hideTooltip());
+      btn.addEventListener('mouseenter', () => {
+        this.hoveredSceneIndex = i;
+        this.hoveredBtn = btn;
+        this.showTooltip(i, btn);
+      });
+      btn.addEventListener('mouseleave', () => {
+        this.hoveredSceneIndex = null;
+        this.hoveredBtn = null;
+        this.hideTooltip();
+      });
       container.appendChild(btn);
       this.buttons.push(btn);
     }
@@ -40,6 +50,10 @@ export class MuteScenesUI {
     eventBus.on('mute:changed', () => {
       this.activeScene = null;
       this.updateVisuals();
+      // Live-update tooltip if hovering a scene button
+      if (this.hoveredSceneIndex !== null && this.hoveredBtn) {
+        this.showTooltip(this.hoveredSceneIndex, this.hoveredBtn);
+      }
     });
   }
 

@@ -6,8 +6,8 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 
 ## Current State
 
-- **81 TypeScript files, 27 CSS files, ~14,200 lines of code**
-- **Latest round**: Round 16 — Visual Polish & UX Feedback
+- **81 TypeScript files, 27 CSS files, ~14,600 lines of code**
+- **Latest round**: Round 17 — Polyrhythm & Polish
 - **No test suite** — verification has been manual via browser
 - **No lint config** — only `npx tsc --noEmit` for type checking
 - **Deployment**: Dockerfile + GitHub Actions CI/CD exist
@@ -32,21 +32,16 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 14 | Automation lanes: per-step volume/pan/reverb-send/delay-send automation with collapsible visual editor per row. Click/drag to draw values, right-click to clear. Filter cutoff lane reads existing filterLocks. Per-bank state, persisted to localStorage and pattern library. Toggle with A key |
 | 15 | Mobile & touch: touch grid painting (tap/drag), long-press context menu, floating touch toolbar (FAB toggle for edit mode), piano roll + automation lane touch support, responsive CSS (tablet ≤768px, phone ≤480px), touch dismiss on all popovers, PWA setup (manifest, service worker, meta tags), help overlay touch section |
 | 16 | Visual polish & UX: always-visible knob value labels, per-FX color-coded LED indicators with pulse animation, playhead indicator bar on step header, mute scene hover tooltips with instrument names, theme preview cards with color swatches (replaces dropdown), help overlay search/filter |
+| 17 | Per-row step length (polyrhythm): each row loops independently (1-16 steps), Ctrl+Scroll on label to set, steps beyond length dimmed. Per-row playheads, automation/piano-roll/euclidean respect row lengths. Touch toolbar state feedback, help search highlighting, mute tooltip live update, tempo-adaptive playhead |
 
-### Current Progress (Round 16 — just completed)
+### Current Progress (Round 17 — just completed)
 
-Round 16 focused on UX polish and visual feedback — making existing features more discoverable and responsive without adding new audio/sequencer capabilities. All features are implemented, type-checked, built, and visually verified. No console errors.
+Round 17 adds **per-row step length (polyrhythm)** — each row can have an independent step count (1-16), enabling cross-rhythms like a 5-step kick + 7-step hihat. Also fixes 4 Round 16 gaps.
 
-**New files**: none (1 CSS file `styles/mute-scenes.css` already existed, tooltip styles added to it)
+**Modified files** (16): `src/utils/event-bus.ts`, `src/sequencer/sequencer.ts`, `src/audio/scheduler.ts`, `src/ui/grid.ts`, `src/ui/automation-lane.ts`, `src/ui/piano-roll.ts`, `src/ui/euclidean-popover.ts`, `src/state/local-storage.ts`, `src/state/pattern-library-storage.ts`, `src/ui/app.ts`, `src/ui/touch-toolbar.ts`, `src/ui/help-overlay.ts`, `src/ui/mute-scenes-ui.ts`, `styles/grid.css`, `styles/automation-lane.css`, `styles/help.css`, `styles/touch-toolbar.css`
 
-**Modified files** (12): `styles/knob.css` (value visibility), `src/ui/performance-fx-ui.ts` + `styles/effects.css` (LED indicators), `src/ui/grid.ts` + `styles/grid.css` (playhead bar), `src/ui/mute-scenes-ui.ts` + `styles/mute-scenes.css` (tooltip), `src/ui/theme-switcher.ts` + `styles/pattern-bank.css` (card UI), `src/ui/help-overlay.ts` + `styles/help.css` (search), `CLAUDE.md`
-
-**Not done / known gaps from Round 16**:
-- Mute scene tooltip doesn't update live if you mute/unmute rows while hovering — need to mouseleave and re-enter
-- Help search doesn't highlight matching text within rows — only shows/hides entire rows
+**Known gaps**:
 - Theme card swatches are hardcoded colors per theme — if someone adds a new theme, they must also add `swatches` array
-- Playhead bar `transition: left 60ms` may feel slightly sluggish at very fast tempos (300+ BPM)
-- Touch toolbar still doesn't show visual feedback for current cell state (carried from Round 15)
 
 ### Architecture Overview
 
@@ -135,7 +130,7 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 - ~~**Pattern library**~~: ✅ Done in Round 12 — save/load/import/export named patterns with factory presets
 - ~~**Metronome**~~: ✅ Done in Round 12
 - ~~**Automation lanes**~~: ✅ Done in Round 14 — per-step volume/pan/reverb-send/delay-send/filter automation with visual editor
-- **Polyrhythm/polymeter**: Different step counts per row (not just 16)
+- ~~**Polyrhythm/polymeter**~~: ✅ Done in Round 17 — per-row step length (1-16), independent looping
 - **Collaborative mode**: WebRTC or WebSocket-based real-time jam sessions
 - **Audio input**: Sidechain from mic/line-in, sampler from live input
 - **Piano roll enhancements**: Velocity editing in piano roll, keyboard arrow navigation, row copy/paste
