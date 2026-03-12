@@ -7,8 +7,8 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 ## Current State
 
 - **83 TypeScript files, 28 CSS files, ~16,000 lines of code**
-- **Latest round**: Round 18 — Reliability & Accessibility
-- **No test suite** — verification has been manual via browser
+- **Latest round**: Round 19 — Bug Fixes + Testing Foundation
+- **Test suite**: Vitest with 65 tests (history, euclidean, scales, URL serialization)
 - **No lint config** — only `npx tsc --noEmit` for type checking
 - **Deployment**: Dockerfile + GitHub Actions CI/CD exist
 
@@ -34,16 +34,34 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 16 | Visual polish & UX: always-visible knob value labels, per-FX color-coded LED indicators with pulse animation, playhead indicator bar on step header, mute scene hover tooltips with instrument names, theme preview cards with color swatches (replaces dropdown), help overlay search/filter |
 | 17 | Per-row step length (polyrhythm): each row loops independently (1-16 steps), Ctrl+Scroll on label to set, steps beyond length dimmed. Per-row playheads, automation/piano-roll/euclidean respect row lengths. Touch toolbar state feedback, help search highlighting, mute tooltip live update, tempo-adaptive playhead |
 | 18 | Reliability & Accessibility: comprehensive undo/redo (all 17 per-bank data layers), ARIA labels/roles on all interactive elements, keyboard grid navigation (arrow keys + Enter/Space), focus-visible styles, `prefers-reduced-motion` CSS + JS support |
+| 19 | Bug Fixes + Testing Foundation: fix redo bug (live state not saved for redo), Vitest setup with 65 tests covering history undo/redo, euclidean algorithm, scale utilities, URL serialization |
 
-### Current Progress (Round 18 — just completed)
+### Current Progress (Round 19 — just completed)
 
-Round 18 makes the existing feature set **robust and inclusive**. Undo/redo now captures all mutable per-bank state (not just 3 of 17 layers). Full WCAG 2.1 accessibility: ARIA grid pattern, keyboard navigation, screen reader support, focus indicators, and reduced motion support.
+Round 19 establishes automated testing and fixes a critical redo bug.
+
+**Bug fixes:**
+- **Redo from top broken (P0)**: `History.redo()` returned null after a single undo from the top of the stack. Root cause: "push before mutation" model never saved the post-last-action live state, so redo had no target. Fix: added `undoWithLiveState()` to History — when undoing from the top, appends the current live state to the stack so redo can reach it. `Sequencer.undo()` now calls this instead of plain `undo()`.
+- **Bug #2 (cross-bank corruption)**: Was a consequence of the redo issue — resolved.
+- **Bug #3 (scale selector desync)**: Already fixed in Round 18 (line 48 of `scale-selector.ts` has the `eventBus.on('scale:changed')` listener).
+
+**Testing foundation:**
+- Added Vitest (65 tests, 4 test files, ~130ms runtime)
+- `src/state/history.test.ts` — 21 tests: undo/redo correctness, undoWithLiveState, cloning, NaN preservation, MAX_SIZE
+- `src/utils/euclidean.test.ts` — 15 tests: Bjorklund's algorithm, rotation, edge cases
+- `src/utils/scales.test.ts` — 15 tests: degree↔semitone conversion, round-trips, note naming
+- `src/state/url-state.test.ts` — 14 tests: V2/V3/V4 round-trips, edge cases, error handling
+
+**Modified files** (4): `src/state/history.ts`, `src/sequencer/sequencer.ts`, `CLAUDE.md`, `HANDOFF.md`
+**New files** (5): `vitest.config.ts`, `src/state/history.test.ts`, `src/utils/euclidean.test.ts`, `src/utils/scales.test.ts`, `src/state/url-state.test.ts`
 
 **Modified files** (13): `src/state/history.ts`, `src/sequencer/sequencer.ts`, `src/ui/grid.ts`, `src/ui/toast.ts`, `src/ui/knob.ts`, `src/ui/help-overlay.ts`, `src/ui/piano-roll.ts`, `src/ui/transport-controls.ts`, `src/visuals/particle-system.ts`, `src/visuals/reactive-background.ts`, `styles/main.css`, `styles/accessibility.css` (NEW)
 
 **Known gaps**:
 - Theme card swatches are hardcoded colors per theme — if someone adds a new theme, they must also add `swatches` array
 - Toast `role="status"` container is created lazily on first toast — screen readers won't see it until a toast fires
+- Test coverage is limited to pure logic modules — no DOM/UI tests yet (would need jsdom)
+- No CI integration for tests — `npm test` is not yet in the deploy workflow
 
 ### Architecture Overview
 
@@ -108,6 +126,8 @@ Round 18 makes the existing feature set **robust and inclusive**. Undo/redo now 
 - **Spread clone preserves NaN**: `cloneEntry()` uses spread operator for all arrays (including FilterLockGrid with NaN values). JSON round-trip would convert NaN to null — spread avoids this
 - **`e.stopPropagation()` for grid keyboard**: Grid's keyboard handler calls `stopPropagation()` on handled keys, preventing document-level shortcuts (Space=play, A=automation) from conflicting with grid navigation (Space=toggle, ArrowDown=move)
 - **CSS + JS reduced motion**: CSS handles DOM animations (`@media (prefers-reduced-motion: reduce)`), JS handles canvas systems (`window.matchMedia` in ParticleSystem and ReactiveBackground). Both listen for live changes so toggling the OS setting works immediately
+- **Tests found the real bug**: QA reported "undo off-by-one" but tests showed undo was correct — the real bug was redo returning null after a single undo from the top. Root cause: "push before mutation" model never saves the live state. `undoWithLiveState()` fixes this by appending the live state to the stack when undoing from the top
+- **Vitest + node environment**: Pure logic tests (no DOM) with `environment: 'node'` — fast (65 tests in 130ms), no jsdom overhead. Test files colocated as `*.test.ts` next to source
 
 ## What Didn't Work / Gotchas
 
@@ -150,7 +170,7 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 - **Undo across patterns**: Global undo that spans bank/pattern switches
 
 ### Technical Improvements
-- **Testing**: Add Vitest for unit tests (audio logic, sequencer state, serialization)
+- ~~**Testing**~~: ✅ Foundation added in Round 19 — Vitest with 65 tests. Expand to cover: scheduler logic, sequencer state mutations, audio engine (needs Web Audio mocks), DOM/UI tests (needs jsdom)
 - ~~**Accessibility**~~: ✅ Done in Round 18 — ARIA grid pattern, keyboard navigation, focus-visible styles, `prefers-reduced-motion`, screen reader support
 - ~~**Mobile/touch**~~: ✅ Done in Round 15 — touch grid painting, responsive layout, long-press context menu, touch toolbar
 - **Performance**: Profile and optimize hot paths (scheduler, particle system, grid refresh)
@@ -199,7 +219,9 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 ## Commands
 
 ```
-npm run dev       # Start dev server (port 5173)
-npm run build     # Type-check + build for production
-npx tsc --noEmit  # Type-check only
+npm run dev        # Start dev server (port 5173)
+npm run build      # Type-check + build for production
+npx tsc --noEmit   # Type-check only
+npm test           # Run Vitest test suite (65 tests)
+npm run test:watch # Run tests in watch mode
 ```

@@ -5,9 +5,11 @@ Browser-based visual music step sequencer. Zero runtime dependencies — vanilla
 ## Commands
 
 ```
-npm run dev       # Start dev server (port 5173)
-npm run build     # Type-check + build for production
-npx tsc --noEmit  # Type-check only
+npm run dev        # Start dev server (port 5173)
+npm run build      # Type-check + build for production
+npx tsc --noEmit   # Type-check only
+npm test           # Run Vitest test suite
+npm run test:watch # Run tests in watch mode
 ```
 
 ## Architecture
@@ -226,6 +228,8 @@ styles/
 - **Tour auto-start conditions**: Only auto-starts when: (1) no URL hash (not loading shared pattern), (2) `localStorage('synth-grid-tour-completed')` is not 'true'. The `!hash` check runs first in app.ts. Static `OnboardingTour.isCompleted()` reads localStorage without instantiating the tour
 - **Help overlay `onTakeTour` callback**: Optional 2nd constructor param. When provided, creates "Take the Tour" button between title and search. Callback hides help overlay then starts tour. Does not break existing usage — param is optional with no default
 - **Comprehensive undo/redo**: `HistoryEntry` captures all 17 per-bank data layers (grid, probabilities, noteGrid, filterLocks, ratchets, conditions, gates, slides, rowVolumes, rowPans, rowSwings, reverbSends, delaySends, automationData, rowLengths, pitchOffsets). `restoreEntry()` in sequencer restores all layers and emits `grid:cleared`. Deep clone uses spread (preserves NaN), automationData uses nested `.map()` for 3D array
+- **Undo saves live state for redo**: `Sequencer.undo()` calls `history.undoWithLiveState()` which saves the current live state when undoing from the top of the stack. This ensures redo can restore back to the state after the last action (which was never pushed because pushHistory saves BEFORE mutation)
+- **Testing**: Vitest test suite, `environment: 'node'` (no DOM). Tests colocated as `*.test.ts` next to source files. Covers: history undo/redo, euclidean algorithm, scale utilities, URL state serialization. Run with `npm test`
 - **ARIA grid pattern**: Grid container: `role="grid"`, rows: `role="row"`, cells: `role="gridcell"` + `aria-label="{instrument} Step {n}"` + `aria-pressed`. Toast container: `role="status"` + `aria-live="polite"`. Help/piano-roll overlays: `role="dialog"` + `aria-modal="true"`. Knobs: `aria-valuetext` via `formatValue`. Transport play button: `aria-label` toggles "Play"/"Stop"
 - **Keyboard grid navigation**: Grid container `tabindex="0"`. Focus listener sets `gridFocused=true` and shows `.grid-cell--focused` highlight. Arrow keys move focus, Enter/Space toggles cell, Escape blurs grid, Shift+Up/Down cycles velocity. `e.stopPropagation()` on handled keys prevents document-level shortcut conflicts (e.g., Space=play). Focus respects `rowLengths` for horizontal bounds
 - **Focus-visible styles**: `styles/accessibility.css` with `:focus-visible` rules for all interactive elements. `outline: 2px solid var(--color-text); outline-offset: 2px`. Grid cells use `outline-offset: -2px` (inset). `.grid-cell--focused` class for keyboard navigation highlight (distinct from `:focus-visible`)

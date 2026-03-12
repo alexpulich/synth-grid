@@ -40,6 +40,20 @@ export class History {
     return this.cloneEntry(this.stack[this.pointer]);
   }
 
+  /**
+   * Undo with live state preservation for redo.
+   * When called from the top of the stack (no prior undo), appends
+   * the current live state so that redo can restore back to it.
+   */
+  undoWithLiveState(liveState: HistoryEntry): HistoryEntry | null {
+    if (this.pointer <= 0) return null;
+    if (this.pointer === this.stack.length) {
+      this.stack.push(this.cloneEntry(liveState));
+    }
+    this.pointer--;
+    return this.cloneEntry(this.stack[this.pointer]);
+  }
+
   redo(): HistoryEntry | null {
     if (this.pointer >= this.stack.length - 1) return null;
     this.pointer++;

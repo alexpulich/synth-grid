@@ -950,8 +950,31 @@ export class Sequencer {
     eventBus.emit('grid:cleared');
   }
 
+  private captureCurrentBankState(): HistoryEntry {
+    const b = this._activeBank;
+    return {
+      grid: this.grids[b],
+      bank: b,
+      probabilities: this.probabilities[b],
+      noteGrid: this.noteGrids[b],
+      filterLocks: this.filterLocks[b],
+      ratchets: this.ratchets[b],
+      conditions: this.conditions[b],
+      gates: this.gates[b],
+      slides: this.slides[b],
+      rowVolumes: this.rowVolumes[b],
+      rowPans: this.rowPans[b],
+      rowSwings: this.rowSwings[b],
+      reverbSends: this.reverbSends[b],
+      delaySends: this.delaySends[b],
+      automationData: this.automationData[b],
+      rowLengths: this.rowLengths[b],
+      pitchOffsets: this.pitchOffsets[b],
+    };
+  }
+
   undo(): void {
-    const entry = this.history.undo();
+    const entry = this.history.undoWithLiveState(this.captureCurrentBankState());
     if (!entry) return;
     this.restoreEntry(entry);
   }
