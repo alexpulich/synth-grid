@@ -2,7 +2,7 @@
 
 ## Goal
 
-Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 18 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, or anything else you see fit.
+Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 19 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, or anything else you see fit.
 
 ## Current State
 
@@ -54,8 +54,6 @@ Round 19 establishes automated testing and fixes a critical redo bug.
 
 **Modified files** (4): `src/state/history.ts`, `src/sequencer/sequencer.ts`, `CLAUDE.md`, `HANDOFF.md`
 **New files** (5): `vitest.config.ts`, `src/state/history.test.ts`, `src/utils/euclidean.test.ts`, `src/utils/scales.test.ts`, `src/state/url-state.test.ts`
-
-**Modified files** (13): `src/state/history.ts`, `src/sequencer/sequencer.ts`, `src/ui/grid.ts`, `src/ui/toast.ts`, `src/ui/knob.ts`, `src/ui/help-overlay.ts`, `src/ui/piano-roll.ts`, `src/ui/transport-controls.ts`, `src/visuals/particle-system.ts`, `src/visuals/reactive-background.ts`, `styles/main.css`, `styles/accessibility.css` (NEW)
 
 **Known gaps**:
 - Theme card swatches are hardcoded colors per theme — if someone adds a new theme, they must also add `swatches` array
@@ -154,34 +152,54 @@ Round 19 establishes automated testing and fixes a critical redo bug.
 
 These are suggestions, not requirements. Pursue whatever you think would most improve the project:
 
-### Feature Ideas
-- ~~**MIDI output**~~: ✅ Done in Round 13 — per-row output config (channel, base note, enable), global toggle (N key)
-- ~~**MIDI clock sync**~~: ✅ Done in Round 13 — send/receive 24ppqn, BPM derivation, Start/Stop transport
-- ~~**Sample loading**~~: ✅ Done in Round 11
-- ~~**Effects per row**~~: ✅ Done in Round 11
-- ~~**Pattern library**~~: ✅ Done in Round 12 — save/load/import/export named patterns with factory presets
-- ~~**Metronome**~~: ✅ Done in Round 12
-- ~~**Automation lanes**~~: ✅ Done in Round 14 — per-step volume/pan/reverb-send/delay-send/filter automation with visual editor
-- ~~**Polyrhythm/polymeter**~~: ✅ Done in Round 17 — per-row step length (1-16), independent looping
+### Recommended for Round 20 (highest-impact ideas)
+
+**Refactoring — Extract GridEventManager** (low risk, high maintainability gain):
+- `src/ui/grid.ts` is 1031 lines. The `bindEvents()` method alone is 450+ lines of tangled mouse/touch/keyboard handlers
+- Extract into `GridEventManager` class — reduces grid.ts to ~600 lines, makes interactions testable
+- Low risk because handlers already call sequencer methods through a clean API
+
+**Feature — Per-step density randomizer** (every major sequencer has this):
+- "Fill row with X% density" — quick way to generate variations
+- Add `randomizeRow(row, density)` to Sequencer + UI button near Euclidean controls
+- Musicians use this constantly: copy bank, randomize 30%, create variation loops
+- 2-3 hours, no state shape changes, pure logic
+
+**Testing — Expand coverage to sequencer mutations**:
+- Sequencer has 40+ state mutation methods with no test coverage
+- Key tests: `toggleCell`, `clearCurrentBank`, `loadFullState`, bank switching, step clipboard
+- Would have caught bugs in earlier rounds; enables safe refactoring
+
+**CI — Add `npm test` to deploy workflow**:
+- Currently tests exist but don't run in CI
+- One-line change to `.github/workflows/deploy.yml`
+
+### More feature ideas (not yet built)
 - **Collaborative mode**: WebRTC or WebSocket-based real-time jam sessions
 - **Audio input**: Sidechain from mic/line-in, sampler from live input
 - **Piano roll enhancements**: Velocity editing in piano roll, keyboard arrow navigation, row copy/paste
 - **Pattern chaining improvements**: Visual timeline editor for song mode, drag-and-drop reorder
 - **Undo across patterns**: Global undo that spans bank/pattern switches
-
-### Technical Improvements
-- ~~**Testing**~~: ✅ Foundation added in Round 19 — Vitest with 65 tests. Expand to cover: scheduler logic, sequencer state mutations, audio engine (needs Web Audio mocks), DOM/UI tests (needs jsdom)
-- ~~**Accessibility**~~: ✅ Done in Round 18 — ARIA grid pattern, keyboard navigation, focus-visible styles, `prefers-reduced-motion`, screen reader support
-- ~~**Mobile/touch**~~: ✅ Done in Round 15 — touch grid painting, responsive layout, long-press context menu, touch toolbar
-- **Performance**: Profile and optimize hot paths (scheduler, particle system, grid refresh)
-- ~~**PWA**~~: ✅ Done in Round 15 — service worker, manifest, installable app
-- **Code splitting**: Lazy-load heavy modules (performance FX, wav exporter)
-
-### UX/Visual Polish
-- ~~**Onboarding**~~: ✅ Done in Round 16 — interactive step-by-step tour with spotlight overlay
+- **Per-bank snapshots**: Save/load individual banks across patterns (currently pattern library saves all 4 banks together)
 - **More themes**: Community themes, custom theme editor
-- ~~**Better mobile layout**~~: ✅ Done in Round 15 — responsive breakpoints, touch targets, hidden controls on small screens
 - **Keyboard shortcut customization**: User-configurable keybindings
+
+### Technical improvements (not yet done)
+- **Expand test coverage**: Scheduler logic, sequencer mutations, audio engine (needs Web Audio mocks), DOM/UI tests (needs jsdom)
+- **Performance**: Profile and optimize grid refresh path (128 cells × 6 DOM ops on bank switch — could diff instead)
+- **Code splitting**: Lazy-load heavy modules (performance FX, wav exporter, piano roll)
+- **Linting**: Add ESLint with TypeScript plugin (currently only `tsc --noEmit`)
+
+### Already completed
+- ~~Testing foundation~~: ✅ Round 19 — Vitest, 65 tests
+- ~~Accessibility~~: ✅ Round 18 — ARIA, keyboard nav, reduced motion
+- ~~Mobile/touch~~: ✅ Round 15 — responsive layout, touch toolbar, PWA
+- ~~Onboarding~~: ✅ Round 16 — spotlight tour
+- ~~MIDI output + clock~~: ✅ Round 13
+- ~~Sample loading~~: ✅ Round 11
+- ~~Pattern library~~: ✅ Round 12
+- ~~Automation lanes~~: ✅ Round 14
+- ~~Polyrhythm~~: ✅ Round 17
 
 ## Key Files to Start With
 
