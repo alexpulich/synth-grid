@@ -22,6 +22,9 @@
 @import './pattern-library.css';
 @import './automation-lane.css';
 @import './touch-toolbar.css';
+@import './onboarding.css';
+@import './shortcut-hints.css';
+@import './accessibility.css';
 
 *,
 *::before,

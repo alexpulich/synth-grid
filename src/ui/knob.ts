@@ -141,8 +141,12 @@ export class Knob {
     const knob = this.el.querySelector('.knob') as HTMLElement;
     knob.setAttribute('aria-valuenow', String(this._value));
 
-    if (this.valueEl && this.options?.formatValue) {
-      this.valueEl.textContent = this.options.formatValue(this._value);
+    if (this.options?.formatValue) {
+      const formatted = this.options.formatValue(this._value);
+      knob.setAttribute('aria-valuetext', formatted);
+      if (this.valueEl) {
+        this.valueEl.textContent = formatted;
+      }
     }
   }
 

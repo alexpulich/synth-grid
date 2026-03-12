@@ -15,6 +15,9 @@ function ensureContainer(): HTMLElement {
   if (!container) {
     container = document.createElement('div');
     container.className = 'toast-container';
+    container.setAttribute('role', 'status');
+    container.setAttribute('aria-live', 'polite');
+    container.setAttribute('aria-relevant', 'additions');
     document.body.appendChild(container);
   }
   return container;
@@ -47,6 +50,9 @@ export function showToast(message: string, type: ToastType = 'info'): void {
   textEl.className = 'toast__text';
   textEl.textContent = message;
   el.appendChild(textEl);
+
+  // Use assertive for warnings so screen readers announce immediately
+  parent.setAttribute('aria-live', type === 'warning' ? 'assertive' : 'polite');
 
   parent.appendChild(el);
 

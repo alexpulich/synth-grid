@@ -425,11 +425,10 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 4px;
-  padding: 3px 8px;
+  padding: 4px 6px;
   font-family: var(--font-mono);
   font-size: 0.6rem;
   color: var(--color-text);
-  white-space: nowrap;
   pointer-events: none;
   opacity: 0;
   transform: translateX(-50%) translateY(-100%);
@@ -439,6 +438,41 @@
 
 .cell-tooltip--visible {
   opacity: 1;
+}
+
+.cell-tooltip__badges {
+  display: flex;
+  gap: 2px;
+}
+
+.cell-tooltip__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 1px 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  opacity: 0.45;
+  white-space: nowrap;
+}
+
+.cell-tooltip__badge--custom {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.cell-tooltip__badge-label {
+  color: var(--color-text-dim);
+  font-size: 0.5rem;
+}
+
+.cell-tooltip__badge-value {
+  color: var(--color-text);
+}
+
+/* Hide tooltip on touch devices */
+@media (pointer: coarse) {
+  .cell-tooltip { display: none; }
 }
 
 /* === Beyond-length (polyrhythm) === */

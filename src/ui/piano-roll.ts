@@ -44,6 +44,9 @@ export class PianoRoll {
     // Build overlay + panel DOM (appended to body on first open)
     this.overlay = document.createElement('div');
     this.overlay.className = 'piano-roll-overlay';
+    this.overlay.setAttribute('role', 'dialog');
+    this.overlay.setAttribute('aria-modal', 'true');
+    this.overlay.setAttribute('aria-label', 'Piano Roll Editor');
 
     this.panel = document.createElement('div');
     this.panel.className = 'piano-roll';

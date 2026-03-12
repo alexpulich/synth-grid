@@ -1,0 +1,150 @@
+/* === Focus-visible styles for keyboard navigation === */
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+[role="slider"]:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+/* Grid cells — inset outline to avoid layout shift */
+.grid-cell:focus-visible {
+  outline: 2px solid var(--color-text) !important;
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+/* Keyboard navigation focus ring for grid cells */
+.grid-cell--focused {
+  outline: 2px solid var(--color-text) !important;
+  outline-offset: -2px;
+  z-index: 2;
+}
+
+/* Pattern bank buttons */
+.bank-btn:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+/* Theme cards */
+.theme-card:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+/* Transport buttons */
+.transport-play-btn:focus-visible,
+.tap-btn:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+/* Pitch buttons */
+.pitch-btn:focus-visible {
+  outline: 2px solid var(--color-text) !important;
+  outline-offset: 1px;
+}
+
+/* Grid utility buttons */
+.grid-euc-btn:focus-visible,
+.grid-piano-btn:focus-visible {
+  outline: 2px solid var(--color-text) !important;
+  outline-offset: 1px;
+}
+
+/* Step labels in header */
+.grid-step-label:focus-visible {
+  outline: 2px solid var(--color-text) !important;
+  outline-offset: -1px;
+}
+
+/* Help search input */
+.help-search:focus-visible {
+  outline: 2px solid var(--color-text) !important;
+  outline-offset: 1px;
+}
+
+/* Mute scene buttons */
+.mute-scene-btn:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 1px;
+}
+
+/* Scale selector dropdowns */
+.scale-select:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 1px;
+}
+
+/* === prefers-reduced-motion === */
+@media (prefers-reduced-motion: reduce) {
+  /* Disable decorative cell animations */
+  .grid-cell--triggered,
+  .grid--switching .grid-cell--active,
+  .grid-cell--flash {
+    animation: none !important;
+  }
+
+  /* Disable modal/page transitions */
+  .help-overlay--visible .help-panel,
+  .piano-roll-overlay--visible .piano-roll-panel {
+    animation: none !important;
+  }
+
+  #app {
+    animation: none !important;
+  }
+
+  /* Instant toast display */
+  .toast {
+    transition: none !important;
+  }
+
+  /* Disable playhead sliding transition */
+  .grid-playhead-bar {
+    transition: none !important;
+  }
+
+  /* Disable onboarding tour animations */
+  .tour-spotlight,
+  .tour-card {
+    transition: none !important;
+  }
+
+  /* Disable bank queue blink */
+  .bank-btn--queued {
+    animation: none !important;
+  }
+
+  /* Disable MIDI activity pulse */
+  .midi-activity-dot {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* Disable perf FX LED pulse */
+  .perf-fx-led--active {
+    animation: none !important;
+  }
+
+  /* Disable shortcut hint fade */
+  .shortcut-hint {
+    transition: none !important;
+  }
+
+  /* Disable knob glow */
+  .knob-btn {
+    animation: none !important;
+  }
+
+  /* Button press feedback — keep functional but instant */
+  .transport-play-btn:active,
+  .tap-btn:active,
+  .grid-euc-btn:active,
+  .grid-piano-btn:active,
+  .pitch-btn:active {
+    transition: none !important;
+  }
+}

@@ -4,15 +4,100 @@ import { MELODIC_ROWS, TRIG_CONDITIONS, GATE_LABELS } from '../types';
 const HOVER_DELAY = 400;
 const VELOCITY_NAMES = ['', 'Soft', 'Med', 'Loud'] as const;
 
+interface BadgeDef {
+  label: string;
+  getValue: (seq: Sequencer, row: number, step: number) => string;
+  isDefault: (seq: Sequencer, row: number, step: number) => boolean;
+  melodicOnly?: boolean;
+}
+
+const BADGES: BadgeDef[] = [
+  {
+    label: 'V',
+    getValue: (seq, row, step) => VELOCITY_NAMES[seq.getCurrentGrid()[row][step]] as string,
+    isDefault: (seq, row, step) => seq.getCurrentGrid()[row][step] === 3,
+  },
+  {
+    label: 'P',
+    getValue: (seq, row, step) => `${Math.round(seq.getCurrentProbabilities()[row][step] * 100)}%`,
+    isDefault: (seq, row, step) => seq.getCurrentProbabilities()[row][step] >= 1.0,
+  },
+  {
+    label: 'R',
+    getValue: (seq, row, step) => `\u00d7${seq.getRatchet(row, step)}`,
+    isDefault: (seq, row, step) => seq.getRatchet(row, step) === 1,
+  },
+  {
+    label: 'G',
+    getValue: (seq, row, step) => GATE_LABELS[seq.getGate(row, step)],
+    isDefault: (seq, row, step) => seq.getGate(row, step) === 1,
+  },
+  {
+    label: 'C',
+    getValue: (seq, row, step) => {
+      const c = seq.getCondition(row, step);
+      return c > 0 ? TRIG_CONDITIONS[c] : '\u2014';
+    },
+    isDefault: (seq, row, step) => seq.getCondition(row, step) === 0,
+  },
+  {
+    label: 'N',
+    getValue: (seq, row, step) => {
+      const n = seq.getNoteOffset(row, step);
+      return n === 0 ? '0' : (n > 0 ? `+${n}` : `${n}`);
+    },
+    isDefault: (seq, row, step) => seq.getNoteOffset(row, step) === 0,
+    melodicOnly: true,
+  },
+  {
+    label: 'S',
+    getValue: (seq, row, step) => seq.getSlide(row, step) ? 'On' : '\u2014',
+    isDefault: (seq, row, step) => !seq.getSlide(row, step),
+    melodicOnly: true,
+  },
+  {
+    label: 'F',
+    getValue: (seq, row, step) => {
+      const f = seq.getFilterLock(row, step);
+      return isNaN(f) ? '\u2014' : `${Math.round(f * 100)}%`;
+    },
+    isDefault: (seq, row, step) => isNaN(seq.getFilterLock(row, step)),
+  },
+];
+
 export class CellTooltip {
   private el: HTMLElement;
   private timer: number | null = null;
   private currentCell: HTMLElement | null = null;
   private hidden = false;
+  private badgeEls: { wrap: HTMLElement; valueEl: HTMLElement }[] = [];
 
   constructor(private gridContainer: HTMLElement, private sequencer: Sequencer) {
     this.el = document.createElement('div');
     this.el.className = 'cell-tooltip';
+
+    // Build badge elements once, reuse on each show
+    const badgeRow = document.createElement('div');
+    badgeRow.className = 'cell-tooltip__badges';
+
+    for (const badge of BADGES) {
+      const wrap = document.createElement('span');
+      wrap.className = 'cell-tooltip__badge';
+
+      const labelEl = document.createElement('span');
+      labelEl.className = 'cell-tooltip__badge-label';
+      labelEl.textContent = badge.label;
+      wrap.appendChild(labelEl);
+
+      const valueEl = document.createElement('span');
+      valueEl.className = 'cell-tooltip__badge-value';
+      wrap.appendChild(valueEl);
+
+      badgeRow.appendChild(wrap);
+      this.badgeEls.push({ wrap, valueEl });
+    }
+
+    this.el.appendChild(badgeRow);
     document.body.appendChild(this.el);
 
     this.gridContainer.addEventListener('mouseover', this.onMouseOver);
@@ -29,6 +114,10 @@ export class CellTooltip {
     document.addEventListener('mousedown', () => {
       this.hidden = false;
     });
+  }
+
+  isVisible(): boolean {
+    return this.el.classList.contains('cell-tooltip--visible');
   }
 
   private onMouseOver = (e: MouseEvent): void => {
@@ -66,50 +155,26 @@ export class CellTooltip {
       return;
     }
 
-    const parts: string[] = [];
+    const isMelodic = MELODIC_ROWS.includes(row as typeof MELODIC_ROWS[number]);
 
-    // Velocity (default is 3/Loud — show if different)
-    if (vel !== 3) parts.push(`Vel: ${VELOCITY_NAMES[vel]}`);
+    // Update badge contents and styling
+    for (let i = 0; i < BADGES.length; i++) {
+      const badge = BADGES[i];
+      const { wrap, valueEl } = this.badgeEls[i];
 
-    // Probability (default is 1.0)
-    const prob = this.sequencer.getCurrentProbabilities()[row][step];
-    if (prob < 1.0) parts.push(`Prob: ${Math.round(prob * 100)}%`);
+      // Hide melodic-only badges for non-melodic rows
+      if (badge.melodicOnly && !isMelodic) {
+        wrap.style.display = 'none';
+        continue;
+      }
+      wrap.style.display = '';
 
-    // Ratchet (default is 1)
-    const ratchet = this.sequencer.getRatchet(row, step);
-    if (ratchet > 1) parts.push(`${ratchet}x`);
+      const value = badge.getValue(this.sequencer, row, step);
+      const isDefault = badge.isDefault(this.sequencer, row, step);
 
-    // Gate (default is 1/Normal)
-    const gate = this.sequencer.getGate(row, step);
-    if (gate !== 1) parts.push(`Gate: ${GATE_LABELS[gate]}`);
-
-    // Condition (default is 0/Always)
-    const cond = this.sequencer.getCondition(row, step);
-    if (cond > 0) parts.push(`Cond: ${TRIG_CONDITIONS[cond]}`);
-
-    // Melodic row extras
-    if (MELODIC_ROWS.includes(row as typeof MELODIC_ROWS[number])) {
-      const note = this.sequencer.getNoteOffset(row, step);
-      if (note !== 0) parts.push(`Note: ${note > 0 ? '+' : ''}${note}`);
-
-      const slide = this.sequencer.getSlide(row, step);
-      if (slide) parts.push('Slide');
+      valueEl.textContent = value;
+      wrap.classList.toggle('cell-tooltip__badge--custom', !isDefault);
     }
-
-    // Filter lock (default is NaN)
-    const filterLock = this.sequencer.getFilterLock(row, step);
-    if (!isNaN(filterLock)) parts.push(`Filt: ${Math.round(filterLock * 100)}%`);
-
-    if (parts.length === 0) {
-      this.hide();
-      return;
-    }
-
-    // Build content (no innerHTML)
-    while (this.el.firstChild) this.el.removeChild(this.el.firstChild);
-    const text = document.createElement('span');
-    text.textContent = parts.join(' \u00b7 ');
-    this.el.appendChild(text);
 
     // Position above cell
     const rect = cell.getBoundingClientRect();

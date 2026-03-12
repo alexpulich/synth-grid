@@ -46,9 +46,17 @@ export class GridUI {
   private longPressTimer: number | null = null;
   private touchStartPos = { x: 0, y: 0 };
 
+  // Keyboard grid navigation state
+  private focusedRow = -1;
+  private focusedStep = -1;
+  private gridFocused = false;
+
   constructor(parent: HTMLElement, private sequencer: Sequencer, audioEngine: AudioEngine) {
     this.container = document.createElement('div');
     this.container.className = 'grid';
+    this.container.setAttribute('role', 'grid');
+    this.container.setAttribute('aria-label', 'Step sequencer grid');
+    this.container.setAttribute('tabindex', '0');
     parent.appendChild(this.container);
 
     this.euclideanPopover = new EuclideanPopover(sequencer);
@@ -119,12 +127,15 @@ export class GridUI {
       const rowEl = document.createElement('div');
       rowEl.className = 'grid-row';
       rowEl.dataset.instrument = String(row);
+      rowEl.setAttribute('role', 'row');
       this.cells[row] = [];
       this.rowElements[row] = rowEl;
 
       const label = document.createElement('span');
       label.className = 'grid-row-label';
       label.textContent = INSTRUMENTS[row].name;
+      label.setAttribute('role', 'button');
+      label.setAttribute('aria-label', `Mute ${INSTRUMENTS[row].name}`);
       // Color comes from CSS var so it responds to theme changes
       const varName = `--color-${INSTRUMENTS[row].name.toLowerCase()}`;
       label.style.color = `var(${varName})`;
@@ -173,6 +184,7 @@ export class GridUI {
       const minusBtn = document.createElement('button');
       minusBtn.className = 'pitch-btn';
       minusBtn.textContent = '-';
+      minusBtn.setAttribute('aria-label', `Decrease pitch for ${INSTRUMENTS[row].name}`);
       minusBtn.addEventListener('click', () => {
         this.sequencer.setPitchOffset(row, this.sequencer.getPitchOffset(row) - 1);
       });
@@ -192,6 +204,7 @@ export class GridUI {
       const plusBtn = document.createElement('button');
       plusBtn.className = 'pitch-btn';
       plusBtn.textContent = '+';
+      plusBtn.setAttribute('aria-label', `Increase pitch for ${INSTRUMENTS[row].name}`);
       plusBtn.addEventListener('click', () => {
         this.sequencer.setPitchOffset(row, this.sequencer.getPitchOffset(row) + 1);
       });
@@ -241,6 +254,7 @@ export class GridUI {
       eucBtn.className = 'grid-euc-btn';
       eucBtn.textContent = 'E';
       eucBtn.title = 'Euclidean rhythm';
+      eucBtn.setAttribute('aria-label', `Euclidean rhythm for ${INSTRUMENTS[row].name}`);
       eucBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         this.euclideanPopover.show(row, eucBtn);
@@ -253,6 +267,7 @@ export class GridUI {
         pianoBtn.className = 'grid-piano-btn';
         pianoBtn.textContent = '\u266a'; // ♪
         pianoBtn.title = 'Piano roll';
+        pianoBtn.setAttribute('aria-label', `Piano roll for ${INSTRUMENTS[row].name}`);
         pianoBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           this.pianoRoll.open(row);
@@ -269,6 +284,10 @@ export class GridUI {
         cell.className = 'grid-cell';
         cell.dataset.row = String(row);
         cell.dataset.step = String(step);
+        cell.setAttribute('role', 'gridcell');
+        cell.setAttribute('aria-label', `${INSTRUMENTS[row].name} Step ${step + 1}`);
+        cell.setAttribute('aria-pressed', 'false');
+        cell.setAttribute('tabindex', '-1');
         if (step % 4 === 0 && step > 0) cell.classList.add('grid-cell--beat-start');
         rowEl.appendChild(cell);
         this.cells[row][step] = cell;
@@ -559,6 +578,7 @@ export class GridUI {
       const cell = this.cells[row][step];
       cell.classList.toggle('grid-cell--active', velocity > 0);
       cell.dataset.velocity = String(velocity);
+      cell.setAttribute('aria-pressed', String(velocity > 0));
     });
 
     // Probability changed event
@@ -585,8 +605,15 @@ export class GridUI {
 
         // Update label text with mute/solo indicator
         let name = INSTRUMENTS[row].name;
-        if (soloRow === row) name += ' [S]';
-        else if (muted[row]) name += ' [M]';
+        if (soloRow === row) {
+          name += ' [S]';
+          this.labelElements[row].setAttribute('aria-label', `${INSTRUMENTS[row].name} (soloed)`);
+        } else if (muted[row]) {
+          name += ' [M]';
+          this.labelElements[row].setAttribute('aria-label', `${INSTRUMENTS[row].name} (muted)`);
+        } else {
+          this.labelElements[row].setAttribute('aria-label', `Mute ${INSTRUMENTS[row].name}`);
+        }
         this.labelElements[row].textContent = name;
       }
     });
@@ -672,6 +699,23 @@ export class GridUI {
         setTimeout(() => cell.classList.remove('grid-cell--flash'), 300);
       }
     });
+
+    // Keyboard grid navigation
+    this.container.addEventListener('focus', () => {
+      if (this.focusedRow < 0) {
+        this.focusedRow = 0;
+        this.focusedStep = 0;
+      }
+      this.gridFocused = true;
+      this.updateFocusVisual();
+    });
+
+    this.container.addEventListener('blur', () => {
+      this.gridFocused = false;
+      this.clearFocusVisual();
+    });
+
+    this.container.addEventListener('keydown', (e) => this.handleGridKeydown(e));
 
     // Theme change: update INSTRUMENTS color for particle system
     eventBus.on('theme:changed', () => {
@@ -767,6 +811,7 @@ export class GridUI {
         const vel = grid[row][step];
         this.cells[row][step].classList.toggle('grid-cell--active', vel > 0);
         this.cells[row][step].dataset.velocity = String(vel);
+        this.cells[row][step].setAttribute('aria-pressed', String(vel > 0));
         const pct = Math.round(probs[row][step] * 100);
         this.cells[row][step].dataset.prob = String(pct);
         this.updateNoteDisplay(row, step, notes[row][step]);
@@ -908,6 +953,79 @@ export class GridUI {
       marker.className = 'grid-cell-slide';
       marker.textContent = '/';
       cell.appendChild(marker);
+    }
+  }
+
+  // === Keyboard grid navigation ===
+
+  private handleGridKeydown(e: KeyboardEvent): void {
+    if (!this.gridFocused || this.focusedRow < 0) return;
+    const r = this.focusedRow;
+    const s = this.focusedStep;
+
+    // Shift+Arrow: cycle velocity on focused cell
+    if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.sequencer.cycleVelocity(r, s);
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowRight':
+        e.preventDefault();
+        e.stopPropagation();
+        this.moveFocus(r, Math.min(s + 1, this.sequencer.getRowLength(r) - 1));
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        e.stopPropagation();
+        this.moveFocus(r, Math.max(s - 1, 0));
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        e.stopPropagation();
+        this.moveFocus(Math.min(r + 1, NUM_ROWS - 1), s);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        e.stopPropagation();
+        this.moveFocus(Math.max(r - 1, 0), s);
+        break;
+      case 'Enter':
+      case ' ':
+        e.preventDefault();
+        e.stopPropagation();
+        this.sequencer.toggleCell(r, s);
+        break;
+      case 'Escape':
+        e.preventDefault();
+        this.container.blur();
+        break;
+      default:
+        return; // Don't prevent default for unhandled keys
+    }
+  }
+
+  private moveFocus(row: number, step: number): void {
+    this.clearFocusVisual();
+    this.focusedRow = row;
+    this.focusedStep = step;
+    this.updateFocusVisual();
+  }
+
+  private updateFocusVisual(): void {
+    if (this.focusedRow < 0 || !this.gridFocused) return;
+    const cell = this.cells[this.focusedRow]?.[this.focusedStep];
+    if (cell) {
+      cell.classList.add('grid-cell--focused');
+    }
+  }
+
+  private clearFocusVisual(): void {
+    if (this.focusedRow >= 0 && this.focusedStep >= 0) {
+      const cell = this.cells[this.focusedRow]?.[this.focusedStep];
+      cell?.classList.remove('grid-cell--focused');
     }
   }
 }

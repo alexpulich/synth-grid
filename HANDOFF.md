@@ -7,7 +7,7 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 ## Current State
 
 - **81 TypeScript files, 27 CSS files, ~14,600 lines of code**
-- **Latest round**: Round 17 — Polyrhythm & Polish
+- **Latest round**: Round 18 — Reliability & Accessibility
 - **No test suite** — verification has been manual via browser
 - **No lint config** — only `npx tsc --noEmit` for type checking
 - **Deployment**: Dockerfile + GitHub Actions CI/CD exist
@@ -33,15 +33,17 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 15 | Mobile & touch: touch grid painting (tap/drag), long-press context menu, floating touch toolbar (FAB toggle for edit mode), piano roll + automation lane touch support, responsive CSS (tablet ≤768px, phone ≤480px), touch dismiss on all popovers, PWA setup (manifest, service worker, meta tags), help overlay touch section |
 | 16 | Visual polish & UX: always-visible knob value labels, per-FX color-coded LED indicators with pulse animation, playhead indicator bar on step header, mute scene hover tooltips with instrument names, theme preview cards with color swatches (replaces dropdown), help overlay search/filter |
 | 17 | Per-row step length (polyrhythm): each row loops independently (1-16 steps), Ctrl+Scroll on label to set, steps beyond length dimmed. Per-row playheads, automation/piano-roll/euclidean respect row lengths. Touch toolbar state feedback, help search highlighting, mute tooltip live update, tempo-adaptive playhead |
+| 18 | Reliability & Accessibility: comprehensive undo/redo (all 17 per-bank data layers), ARIA labels/roles on all interactive elements, keyboard grid navigation (arrow keys + Enter/Space), focus-visible styles, `prefers-reduced-motion` CSS + JS support |
 
-### Current Progress (Round 17 — just completed)
+### Current Progress (Round 18 — just completed)
 
-Round 17 adds **per-row step length (polyrhythm)** — each row can have an independent step count (1-16), enabling cross-rhythms like a 5-step kick + 7-step hihat. Also fixes 4 Round 16 gaps.
+Round 18 makes the existing feature set **robust and inclusive**. Undo/redo now captures all mutable per-bank state (not just 3 of 17 layers). Full WCAG 2.1 accessibility: ARIA grid pattern, keyboard navigation, screen reader support, focus indicators, and reduced motion support.
 
-**Modified files** (16): `src/utils/event-bus.ts`, `src/sequencer/sequencer.ts`, `src/audio/scheduler.ts`, `src/ui/grid.ts`, `src/ui/automation-lane.ts`, `src/ui/piano-roll.ts`, `src/ui/euclidean-popover.ts`, `src/state/local-storage.ts`, `src/state/pattern-library-storage.ts`, `src/ui/app.ts`, `src/ui/touch-toolbar.ts`, `src/ui/help-overlay.ts`, `src/ui/mute-scenes-ui.ts`, `styles/grid.css`, `styles/automation-lane.css`, `styles/help.css`, `styles/touch-toolbar.css`
+**Modified files** (13): `src/state/history.ts`, `src/sequencer/sequencer.ts`, `src/ui/grid.ts`, `src/ui/toast.ts`, `src/ui/knob.ts`, `src/ui/help-overlay.ts`, `src/ui/piano-roll.ts`, `src/ui/transport-controls.ts`, `src/visuals/particle-system.ts`, `src/visuals/reactive-background.ts`, `styles/main.css`, `styles/accessibility.css` (NEW)
 
 **Known gaps**:
 - Theme card swatches are hardcoded colors per theme — if someone adds a new theme, they must also add `swatches` array
+- Toast `role="status"` container is created lazily on first toast — screen readers won't see it until a toast fires
 
 ### Architecture Overview
 
@@ -100,6 +102,10 @@ Round 17 adds **per-row step length (polyrhythm)** — each row can have an inde
 - **Polyrhythm via modulo**: Keeping a single global `currentStep` (0-15) and computing `rowStep = step % rowLength[row]` per row in the scheduler was much simpler than variable-width rows. Grid still renders 16 columns — beyond-length cells are just dimmed CSS
 - **Per-bank state checklist**: Following the established 9-step checklist (sequencer → EventMap → localStorage → app.ts → UI) made adding `rowLengths` as per-bank state predictable and error-free
 - **Touch toolbar `updateLabels()` after each action**: Calling a single refresh method after every cycle action avoids duplicating display logic per button. Stores `btnEls[]` references from `build()` for O(1) updates
+- **`restoreEntry()` centralizes undo/redo**: Single method restores all 17 data layers + emits `grid:cleared`. Both `undo()` and `redo()` call it — no duplication, no forgotten layers
+- **Spread clone preserves NaN**: `cloneEntry()` uses spread operator for all arrays (including FilterLockGrid with NaN values). JSON round-trip would convert NaN to null — spread avoids this
+- **`e.stopPropagation()` for grid keyboard**: Grid's keyboard handler calls `stopPropagation()` on handled keys, preventing document-level shortcuts (Space=play, A=automation) from conflicting with grid navigation (Space=toggle, ArrowDown=move)
+- **CSS + JS reduced motion**: CSS handles DOM animations (`@media (prefers-reduced-motion: reduce)`), JS handles canvas systems (`window.matchMedia` in ParticleSystem and ReactiveBackground). Both listen for live changes so toggling the OS setting works immediately
 
 ## What Didn't Work / Gotchas
 
@@ -143,14 +149,14 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 
 ### Technical Improvements
 - **Testing**: Add Vitest for unit tests (audio logic, sequencer state, serialization)
-- **Accessibility**: Screen reader support, keyboard navigation through grid
+- ~~**Accessibility**~~: ✅ Done in Round 18 — ARIA grid pattern, keyboard navigation, focus-visible styles, `prefers-reduced-motion`, screen reader support
 - ~~**Mobile/touch**~~: ✅ Done in Round 15 — touch grid painting, responsive layout, long-press context menu, touch toolbar
 - **Performance**: Profile and optimize hot paths (scheduler, particle system, grid refresh)
 - ~~**PWA**~~: ✅ Done in Round 15 — service worker, manifest, installable app
 - **Code splitting**: Lazy-load heavy modules (performance FX, wav exporter)
 
 ### UX/Visual Polish
-- **Onboarding**: First-time user tutorial or interactive walkthrough
+- ~~**Onboarding**~~: ✅ Done in Round 16 — interactive step-by-step tour with spotlight overlay
 - **More themes**: Community themes, custom theme editor
 - ~~**Better mobile layout**~~: ✅ Done in Round 15 — responsive breakpoints, touch targets, hidden controls on small screens
 - **Keyboard shortcut customization**: User-configurable keybindings

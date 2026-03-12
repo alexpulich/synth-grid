@@ -1,10 +1,23 @@
-import type { Grid, ProbabilityGrid, NoteGrid } from '../types';
+import type { Grid, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, AutomationData } from '../types';
 
 export interface HistoryEntry {
   grid: Grid;
   bank: number;
-  probabilities?: ProbabilityGrid;
-  noteGrid?: NoteGrid;
+  probabilities: ProbabilityGrid;
+  noteGrid: NoteGrid;
+  filterLocks: FilterLockGrid;
+  ratchets: RatchetGrid;
+  conditions: ConditionGrid;
+  gates: GateGrid;
+  slides: SlideGrid;
+  rowVolumes: number[];
+  rowPans: number[];
+  rowSwings: number[];
+  reverbSends: number[];
+  delaySends: number[];
+  automationData: AutomationData;
+  rowLengths: number[];
+  pitchOffsets: number[];
 }
 
 export class History {
@@ -12,17 +25,9 @@ export class History {
   private pointer = 0;
   private readonly MAX_SIZE = 50;
 
-  push(grid: Grid, bank: number, probabilities?: ProbabilityGrid, noteGrid?: NoteGrid): void {
+  push(entry: HistoryEntry): void {
     this.stack = this.stack.slice(0, this.pointer);
-    const clone: Grid = grid.map((row) => [...row]);
-    const entry: HistoryEntry = { grid: clone, bank };
-    if (probabilities) {
-      entry.probabilities = probabilities.map((row) => [...row]);
-    }
-    if (noteGrid) {
-      entry.noteGrid = noteGrid.map((row) => [...row]);
-    }
-    this.stack.push(entry);
+    this.stack.push(this.cloneEntry(entry));
     if (this.stack.length > this.MAX_SIZE) {
       this.stack.shift();
     }
@@ -42,13 +47,24 @@ export class History {
   }
 
   private cloneEntry(entry: HistoryEntry): HistoryEntry {
-    const result: HistoryEntry = { grid: entry.grid.map((row) => [...row]), bank: entry.bank };
-    if (entry.probabilities) {
-      result.probabilities = entry.probabilities.map((row) => [...row]);
-    }
-    if (entry.noteGrid) {
-      result.noteGrid = entry.noteGrid.map((row) => [...row]);
-    }
-    return result;
+    return {
+      grid: entry.grid.map((row) => [...row]),
+      bank: entry.bank,
+      probabilities: entry.probabilities.map((row) => [...row]),
+      noteGrid: entry.noteGrid.map((row) => [...row]),
+      filterLocks: entry.filterLocks.map((row) => [...row]),
+      ratchets: entry.ratchets.map((row) => [...row]),
+      conditions: entry.conditions.map((row) => [...row]),
+      gates: entry.gates.map((row) => [...row]),
+      slides: entry.slides.map((row) => [...row]),
+      rowVolumes: [...entry.rowVolumes],
+      rowPans: [...entry.rowPans],
+      rowSwings: [...entry.rowSwings],
+      reverbSends: [...entry.reverbSends],
+      delaySends: [...entry.delaySends],
+      automationData: entry.automationData.map((param) => param.map((row) => [...row])),
+      rowLengths: [...entry.rowLengths],
+      pitchOffsets: [...entry.pitchOffsets],
+    };
   }
 }

@@ -3,7 +3,7 @@ import type { Grid, VelocityLevel, ProbabilityGrid, NoteGrid, FilterLockGrid, Ra
 import { clamp } from '../utils/math';
 import { euclidean, rotatePattern } from '../utils/euclidean';
 import { eventBus } from '../utils/event-bus';
-import { History } from '../state/history';
+import { History, type HistoryEntry } from '../state/history';
 import { MuteState } from './mute-state';
 import { PatternChain } from './pattern-chain';
 import { StepClipboard } from './step-clipboard';
@@ -107,10 +107,26 @@ export class Sequencer {
   }
 
   private pushHistory(): void {
-    this.history.push(
-      this.getCurrentGrid(), this._activeBank,
-      this.getCurrentProbabilities(), this.getCurrentNoteGrid(),
-    );
+    const b = this._activeBank;
+    this.history.push({
+      grid: this.grids[b],
+      bank: b,
+      probabilities: this.probabilities[b],
+      noteGrid: this.noteGrids[b],
+      filterLocks: this.filterLocks[b],
+      ratchets: this.ratchets[b],
+      conditions: this.conditions[b],
+      gates: this.gates[b],
+      slides: this.slides[b],
+      rowVolumes: this.rowVolumes[b],
+      rowPans: this.rowPans[b],
+      rowSwings: this.rowSwings[b],
+      reverbSends: this.reverbSends[b],
+      delaySends: this.delaySends[b],
+      automationData: this.automationData[b],
+      rowLengths: this.rowLengths[b],
+      pitchOffsets: this.pitchOffsets[b],
+    });
   }
 
   toggleCell(row: number, step: number): void {
@@ -909,37 +925,40 @@ export class Sequencer {
     eventBus.emit('grid:cleared');
   }
 
-  undo(): void {
-    const entry = this.history.undo();
-    if (!entry) return;
+  private restoreEntry(entry: HistoryEntry): void {
     if (entry.bank !== this._activeBank) {
       this._activeBank = entry.bank;
       eventBus.emit('bank:changed', this._activeBank);
     }
-    this.grids[entry.bank] = entry.grid;
-    if (entry.probabilities) {
-      this.probabilities[entry.bank] = entry.probabilities;
-    }
-    if (entry.noteGrid) {
-      this.noteGrids[entry.bank] = entry.noteGrid;
-    }
+    const b = entry.bank;
+    this.grids[b] = entry.grid;
+    this.probabilities[b] = entry.probabilities;
+    this.noteGrids[b] = entry.noteGrid;
+    this.filterLocks[b] = entry.filterLocks;
+    this.ratchets[b] = entry.ratchets;
+    this.conditions[b] = entry.conditions;
+    this.gates[b] = entry.gates;
+    this.slides[b] = entry.slides;
+    this.rowVolumes[b] = entry.rowVolumes;
+    this.rowPans[b] = entry.rowPans;
+    this.rowSwings[b] = entry.rowSwings;
+    this.reverbSends[b] = entry.reverbSends;
+    this.delaySends[b] = entry.delaySends;
+    this.automationData[b] = entry.automationData;
+    this.rowLengths[b] = entry.rowLengths;
+    this.pitchOffsets[b] = entry.pitchOffsets;
     eventBus.emit('grid:cleared');
+  }
+
+  undo(): void {
+    const entry = this.history.undo();
+    if (!entry) return;
+    this.restoreEntry(entry);
   }
 
   redo(): void {
     const entry = this.history.redo();
     if (!entry) return;
-    if (entry.bank !== this._activeBank) {
-      this._activeBank = entry.bank;
-      eventBus.emit('bank:changed', this._activeBank);
-    }
-    this.grids[entry.bank] = entry.grid;
-    if (entry.probabilities) {
-      this.probabilities[entry.bank] = entry.probabilities;
-    }
-    if (entry.noteGrid) {
-      this.noteGrids[entry.bank] = entry.noteGrid;
-    }
-    eventBus.emit('grid:cleared');
+    this.restoreEntry(entry);
   }
 }

@@ -16,9 +16,12 @@ export class HelpOverlay {
   private rowRefs: RowRef[] = [];
   private noResults: HTMLElement | null = null;
 
-  constructor(parent: HTMLElement) {
+  constructor(parent: HTMLElement, onTakeTour?: () => void) {
     this.overlay = document.createElement('div');
     this.overlay.className = 'help-overlay';
+    this.overlay.setAttribute('role', 'dialog');
+    this.overlay.setAttribute('aria-modal', 'true');
+    this.overlay.setAttribute('aria-label', 'Controls and Shortcuts');
     this.overlay.addEventListener('click', (e) => {
       if (e.target === this.overlay) this.hide();
     });
@@ -30,6 +33,15 @@ export class HelpOverlay {
     title.className = 'help-title';
     title.textContent = 'Controls & Shortcuts';
     panel.appendChild(title);
+
+    // "Take the Tour" button
+    if (onTakeTour) {
+      const tourBtn = document.createElement('button');
+      tourBtn.className = 'help-tour-btn';
+      tourBtn.textContent = 'Take the Tour';
+      tourBtn.addEventListener('click', onTakeTour);
+      panel.appendChild(tourBtn);
+    }
 
     // Search input
     const searchWrap = document.createElement('div');

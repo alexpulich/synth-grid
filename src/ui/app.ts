@@ -33,6 +33,8 @@ import { ScaleSelector } from './scale-selector';
 import { DELAY_DIVISIONS } from '../audio/effects/delay';
 import { showToast } from './toast';
 import { CellTooltip } from './cell-tooltip';
+import { ShortcutHints } from './shortcut-hints';
+import { OnboardingTour } from './onboarding-tour';
 import { MetronomeUI } from './metronome-ui';
 import { MuteScenes } from '../sequencer/mute-scenes';
 import { MuteScenesUI } from './mute-scenes-ui';
@@ -100,7 +102,8 @@ export class AppUI {
 
     this.gridUI = new GridUI(gridContainer, sequencer, audioEngine);
     this.particles = new ParticleSystem(gridContainer);
-    new CellTooltip(gridContainer, sequencer);
+    const cellTooltip = new CellTooltip(gridContainer, sequencer);
+    new ShortcutHints(gridContainer, cellTooltip);
 
     root.appendChild(gridContainer);
 
@@ -117,8 +120,14 @@ export class AppUI {
     // Waveform visualizer
     this.visualizer = new WaveformVisualizer(root, audioEngine.analyser);
 
+    // Onboarding tour
+    const onboardingTour = new OnboardingTour();
+
     // Help overlay
-    const helpOverlay = new HelpOverlay(root);
+    const helpOverlay = new HelpOverlay(root, () => {
+      helpOverlay.hide();
+      onboardingTour.start();
+    });
     helpBtn.addEventListener('click', () => helpOverlay.toggle());
 
     // Metronome UI (appended to controls row, after TAP)
@@ -591,6 +600,12 @@ export class AppUI {
           midiClock.setMode(saved.midiClockMode);
         }
       }
+    }
+
+    // Auto-start tour for first-time users (no saved state, no URL hash)
+    if (!hash && !OnboardingTour.isCompleted()) {
+      // Delay slightly so the UI is fully rendered
+      setTimeout(() => onboardingTour.start(), 500);
     }
 
     // Pattern Library storage init + factory presets seeding

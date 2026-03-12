@@ -17,7 +17,8 @@ src/
   main.ts                    # Entry: wires AudioEngine → Sequencer → Scheduler → MidiOutput → AppUI
   types.ts                   # Grid = number[][], VelocityLevel, InstrumentTrigger, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, SwingGrid, SoundParams, MidiCCMapping, MidiDeviceInfo, SampleMeta, MidiOutputConfig, ClockMode, AutoParam, AutomationData
   audio/
-    audio-engine.ts          # Audio routing hub: per-row GainNode+StereoPanner → dry + per-row reverb/delay sends → master → saturation → EQ → perf insert → compressor → analyser → filter → destination
+    audio-engine.ts          # Audio routing hub: per-row GainNode+StereoPanner → dry + per-row reverb/delay sends → master → saturation → EQ → perf insert → compressor → analyser → filter → limiter → destination
+    voice-pool.ts            # Polyphony limiter: per-row (max 8) and global (max 48) voice tracking, steal oldest on overflow
     sample-engine.ts         # Per-row AudioBuffer storage, decode, cached trigger functions for sample playback
     scheduler.ts             # Look-ahead scheduler (25ms lookahead, 100ms schedule-ahead), MIDI output integration
     performance-fx.ts        # Hold-to-engage FX: tape stop, stutter, bitcrush, reverb wash
@@ -30,7 +31,7 @@ src/
     mute-state.ts            # Per-row mute/solo
     pattern-chain.ts         # Song mode chain (max 32 entries)
   state/
-    history.ts               # Undo/redo stack (max 50)
+    history.ts               # Undo/redo stack (max 50), snapshots all 17 per-bank data layers
     url-state.ts             # Binary state encoding: V1 (1-bit), V2 (2-bit velocity), V3 (+probability), V4 (+full state: notes, ratchets, conditions, gates, slides, mixer, scale, sidechain, soundParams)
     local-storage.ts         # Auto-save/restore via localStorage (debounced 500ms)
     sample-storage.ts        # IndexedDB wrapper for persisting raw sample ArrayBuffers (50MB limit)
@@ -45,7 +46,9 @@ src/
     toast.ts                 # Singleton showToast(message, type?) — auto-dismissing notifications (3s, max 3)
     cell-context-menu.ts     # Right-click context menu: velocity, probability, ratchet, condition, gate, slide, note, filter lock
     automation-lane.ts       # Per-row collapsible automation strip: 5 param buttons (Vol/Pan/Flt/Rev/Del) + 16 draggable value bars
-    cell-tooltip.ts          # Hover tooltip for active cells — shows non-default attributes after 400ms delay
+    cell-tooltip.ts          # Hover tooltip for active cells — badge-based display showing all 8 data layers (V/P/R/G/C/N/S/F), non-defaults highlighted
+    shortcut-hints.ts        # Contextual shortcut hints on extended hover (800ms), graduated suppression after 3 uses per hint
+    onboarding-tour.ts       # Interactive step-by-step tour for first-time users — spotlight + instruction card, event-driven step advancement
     touch-toolbar.ts         # Floating toolbar for touch — FAB toggle edit mode, cell property cycling (vel/prob/ratch/gate/cond/note/slide/delete)
   midi/
     midi-manager.ts          # Web MIDI API access, device detection, message routing (note/CC)
@@ -67,6 +70,7 @@ styles/
   sample.css                 # Sample indicator, drop zone, waveform preview, sample controls styling
   automation-lane.css        # Automation lane styling: collapsible strip, param buttons, value bars, pan center-origin display
   touch-toolbar.css          # Touch toolbar FAB + popover styles (pointer: coarse only)
+  accessibility.css          # Focus-visible styles + prefers-reduced-motion overrides
 ```
 
 ## Key Patterns
@@ -129,6 +133,12 @@ styles/
 - **Touch toolbar (FAB)**: Floating action button visible on `@media (pointer: coarse)`. `editMode` flag: when on, tapping active cells shows toolbar instead of erasing. Toolbar buttons cycle velocity, probability, ratchet, gate, condition, note ±, slide, delete via existing sequencer methods. z-index: FAB=900, toolbar=960
 - **Responsive breakpoints**: `≤768px` (tablet): hide pitch/mixer/euclidean/piano controls. `≤480px` (phone): hide header, pattern chain, mute scenes; larger cells (32px). `@media (pointer: coarse)`: `touch-action: none`, disable sticky hover, min-height on piano roll cells
 - **PWA**: Service worker (`public/sw.js`) with cache-first for `/assets/` (Vite hashed), network-first for HTML. Manifest at `public/manifest.json`. SVG icon at `public/icons/icon-192.svg`. SW registered in `main.ts` with silent failure fallback
+- **Brick-wall limiter**: `DynamicsCompressorNode` (threshold -1dB, ratio 20, attack 0.001s) after filter, before destination. Always on, no UI — pure safety net that catches peaks escaping the main compressor
+- **Voice pool**: `VoicePool` in `audio-engine.ts` wraps each `trigger()` call with an intermediary `GainNode`. Per-row limit 8, global limit 48. Oldest voice stolen via instant gain cutoff + disconnect. Lazy cleanup on each `acquire()` — removes voices past their `endTime`. Duration estimated from gate param or defaults (0.5s drums, 1.0s melodic)
+- **Cell tooltip badges**: `CellTooltip` shows all 8 data layers as labeled badges (V/P/R/G/C/N/S/F) for every active cell. Non-default values highlighted via `.cell-tooltip__badge--custom`. Melodic-only badges (N, S) hidden on drum rows. Badge elements built once in constructor, values updated on each `show()`. Hidden on touch devices via CSS `@media (pointer: coarse)`
+- **Shortcut hints**: `ShortcutHints` shows contextual modifier-key combos on 800ms hover (longer than tooltip's 400ms). Suppressed if cell tooltip is visible, during playback, and on touch devices. Usage tracking in localStorage (`synth-grid-hint-counts`) — after 3 uses of a feature, its hint stops appearing. Tracks usage via EventBus events
+- **Onboarding tour**: `OnboardingTour` with 8 steps using spotlight overlay (box-shadow cutout) + instruction card. Steps can `waitForEvent` to auto-advance when user performs the action. Tour state persisted in `localStorage('synth-grid-tour-completed')`. Auto-starts on first visit (no saved state + no URL hash). Re-triggerable from "Take the Tour" button in help overlay. z-index 2100 (above toast)
+- **Help overlay tour button**: `HelpOverlay` constructor accepts optional `onTakeTour` callback. When provided, adds a "Take the Tour" button between the title and search input
 
 ## Gotchas
 
@@ -205,3 +215,18 @@ styles/
 - **Polyrhythm in dependent features**: Automation lanes dim beyond-length steps. Piano roll uses row length for step count + dynamic `gridTemplateColumns`. Euclidean uses row length for pattern generation + slider max. Step rotation wraps within row length. Step clipboard paste is no-op beyond target length
 - **Touch toolbar state feedback**: `updateLabels()` reads current cell attributes and updates button text (e.g., "V:Soft", "P:75%", "R:×2", "G:S", "C:1:2"). Called after `show()` and after each cycle action. Slide button gets `--active` class
 - **Help search highlighting**: `filterRows()` wraps matching substrings in `<mark>` elements via DOM manipulation (no innerHTML). `RowRef` stores `keyEl`, `descEl`, `keyText`, `descText` for highlight/restore. Highlights cleared when search is empty
+- **Voice pool wrapper approach**: Rather than modifying instrument trigger functions, `VoicePool.acquire()` returns a `GainNode` that connects to the row's channel strip. Instrument triggers connect to this intermediary node. To steal a voice: `cancelScheduledValues` + `setValueAtTime(0)` + `disconnect()`. Works identically for synth and sample triggers since both follow the `(ctx, dest, time, ...)` signature
+- **Voice pool duration estimation**: Gate param gives actual note length, but instruments also have inherent decay tails. Defaults (0.5s drums, 1.0s melodic) are conservative — voices may linger slightly past their estimated end, cleaned up on next `acquire()`. Not critical since stolen voices are already masked by newer triggers
+- **Limiter chain position**: Limiter goes after filter (last user-controllable effect) so filter resonance peaks are caught. Chain: `filter.output → limiter → ctx.destination`. The existing compressor at -6dB handles most dynamics; the limiter at -1dB is purely a safety backstop
+- **Cell tooltip badge DOM reuse**: Badge elements are created once in the constructor and stored in `badgeEls[]`. Each `show()` call updates `textContent` and class toggles — no DOM creation/destruction per hover. More efficient than the old approach of rebuilding content each time
+- **Cell tooltip `isVisible()` method**: Public method exposed for `ShortcutHints` to check before showing its own hint. Prevents both tooltip and hint from appearing simultaneously
+- **Shortcut hint graduated suppression**: `synth-grid-hint-counts` localStorage key stores `{ [trackKey]: number }`. Each EventBus event (e.g., `ratchet:changed`) increments the relevant counter. Once all `trackKeys` for a hint reach threshold (3), that hint is permanently suppressed for the user
+- **Tour spotlight box-shadow technique**: A small `position: fixed` div with `box-shadow: 0 0 0 9999px rgba(0,0,0,0.75)` creates a full-screen dark overlay with a cutout hole. The `border-radius: 6px` rounds the cutout. CSS transitions animate position/size changes between steps
+- **Tour event-driven advancement**: Steps with `waitForEvent` subscribe to the EventBus via `eventBus.on()` which returns an unsub function stored in `eventUnsub`. On event fire, unsub is called and step advances after 400ms delay. `clearEventListener()` called on every step change and on finish
+- **Tour auto-start conditions**: Only auto-starts when: (1) no URL hash (not loading shared pattern), (2) `localStorage('synth-grid-tour-completed')` is not 'true'. The `!hash` check runs first in app.ts. Static `OnboardingTour.isCompleted()` reads localStorage without instantiating the tour
+- **Help overlay `onTakeTour` callback**: Optional 2nd constructor param. When provided, creates "Take the Tour" button between title and search. Callback hides help overlay then starts tour. Does not break existing usage — param is optional with no default
+- **Comprehensive undo/redo**: `HistoryEntry` captures all 17 per-bank data layers (grid, probabilities, noteGrid, filterLocks, ratchets, conditions, gates, slides, rowVolumes, rowPans, rowSwings, reverbSends, delaySends, automationData, rowLengths, pitchOffsets). `restoreEntry()` in sequencer restores all layers and emits `grid:cleared`. Deep clone uses spread (preserves NaN), automationData uses nested `.map()` for 3D array
+- **ARIA grid pattern**: Grid container: `role="grid"`, rows: `role="row"`, cells: `role="gridcell"` + `aria-label="{instrument} Step {n}"` + `aria-pressed`. Toast container: `role="status"` + `aria-live="polite"`. Help/piano-roll overlays: `role="dialog"` + `aria-modal="true"`. Knobs: `aria-valuetext` via `formatValue`. Transport play button: `aria-label` toggles "Play"/"Stop"
+- **Keyboard grid navigation**: Grid container `tabindex="0"`. Focus listener sets `gridFocused=true` and shows `.grid-cell--focused` highlight. Arrow keys move focus, Enter/Space toggles cell, Escape blurs grid, Shift+Up/Down cycles velocity. `e.stopPropagation()` on handled keys prevents document-level shortcut conflicts (e.g., Space=play). Focus respects `rowLengths` for horizontal bounds
+- **Focus-visible styles**: `styles/accessibility.css` with `:focus-visible` rules for all interactive elements. `outline: 2px solid var(--color-text); outline-offset: 2px`. Grid cells use `outline-offset: -2px` (inset). `.grid-cell--focused` class for keyboard navigation highlight (distinct from `:focus-visible`)
+- **prefers-reduced-motion**: CSS `@media (prefers-reduced-motion: reduce)` disables all decorative animations (cell-trigger, bank-switch-flash, modal-slide-in, toast transitions, playhead sliding, etc.). JS checks `window.matchMedia('(prefers-reduced-motion: reduce)')` in `ParticleSystem` and `ReactiveBackground` — skips `burst()`, cancels animation frames, clears canvas. Listens for live changes

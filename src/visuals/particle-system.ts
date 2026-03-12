@@ -14,6 +14,7 @@ export class ParticleSystem {
   private particles: Particle[] = [];
   private animFrameId: number | null = null;
   private lastTime = 0;
+  private prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   constructor(container: HTMLElement) {
     this.canvas = document.createElement('canvas');
@@ -22,6 +23,17 @@ export class ParticleSystem {
     this.ctx2d = this.canvas.getContext('2d')!;
     this.resize();
     window.addEventListener('resize', () => this.resize());
+    window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', (e) => {
+      this.prefersReducedMotion = e.matches;
+      if (e.matches) {
+        if (this.animFrameId !== null) {
+          cancelAnimationFrame(this.animFrameId);
+          this.animFrameId = null;
+        }
+        this.particles = [];
+        this.ctx2d.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      }
+    });
   }
 
   private resize(): void {
@@ -34,6 +46,7 @@ export class ParticleSystem {
   }
 
   burst(x: number, y: number, color: string, count = 6): void {
+    if (this.prefersReducedMotion) return;
     // Convert page coords to coords relative to canvas parent
     const rect = this.canvas.parentElement!.getBoundingClientRect();
     const localX = x - rect.left;

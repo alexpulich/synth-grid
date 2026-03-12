@@ -23,6 +23,7 @@ export class ReactiveBackground {
 
   private analyserData: Uint8Array<ArrayBuffer>;
   private prevLowEnergy = 0;
+  private prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   constructor(parent: HTMLElement, private analyser: AnalyserNode) {
     this.canvas = document.createElement('canvas');
@@ -37,11 +38,25 @@ export class ReactiveBackground {
 
     eventBus.on('transport:play', () => {
       this.isPlaying = true;
-      if (!this.animId) this.animate();
+      if (!this.animId && !this.prefersReducedMotion) this.animate();
     });
 
     eventBus.on('transport:stop', () => {
       this.isPlaying = false;
+    });
+
+    window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', (e) => {
+      this.prefersReducedMotion = e.matches;
+      if (e.matches) {
+        if (this.animId !== null) {
+          cancelAnimationFrame(this.animId);
+          this.animId = null;
+        }
+        this.rings = [];
+        this.ctx2d.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      } else if (this.isPlaying) {
+        this.animate();
+      }
     });
   }
 

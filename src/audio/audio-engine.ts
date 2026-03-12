@@ -8,6 +8,7 @@ import { SaturationEffect } from './effects/saturation';
 import { EQEffect } from './effects/eq';
 import { SampleEngine } from './sample-engine';
 import { Metronome } from './metronome';
+import { VoicePool } from './voice-pool';
 
 export class AudioEngine {
   readonly ctx: AudioContext;
@@ -21,6 +22,8 @@ export class AudioEngine {
   readonly analyser: AnalyserNode;
   readonly metronome: Metronome;
   private readonly compressor: DynamicsCompressorNode;
+  private readonly limiter: DynamicsCompressorNode;
+  private readonly voicePool = new VoicePool();
 
   // Per-row channel strips
   private readonly rowGains: GainNode[] = [];
@@ -56,13 +59,21 @@ export class AudioEngine {
 
     this.metronome = new Metronome(this.ctx);
 
-    // Master limiter to prevent clipping
+    // Master compressor
     this.compressor = this.ctx.createDynamicsCompressor();
     this.compressor.threshold.setValueAtTime(-6, 0);
     this.compressor.knee.setValueAtTime(3, 0);
     this.compressor.ratio.setValueAtTime(12, 0);
     this.compressor.attack.setValueAtTime(0.003, 0);
     this.compressor.release.setValueAtTime(0.1, 0);
+
+    // Brick-wall limiter (safety net after all processing)
+    this.limiter = this.ctx.createDynamicsCompressor();
+    this.limiter.threshold.setValueAtTime(-1, 0);
+    this.limiter.knee.setValueAtTime(0, 0);
+    this.limiter.ratio.setValueAtTime(20, 0);
+    this.limiter.attack.setValueAtTime(0.001, 0);
+    this.limiter.release.setValueAtTime(0.05, 0);
 
     // Per-row channel strips: gain → pan → dryBus + per-row reverb/delay sends
     for (let i = 0; i < NUM_ROWS; i++) {
@@ -99,13 +110,14 @@ export class AudioEngine {
     this.reverb.output.connect(this.masterGain);
     this.delay.output.connect(this.masterGain);
 
-    // Chain: masterGain → saturation → EQ → compressor → analyser → filter → destination
+    // Chain: masterGain → saturation → EQ → compressor → analyser → filter → limiter → destination
     this.masterGain.connect(this.saturation.input);
     this.saturation.output.connect(this.eq.input);
     this.eq.output.connect(this.compressor);
     this.compressor.connect(this.analyser);
     this.analyser.connect(this.filter.input);
-    this.filter.output.connect(this.ctx.destination);
+    this.filter.output.connect(this.limiter);
+    this.limiter.connect(this.ctx.destination);
   }
 
   /**
@@ -122,18 +134,22 @@ export class AudioEngine {
   }
 
   trigger(instrumentIndex: number, time: number, velocity: number, pitchOffset = 0, gate?: number, glideFrom?: number): void {
-    // Route through per-row channel strip
-    const dest = this.rowGains[instrumentIndex] ?? this.dryBus;
+    // Route through per-row channel strip via voice pool
+    const rowDest = this.rowGains[instrumentIndex] ?? this.dryBus;
+    // Estimate voice duration: use gate or defaults (0.5s drums, 1.0s melodic)
+    const defaultDuration = instrumentIndex >= 4 ? 1.0 : 0.5;
+    const duration = gate != null ? gate : defaultDuration;
+    const voiceGain = this.voicePool.acquire(this.ctx, instrumentIndex, rowDest, time + duration);
 
     if (this.useSample[instrumentIndex] && this.sampleEngine.hasSample(instrumentIndex)) {
       const sampleTrigger = this.sampleEngine.getTrigger(instrumentIndex);
       if (sampleTrigger) {
-        sampleTrigger(this.ctx, dest, time, velocity, pitchOffset, undefined, gate, glideFrom);
+        sampleTrigger(this.ctx, voiceGain, time, velocity, pitchOffset, undefined, gate, glideFrom);
       }
     } else {
       const instrument = INSTRUMENTS[instrumentIndex];
       if (!instrument) return;
-      instrument.trigger(this.ctx, dest, time, velocity, pitchOffset, this.soundParams[instrumentIndex], gate, glideFrom);
+      instrument.trigger(this.ctx, voiceGain, time, velocity, pitchOffset, this.soundParams[instrumentIndex], gate, glideFrom);
     }
   }
 

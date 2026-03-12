@@ -15,6 +15,7 @@ export class TransportControls {
     // Play/stop button
     this.playBtn = document.createElement('button');
     this.playBtn.className = 'transport-play-btn';
+    this.playBtn.setAttribute('aria-label', 'Play');
     this.playBtn.appendChild(this.createPlayIcon());
     this.playBtn.addEventListener('click', () => this.transport.toggle());
     container.appendChild(this.playBtn);
@@ -59,11 +60,13 @@ export class TransportControls {
     // Events
     eventBus.on('transport:play', () => {
       this.playBtn.classList.add('transport-play-btn--playing');
+      this.playBtn.setAttribute('aria-label', 'Stop');
       this.playBtn.replaceChildren(this.createStopIcon());
     });
 
     eventBus.on('transport:stop', () => {
       this.playBtn.classList.remove('transport-play-btn--playing');
+      this.playBtn.setAttribute('aria-label', 'Play');
       this.playBtn.replaceChildren(this.createPlayIcon());
     });
 
