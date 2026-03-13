@@ -175,22 +175,37 @@ See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 
 ## Suggestions for Round 29
 
-### app.ts Status (228 lines, stable)
+### Codebase Status
 
-What remains in app.ts is mostly **DOM construction** (header, controls row, grid container — lines 61-157) and **initialization wiring** (MIDI setup, auto-save, state restore, pattern library). At 228 lines, further extraction has strongly diminishing returns.
+- **app.ts** (228 lines, stable) — Mostly DOM construction + initialization wiring. Only extractable block: factory preset seeding (~15 lines, diminishing returns)
+- **All extracted modules tested** — audio-sync, state-restorer, pattern-snapshot, sample-manager, midi-wiring, toast-wiring, visual-wiring all have test coverage
+- **Pure logic extraction complete** — keyboard-action, piano-state, theme-utils, all scheduler/clock helpers extracted and tested
+- **Test coverage**: 33/97 source files (34%) have tests. Remaining untested files are mostly DOM/Web Audio/Canvas-dependent
 
-**Remaining extractable block:**
-- Lines 203-217: Pattern library factory preset seeding — ~15 lines. Could become `seedFactoryPresets(storage)` in `state/pattern-library-storage.ts`
+### Viable Directions
 
-### All Extracted Modules Now Tested
+**Option A: MIDI Message Parsing Extraction (~15 tests)**
+- Extract `parseMidiMessage(data: Uint8Array)` from `MidiManager.handleMessage()` — pure function returning `{type, channel, note?, velocity?, cc?, value?}`
+- Extract MIDI message encoding helpers from `MidiOutput` (`buildNoteOn`, `buildNoteOff`, `buildCC`, `buildClock`) — pure byte-array builders
+- Tests: note-on/off parsing, CC parsing, system real-time detection, velocity-0-as-note-off, encoding bit masking, channel clamping
+- Low risk, self-contained pure logic
 
-All modules extracted from app.ts in Rounds 22-27 now have test coverage: audio-sync, state-restorer, pattern-snapshot, sample-manager, midi-wiring, toast-wiring, and visual-wiring (extracted this round).
+**Option B: Factory Preset Validation Tests (~12 tests)**
+- Test `FACTORY_PRESETS` data generators in `data/factory-presets.ts` — verify grid dimensions, velocity ranges, tempo bounds, required fields
+- Test `defaultData()` helper (correct array dimensions, default values)
+- No extraction needed — functions are already exported/exportable
+- Tests ensure presets don't silently break when types change
 
-### Other Directions
+**Option C: New User-Facing Feature**
+- Pattern export/import via JSON file (download + drag-and-drop load)
+- Undo toast (brief notification showing what was undone, with redo shortcut hint)
+- Swing visualization (subtle per-row offset indicators in the grid)
+- A/B comparison mode (quick-switch between two banks with visual diff)
 
-- **New features**: The codebase is mature and well-structured. Consider user-facing improvements (e.g., swing visualization, pattern export/import via file, undo toast, A/B comparison)
-- **Performance**: Profile large pattern chains, consider `requestAnimationFrame` batching for grid updates
-- **Accessibility**: Screen reader announcements for transport state changes, ARIA live regions for toast
+**Option D: Accessibility Improvements**
+- ARIA live regions for toast (fix known gap: `role="status"` container created lazily)
+- Screen reader announcements for transport state changes
+- Keyboard-navigable theme switcher and effects panel
 
 ## Key Files to Start With
 
