@@ -295,6 +295,35 @@ describe('History.undoWithLiveState', () => {
     expect(h.redo()).toBeNull();
   });
 
+  it('cross-bank: undo on bank B does not corrupt bank A state', () => {
+    const h = new History();
+    // Bank A actions
+    h.push(makeEntry(0, 10)); // S0: bank A state
+    h.push(makeEntry(0, 11)); // S1: bank A state
+
+    // Switch to bank B
+    h.push(makeEntry(1, 20)); // S2: bank B state
+    h.push(makeEntry(1, 21)); // S3: bank B state
+
+    // Undo from bank B with live state
+    const u1 = h.undoWithLiveState(makeEntry(1, 22));
+    expect(u1!.bank).toBe(1); // Should return bank B entry
+    expect(u1!.grid[0][0]).toBe(21);
+
+    const u2 = h.undo();
+    expect(u2!.bank).toBe(1); // Still bank B
+    expect(u2!.grid[0][0]).toBe(20);
+
+    // Next undo reaches bank A territory — entry exists but bank differs
+    const u3 = h.undo();
+    expect(u3!.bank).toBe(0); // Bank A entry
+    expect(u3!.grid[0][0]).toBe(11); // Bank A's data is intact
+
+    const u4 = h.undo();
+    expect(u4!.bank).toBe(0);
+    expect(u4!.grid[0][0]).toBe(10); // Original bank A data untouched
+  });
+
   it('does not double-save live state on subsequent undos', () => {
     const h = new History();
     h.push(makeEntry(0, 0));

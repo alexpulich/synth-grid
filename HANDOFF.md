@@ -2,17 +2,17 @@
 
 ## Goal
 
-Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 20 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, or anything else you see fit.
+Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 21 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, or anything else you see fit.
 
 ## Current State
 
-- **85 TypeScript files, 28 CSS files, ~16,500 lines of code**
-- **Latest round**: Round 20 — Refactor + Density Randomizer + Tests + CI
-- **Test suite**: Vitest with 106 tests across 5 files (~190ms runtime)
-- **CI**: `npm test` runs before Docker build in GitHub Actions (test -> build-and-push -> deploy)
-- **No lint config** — only `npx tsc --noEmit` for type checking
+- **86 TypeScript files, 28 CSS files, ~16,500 lines of code**
+- **Latest round**: Round 21 — Lint CI + MIDI CC Extraction + Tests
+- **Test suite**: Vitest with 162 tests across 11 files (~230ms runtime)
+- **CI**: `npm run lint` + `npm test` run before Docker build in GitHub Actions (test -> build-and-push -> deploy)
+- **ESLint**: Flat config with TypeScript plugin, zero violations
 
-### What's Built (Rounds 1-20)
+### What's Built (Rounds 1-21)
 
 | Round | Features |
 |-------|----------|
@@ -36,6 +36,7 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 18 | Accessibility: comprehensive undo/redo (17 layers), ARIA, keyboard grid nav, focus-visible, prefers-reduced-motion |
 | 19 | Bug fixes + testing foundation: fix redo bug, Vitest setup with 65 tests |
 | 20 | Refactor: extract GridEventManager from grid.ts, density randomizer, 41 sequencer tests (106 total), CI test integration |
+| 21 | Lint CI, MIDI CC router extraction from app.ts, cross-bank undo tests, PRNG tests (162 total) |
 
 ### Known Gaps
 
@@ -43,7 +44,6 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - Toast `role="status"` container created lazily — screen readers won't see it until first toast
 - Test coverage limited to pure logic — no DOM/UI tests (would need jsdom)
 - Random preview in euclidean popover is truly random — preview doesn't match what gets applied
-- No ESLint — only `tsc --noEmit` for correctness checking
 
 ## Architecture Quick Reference
 
@@ -51,7 +51,8 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **Audio chain**: Per-row gains/panners -> dry bus + reverb/delay sends -> master -> saturation -> EQ -> perf FX -> compressor -> analyser -> filter -> limiter -> destination
 - **State**: Sequencer holds all grid state. 4 banks (A-D). 17 per-bank data layers + global state. localStorage auto-save (500ms debounce). URL hash encoding (V1-V4)
 - **UI**: Pure DOM manipulation, no framework. Grid split: `GridUI` (DOM/visuals) + `GridEventManager` (events)
-- **Testing**: Vitest, node environment, colocated `*.test.ts` files. CI gate before deploy
+- **Testing**: Vitest, node environment, colocated `*.test.ts` files. CI gate (lint + test) before deploy
+- **MIDI CC routing**: Extracted to `src/midi/midi-cc-router.ts` — standalone function, testable with mocks
 
 See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 
@@ -65,6 +66,7 @@ See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 - **Per-bank vs global state patterns**: Established conventions (volume=per-bank, soundParams=global) made new state additions predictable
 - **GridEventManager extraction** (Round 20): Clean split of 1031-line grid.ts into visual updates (670) + event handlers (377). Low risk because handlers already called sequencer through clean API
 - **Tests found the real bug**: QA reported "undo off-by-one" but tests showed the real issue was redo returning null from top of stack
+- **MIDI CC extraction** (Round 21): Removed ~70 lines from app.ts by extracting self-contained switch block into testable module
 
 ## What To Watch Out For
 
@@ -74,6 +76,7 @@ See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 - **Adding per-bank state is a 9-step checklist**: See CLAUDE.md gotchas
 - **`grid:cleared` must resync audio**: App.ts handler covers this — new ops modifying mixer state must emit this event
 - **Keyboard shortcuts**: Must update both `keyboard-shortcuts.ts` AND `help-overlay.ts` sections array
+- **QA Bug #1 (undo off-by-one)**: QA reported this but 22 unit tests confirm undo/redo is correct. The QA test may have been run on an older code version. Cross-bank undo test added in Round 21 as regression guard.
 
 ## Potential Next Directions
 
@@ -93,7 +96,6 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 - **Expand test coverage**: Scheduler logic, audio engine (needs Web Audio mocks), DOM/UI tests (needs jsdom)
 - **Performance**: Profile grid refresh path (128 cells x 6 DOM ops on bank switch — could diff)
 - **Code splitting**: Lazy-load heavy modules (performance FX, wav exporter, piano roll)
-- **Linting**: Add ESLint with TypeScript plugin
 - **E2E tests**: Playwright for critical user flows (play/stop, grid paint, bank switch)
 
 ## Key Files to Start With
@@ -109,6 +111,7 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 | `src/ui/grid.ts` | Grid UI — DOM building + visual updates |
 | `src/ui/grid-event-manager.ts` | Grid DOM event handlers (mouse, touch, keyboard, wheel) |
 | `src/utils/event-bus.ts` | Event system — `EventMap` interface shows all events |
+| `src/midi/midi-cc-router.ts` | MIDI CC target routing (extracted from app.ts) |
 
 ## Commands
 
@@ -116,6 +119,7 @@ These are suggestions, not requirements. Pursue whatever you think would most im
 npm run dev        # Start dev server (port 5173)
 npm run build      # Type-check + build for production
 npx tsc --noEmit   # Type-check only
-npm test           # Run Vitest test suite (106 tests)
+npm run lint       # ESLint (zero violations)
+npm test           # Run Vitest test suite (162 tests)
 npm run test:watch # Run tests in watch mode
 ```
