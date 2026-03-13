@@ -3,6 +3,17 @@ import { eventBus } from '../utils/event-bus';
 
 type FxName = 'tapestop' | 'stutter' | 'bitcrush' | 'reverbwash';
 
+export function createBitcrushCurve(bits: number): Float32Array<ArrayBuffer> {
+  const steps = Math.pow(2, bits);
+  const n = 65536;
+  const curve = new Float32Array(new ArrayBuffer(n * 4));
+  for (let i = 0; i < n; i++) {
+    const x = (i / n) * 2 - 1;
+    curve[i] = Math.round(x * steps) / steps;
+  }
+  return curve;
+}
+
 export class PerformanceFX {
   private activeEffects = new Set<FxName>();
 
@@ -42,7 +53,7 @@ export class PerformanceFX {
 
     // Bitcrush (WaveShaperNode with staircase curve)
     this.crushShaper = ctx.createWaveShaper();
-    this.crushShaper.curve = this.createBitcrushCurve(4);
+    this.crushShaper.curve = createBitcrushCurve(4);
     this.crushWet = ctx.createGain();
     this.crushWet.gain.setValueAtTime(0, 0);
     this.crushDry = ctx.createGain();
@@ -51,17 +62,6 @@ export class PerformanceFX {
     // Stutter gain
     this.stutterGain = ctx.createGain();
     this.stutterGain.gain.setValueAtTime(0, 0);
-  }
-
-  private createBitcrushCurve(bits: number): Float32Array<ArrayBuffer> {
-    const steps = Math.pow(2, bits);
-    const n = 65536;
-    const curve = new Float32Array(new ArrayBuffer(n * 4));
-    for (let i = 0; i < n; i++) {
-      const x = (i / n) * 2 - 1;
-      curve[i] = Math.round(x * steps) / steps;
-    }
-    return curve;
   }
 
   engage(fx: FxName): void {

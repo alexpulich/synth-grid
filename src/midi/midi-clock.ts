@@ -4,6 +4,19 @@ import type { Transport } from '../sequencer/transport';
 import type { ClockMode } from '../types';
 import { eventBus } from '../utils/event-bus';
 
+/** Derive BPM from an array of clock tick timestamps (ms). Returns null if insufficient data or out of range. */
+export function deriveBpmFromClockTimes(times: number[]): number | null {
+  if (times.length < 6) return null;
+  let totalInterval = 0;
+  for (let i = 1; i < times.length; i++) {
+    totalInterval += times[i] - times[i - 1];
+  }
+  const avgInterval = totalInterval / (times.length - 1);
+  const bpm = Math.round(60000 / (avgInterval * 24));
+  if (bpm >= 30 && bpm <= 300) return bpm;
+  return null;
+}
+
 export class MidiClock {
   private sendTimerId: number | null = null;
   private receivedClockTimes: number[] = [];
@@ -59,16 +72,9 @@ export class MidiClock {
       if (this.receivedClockTimes.length > 48) {
         this.receivedClockTimes = this.receivedClockTimes.slice(-48);
       }
-      if (this.receivedClockTimes.length >= 6) {
-        let totalInterval = 0;
-        for (let i = 1; i < this.receivedClockTimes.length; i++) {
-          totalInterval += this.receivedClockTimes[i] - this.receivedClockTimes[i - 1];
-        }
-        const avgInterval = totalInterval / (this.receivedClockTimes.length - 1);
-        const bpm = Math.round(60000 / (avgInterval * 24));
-        if (bpm >= 30 && bpm <= 300) {
-          this.sequencer.tempo = bpm;
-        }
+      const bpm = deriveBpmFromClockTimes(this.receivedClockTimes);
+      if (bpm !== null) {
+        this.sequencer.tempo = bpm;
       }
     } else if (status === 0xfa) {
       // Start

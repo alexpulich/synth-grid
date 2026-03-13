@@ -8,7 +8,7 @@ Browser-based visual music step sequencer. Zero runtime dependencies — vanilla
 npm run dev        # Start dev server (port 5173)
 npm run build      # Type-check + build for production
 npx tsc --noEmit   # Type-check only
-npm test           # Run Vitest test suite (225 tests, ~280ms)
+npm test           # Run Vitest test suite (297 tests, ~500ms)
 npm run test:watch # Run tests in watch mode
 ```
 
@@ -24,6 +24,7 @@ src/
     sample-engine.ts         # Per-row AudioBuffer storage, decode, cached trigger functions
     scheduler.ts             # Look-ahead scheduler (25ms tick, 100ms schedule-ahead), MIDI output integration. Exports: checkCondition, applySwing, midiNoteClamp
     audio-sync.ts            # wireAudioSync(): event→audioEngine wiring (volume, pan, sends, soundParams, bank/clear resync)
+    sample-manager.ts        # wireSampleManager(): event→IndexedDB+audioEngine wiring for sample load/remove/toggle/meta
     performance-fx.ts        # Hold-to-engage FX: tape stop, stutter, bitcrush, reverb wash
     wav-exporter.ts          # Offline render to WAV (synth + sample modes)
     instruments/*.ts         # 8 synth instruments (kick, snare, hihat, clap, bass, lead, pad, perc)
@@ -39,6 +40,7 @@ src/
     url-state.ts             # Binary state encoding: backward-compatible V1/V2/V3/V4
     local-storage.ts         # Auto-save/restore via localStorage (debounced 500ms)
     state-restorer.ts        # restoreAppState() + restoreSampleBuffers(): URL hash / localStorage / IndexedDB restore orchestration
+    pattern-snapshot.ts      # captureSnapshot() + loadSnapshot(): PatternLibrary save/load with NaN↔null conversion
     sample-storage.ts        # IndexedDB wrapper for sample ArrayBuffers (50MB limit)
   ui/                        # Pure DOM manipulation, no framework. Constructor pattern: (parent, ...deps) -> create DOM, append, wire eventBus
     grid.ts                  # Grid UI: DOM building, visual updates (670 lines)
@@ -60,10 +62,10 @@ src/
     waveform-preview.ts      # Canvas waveform with draggable trim handles
   midi/
     midi-manager.ts          # Web MIDI API access, device detection, message routing
-    midi-input.ts            # MIDI note -> instrument triggering (GM drum + octave mappings)
+    midi-input.ts            # MIDI note -> instrument triggering (GM drum + octave mappings). Exports DEFAULT_NOTE_MAP
     midi-learn.ts            # CC learn mode: arm -> capture -> assign
     midi-output.ts           # Web MIDI output port management
-    midi-clock.ts            # MIDI clock send (24ppqn) and receive (BPM derivation)
+    midi-clock.ts            # MIDI clock send (24ppqn) and receive (BPM derivation). Exports deriveBpmFromClockTimes
   visuals/                   # Canvas-based: particles, waveform, reactive background
   utils/
     event-bus.ts             # Typed pub/sub singleton — EventMap enforces compile-time safety

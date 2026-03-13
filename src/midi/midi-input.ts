@@ -3,7 +3,7 @@ import { NUM_ROWS } from '../types';
 
 // Default MIDI note → instrument row mapping
 // Supports General MIDI drum notes (36-47) and direct mapping (48-55)
-const DEFAULT_NOTE_MAP: Map<number, number> = new Map([
+export const DEFAULT_NOTE_MAP: ReadonlyMap<number, number> = new Map([
   // GM Drum mapping
   [36, 0], // C2  → Kick
   [37, 0], // C#2 → Kick (side stick alt)

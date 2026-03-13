@@ -7,8 +7,8 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 ## Current State
 
 - **90 TypeScript files, 28 CSS files, ~16,800 lines of code**
-- **Latest round**: Round 23 — App.ts Extraction + Scheduler Tests
-- **Test suite**: Vitest with 225 tests across 16 files (~280ms runtime)
+- **Latest round**: Round 25 — Sample Manager Extraction + Pattern Snapshot & Local Storage Tests + Bitcrush Curve Extraction
+- **Test suite**: Vitest with 297 tests across 23 files (~500ms runtime)
 - **CI**: `npm run lint` + `npm test` run before Docker build in GitHub Actions (test -> build-and-push -> deploy)
 - **ESLint**: Flat config with TypeScript plugin, zero violations
 
@@ -39,6 +39,8 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 21 | Lint CI, MIDI CC router extraction from app.ts, cross-bank undo tests, PRNG tests (162 total) |
 | 22 | Extract BankStateManager from sequencer.ts, MIDI learn tests (12), mute scenes tests (7), bank-state tests (10) — 191 total |
 | 23 | Extract audio-sync.ts + state-restorer.ts from app.ts (~180 lines out), scheduler tests (20), piano-state extraction + tests (14) — 225 total |
+| 24 | Extract pattern-snapshot.ts from app.ts (~75 lines out), math tests (12), step-clipboard tests (9), MIDI clock refactor + tests (11), MIDI input tests (7) — 264 total |
+| 25 | Extract sample-manager.ts + createBitcrushCurve from app.ts/performance-fx.ts, pattern-snapshot tests (16), local-storage tests (10), bitcrush tests (7) — 297 total |
 
 ### Known Gaps
 
@@ -58,6 +60,10 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **Audio sync**: Extracted to `src/audio/audio-sync.ts` — event→audioEngine wiring for volume, pan, sends, soundParams, bank/clear resync
 - **State restoration**: Extracted to `src/state/state-restorer.ts` — URL hash + localStorage + IndexedDB sample buffer restore
 - **Piano roll state**: Pure logic extracted to `src/ui/piano-state.ts` — pitch row computation, cell action determination, drag effects
+- **Pattern snapshot**: Extracted to `src/state/pattern-snapshot.ts` — captureSnapshot/loadSnapshot with NaN↔null conversion for PatternLibrary
+- **Sample manager**: Extracted to `src/audio/sample-manager.ts` — event→IndexedDB+audioEngine wiring for sample load/remove/toggle/meta
+- **Bitcrush curve**: `createBitcrushCurve()` exported from `performance-fx.ts` — standalone pure function for WaveShaperNode staircase curve
+- **MIDI helpers**: `deriveBpmFromClockTimes` exported from midi-clock.ts, `DEFAULT_NOTE_MAP` exported from midi-input.ts
 
 See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 
@@ -96,128 +102,30 @@ See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 
 **app.ts**: 583 → 403 lines (-180)
 
-## Round 24 Plan
+## Round 24 Summary
 
 ### Theme: Pattern Snapshot Extraction + Pure Logic Tests + MIDI Clock Tests
 
-**Goal**: Extract pattern snapshot capture/load from app.ts (~78 lines), add tests for 4 untested pure-logic modules, bring test count from 225 → ~270. app.ts drops from ~403 to ~325 lines.
+**Completed:**
+1. **pattern-snapshot.ts** (93 lines) — Extracted `captureSnapshot`/`loadSnapshot` from app.ts. Handles NaN↔null conversion for filterLocks and automationData. Restores all global state (scale, sidechain, soundParams, saturation, EQ, delay division)
+2. **math.test.ts** (12 tests) — Tests for `clamp` (4), `lerp` (4), `scale` (4)
+3. **step-clipboard.test.ts** (9 tests) — Tests for copy/paste (3), hasData/sourceStep (2), deep clone integrity (2), automationData handling (2)
+4. **midi-clock.ts** refactor + **midi-clock.test.ts** (11 tests) — Extracted `deriveBpmFromClockTimes` pure helper. Tests for BPM derivation (4), handleClockByte (5), setMode (2)
+5. **midi-input.ts** export + **midi-input.test.ts** (7 tests) — Exported `DEFAULT_NOTE_MAP` as `ReadonlyMap`. Tests for note mapping (4), handleNote (3)
 
----
+**app.ts**: 403 → 328 lines (-75)
 
-### Step 1: Extract pattern snapshot — `src/state/pattern-snapshot.ts`
+## Round 25 Summary
 
-Lines 143-220 of app.ts are self-contained capture/load logic used only by PatternLibrary. Extract:
+### Theme: Sample Manager Extraction + Pattern Snapshot & Local Storage Tests + Bitcrush Curve Extraction
 
-```typescript
-export function captureSnapshot(sequencer: Sequencer, audioEngine: AudioEngine, getDelayDivisionIndex: () => number): PatternData
-export function loadSnapshot(data: PatternData, sequencer: Sequencer, audioEngine: AudioEngine, effectsPanel?: { setDelayDivisionIndex(i: number): void; refresh(ae: AudioEngine, s: Sequencer): void }): void
-```
+**Completed:**
+1. **createBitcrushCurve** extracted from `PerformanceFX` class to standalone exported function in `performance-fx.ts` + **performance-fx.test.ts** (7 tests) — Float32Array length, quantization levels, endpoints, midpoint, monotonicity
+2. **sample-manager.ts** (57 lines) — Extracted `wireSampleManager()` from app.ts. Handles 4 sample events: load-request (size check + decode + IndexedDB), removed, mode-toggled, meta-changed
+3. **pattern-snapshot.test.ts** (16 tests) — Tests for `captureSnapshot` (6): NaN→null conversion, deep copy, field presence. Tests for `loadSnapshot` (10): null→NaN conversion, loadFullState args, setScale/setSidechain, humanize, saturation/EQ setters, effectsPanel edge cases
+4. **local-storage.test.ts** (10 tests) — Tests for `AutoSave.load()` (7): null/invalid/missing/valid states. NaN serialization contract tests (3)
 
-Handles NaN↔null conversion for filterLocks and automationData. `loadSnapshot` restores all global state (scale, sidechain, soundParams, saturation, EQ, delay division).
-
-**app.ts changes**: Replace lines 143-220 with two import calls. Removes `DELAY_DIVISIONS` import from app.ts.
-
----
-
-### Step 2: Math utility tests — `src/utils/math.test.ts`
-
-**Target**: `src/utils/math.ts` (17 lines, 3 pure functions, zero deps)
-
-| Test group | Tests | What's tested |
-|-----------|-------|---------------|
-| `clamp` | 4 | Within range, below min, above max, equal to bounds |
-| `lerp` | 4 | t=0, t=1, t=0.5, t beyond 0-1 |
-| `scale` | 4 | Identity mapping, reversed range, zero-width input, typical use |
-
-~12 tests.
-
----
-
-### Step 3: Step clipboard tests — `src/sequencer/step-clipboard.test.ts`
-
-**Target**: `src/sequencer/step-clipboard.ts` (50 lines, pure stateful class)
-
-| Test group | Tests | What's tested |
-|-----------|-------|---------------|
-| `copy/paste` | 3 | Empty clipboard returns null, copy then paste returns deep clone, paste twice returns independent copies |
-| `hasData/sourceStep` | 2 | Initially false/-1, set after copy |
-| `deep clone` | 2 | Mutating original doesn't affect clipboard, mutating paste result doesn't affect clipboard |
-| `automationData` | 2 | Copy with automation, copy without automation (undefined) |
-
-~9 tests.
-
----
-
-### Step 4: MIDI clock tests — `src/midi/midi-clock.test.ts`
-
-**Target**: `src/midi/midi-clock.ts` (101 lines). The BPM derivation logic and clock byte handling are testable with mocks.
-
-Extract BPM derivation as a pure helper:
-```typescript
-export function deriveBpmFromClockTimes(times: number[]): number | null
-```
-
-| Test group | Tests | What's tested |
-|-----------|-------|---------------|
-| `deriveBpmFromClockTimes` | 4 | Too few samples returns null, 120 BPM intervals, 90 BPM intervals, out-of-range BPM returns null |
-| `handleClockByte` | 5 | 0xF8 accumulates times, 0xFA starts transport, 0xFC stops transport, ignores when not in receive mode, buffer capped at 48 |
-| `setMode` | 2 | Clears received times, stops send timer |
-
-~11 tests.
-
----
-
-### Step 5: MIDI input tests — `src/midi/midi-input.test.ts`
-
-**Target**: `src/midi/midi-input.ts` (45 lines). Note→row mapping is a pure lookup.
-
-Extract the note map:
-```typescript
-export const DEFAULT_NOTE_MAP: ReadonlyMap<number, number>
-```
-
-| Test group | Tests | What's tested |
-|-----------|-------|---------------|
-| `DEFAULT_NOTE_MAP` | 4 | GM drum notes (36→0, 38→1, 42→2, 39→3), direct octave (48-55), drum pad alt (24-31), unmapped note returns undefined |
-| `handleNote` | 3 | Triggers audio at correct row, normalizes velocity (127→1.0, 64→~0.5), ignores unmapped notes |
-
-~7 tests.
-
----
-
-### Step 6: Update docs
-
-- **HANDOFF.md**: Add Round 24 row, update line/test counts
-- **CLAUDE.md**: Add `pattern-snapshot.ts` to architecture tree, note exported MIDI helpers
-
----
-
-### Implementation Order
-
-1. `src/state/pattern-snapshot.ts` + app.ts update (extraction)
-2. `src/utils/math.test.ts` (quickest, zero deps)
-3. `src/sequencer/step-clipboard.test.ts` (pure stateful class)
-4. `src/midi/midi-clock.ts` refactor + `src/midi/midi-clock.test.ts`
-5. `src/midi/midi-input.ts` refactor + `src/midi/midi-input.test.ts`
-6. Docs update
-
-Verify after each step: `npx tsc --noEmit`
-Final: `npm run lint && npx tsc --noEmit && npm test && npm run build`
-
----
-
-### Key Files
-
-| File | Role |
-|------|------|
-| `src/ui/app.ts` | Pattern snapshot extraction source (~78 lines moving out) |
-| `src/utils/math.ts` | 3 pure functions — clamp, lerp, scale |
-| `src/sequencer/step-clipboard.ts` | Pure stateful copy/paste clipboard |
-| `src/midi/midi-clock.ts` | MIDI clock sync — extract BPM derivation helper |
-| `src/midi/midi-input.ts` | MIDI note→instrument mapping — export note map |
-| `src/state/pattern-library-storage.ts` | PatternData type definition used by pattern-snapshot |
-
----
+**app.ts**: 328 → 280 lines (-48)
 
 ## Key Files to Start With
 
@@ -242,6 +150,6 @@ npm run dev        # Start dev server (port 5173)
 npm run build      # Type-check + build for production
 npx tsc --noEmit   # Type-check only
 npm run lint       # ESLint (zero violations)
-npm test           # Run Vitest test suite (225 tests)
+npm test           # Run Vitest test suite (297 tests)
 npm run test:watch # Run tests in watch mode
 ```
