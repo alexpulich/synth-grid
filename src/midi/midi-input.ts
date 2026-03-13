@@ -30,7 +30,7 @@ export class MidiInput {
 
   handleNote(note: number, velocity: number, _channel: number): void {
     const row = DEFAULT_NOTE_MAP.get(note);
-    if (row == null || row >= NUM_ROWS) return;
+    if (row === undefined || row >= NUM_ROWS) return;
 
     // Map MIDI velocity (1-127) to our velocity range (0-1)
     const normalizedVelocity = velocity / 127;

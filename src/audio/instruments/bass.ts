@@ -16,7 +16,7 @@ export const triggerBass: InstrumentTrigger = (ctx, dest, time, velocity = 1, pi
   const osc = ctx.createOscillator();
   osc.type = 'sawtooth';
 
-  if (glideFrom != null) {
+  if (glideFrom !== undefined) {
     const fromFreq = 55 * Math.pow(2, glideFrom / 12);
     osc.frequency.setValueAtTime(fromFreq, time);
     osc.frequency.exponentialRampToValueAtTime(targetFreq, time + 0.06);

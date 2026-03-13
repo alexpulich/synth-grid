@@ -13,7 +13,7 @@ export const triggerPad: InstrumentTrigger = (ctx, dest, time, velocity = 1, pit
   const brightness = 0.1 + p * 0.15;                  // 0.1-0.25 (initial gain)
 
   // Scale swell + release proportionally to gate duration
-  if (gate != null) {
+  if (gate !== undefined) {
     const natural = swellTime + release;
     const ratio = gate / natural;
     swellTime *= ratio;
@@ -37,7 +37,7 @@ export const triggerPad: InstrumentTrigger = (ctx, dest, time, velocity = 1, pit
   for (const detune of detunes) {
     const osc = ctx.createOscillator();
     osc.type = 'sine';
-    if (glideFrom != null) {
+    if (glideFrom !== undefined) {
       const fromFreq = 220 * Math.pow(2, glideFrom / 12);
       osc.frequency.setValueAtTime(fromFreq, time);
       osc.frequency.exponentialRampToValueAtTime(baseFreq, time + 0.06);

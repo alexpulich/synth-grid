@@ -11,7 +11,7 @@ const AUTO_DISMISS_MS = 3000;
 let container: HTMLElement | null = null;
 const toasts: ToastEntry[] = [];
 
-function ensureContainer(): HTMLElement {
+export function ensureContainer(): HTMLElement {
   if (!container) {
     container = document.createElement('div');
     container.className = 'toast-container';

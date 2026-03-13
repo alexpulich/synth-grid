@@ -57,6 +57,41 @@ export class Scheduler {
 
   private scheduleStep(step: number, time: number): void {
     const grid = this.sequencer.getCurrentGrid();
+    const rowLengths = this.sequencer.getCurrentRowLengths();
+    const stepDuration = 60.0 / this.sequencer.tempo / 4;
+    const ctxTime = this.audioEngine.ctx.currentTime;
+
+    const kickFired = this.scheduleNotes(step, time, grid, rowLengths, stepDuration, ctxTime);
+
+    // Sidechain ducking: duck rows 1-7 when kick fires
+    if (kickFired && this.sequencer.sidechainEnabled) {
+      this.audioEngine.scheduleSidechainDuck(
+        time,
+        this.sequencer.sidechainDepth,
+        this.sequencer.sidechainRelease,
+        this.sequencer.getCurrentRowVolumes(),
+      );
+    }
+
+    this.scheduleFilterLocks(step, time, grid, rowLengths, stepDuration);
+    this.scheduleAutomation(step, time, grid, rowLengths);
+
+    // Metronome: click on beat boundaries (steps 0, 4, 8, 12)
+    if (step % 4 === 0) {
+      this.audioEngine.metronome.scheduleClick(time, step === 0);
+      const beat = step / 4;
+      setTimeout(() => eventBus.emit('metronome:beat', beat), Math.max(0, (time - ctxTime) * 1000));
+    }
+
+    const delayMs = (time - ctxTime) * 1000;
+    const s = step;
+    setTimeout(() => this.onStepAdvance(s), Math.max(0, delayMs));
+  }
+
+  private scheduleNotes(
+    step: number, time: number, grid: number[][], rowLengths: number[],
+    stepDuration: number, ctxTime: number,
+  ): boolean {
     const probs = this.sequencer.getCurrentProbabilities();
     const pitches = this.sequencer.getCurrentPitchOffsets();
     const notes = this.sequencer.getCurrentNoteGrid();
@@ -65,11 +100,7 @@ export class Scheduler {
     const gates = this.sequencer.getCurrentGates();
     const slides = this.sequencer.getCurrentSlides();
     const rowSwings = this.sequencer.getCurrentRowSwings();
-    const rowLengths = this.sequencer.getCurrentRowLengths();
-    const stepDuration = 60.0 / this.sequencer.tempo / 4;
     const humanize = this.sequencer.humanize;
-    const ctxTime = this.audioEngine.ctx.currentTime;
-
     let kickFired = false;
 
     for (let row = 0; row < grid.length; row++) {
@@ -77,7 +108,6 @@ export class Scheduler {
       const rowStep = step % rowLen;
       const vel = grid[row][rowStep];
       if (vel > 0 && this.sequencer.muteState.isRowAudible(row)) {
-        // Check trig condition
         const cond = conditions[row][rowStep];
         if (cond > 0 && !checkCondition(cond, this.sequencer.loopCount)) continue;
 
@@ -88,13 +118,11 @@ export class Scheduler {
           const gateLevel = gates[row][rowStep] ?? 1;
           const gateDuration = stepDuration * GATE_LEVELS[gateLevel];
 
-          // Per-row swing: offset odd steps (based on rowStep)
           let triggerTime = time;
           if (rowStep % 2 === 1) {
             triggerTime += rowSwings[row] * stepDuration;
           }
 
-          // Slide/glide: find previous active note pitch for melodic rows
           let glideFrom: number | undefined;
           if (MELODIC_ROWS.includes(row as typeof MELODIC_ROWS[number]) && slides[row][rowStep]) {
             for (let s = 1; s <= rowLen; s++) {
@@ -137,17 +165,12 @@ export class Scheduler {
       }
     }
 
-    // Sidechain ducking: duck rows 1-7 when kick fires
-    if (kickFired && this.sequencer.sidechainEnabled) {
-      this.audioEngine.scheduleSidechainDuck(
-        time,
-        this.sequencer.sidechainDepth,
-        this.sequencer.sidechainRelease,
-        this.sequencer.getCurrentRowVolumes(),
-      );
-    }
+    return kickFired;
+  }
 
-    // Filter locks: find minimum lock value for this step, apply as frequency pulse
+  private scheduleFilterLocks(
+    step: number, time: number, grid: number[][], rowLengths: number[], stepDuration: number,
+  ): void {
     const filterLocks = this.sequencer.getCurrentFilterLocks();
     let minLock = NaN;
     for (let row = 0; row < grid.length; row++) {
@@ -161,8 +184,11 @@ export class Scheduler {
     if (!isNaN(minLock)) {
       this.audioEngine.filter.scheduleFrequencyPulse(minLock, time, stepDuration * 0.9);
     }
+  }
 
-    // Per-step automation (volume, pan, reverbSend, delaySend)
+  private scheduleAutomation(
+    step: number, time: number, grid: number[][], rowLengths: number[],
+  ): void {
     const automation = this.sequencer.getCurrentAutomation();
     const rowVolumes = this.sequencer.getCurrentRowVolumes();
     const rowPans = this.sequencer.getCurrentRowPans();
@@ -176,45 +202,30 @@ export class Scheduler {
       const revAuto = automation[2]?.[row]?.[rowStep] ?? NaN;
       const delAuto = automation[3]?.[row]?.[rowStep] ?? NaN;
 
-      // Volume: automation value or restore to row default
       if (!isNaN(volAuto)) {
         this.audioEngine.scheduleRowVolume(row, volAuto, time);
       } else {
         this.audioEngine.scheduleRowVolume(row, rowVolumes[row] ?? 0.8, time);
       }
 
-      // Pan: automation 0-1 maps to -1..1
       if (!isNaN(panAuto)) {
         this.audioEngine.scheduleRowPan(row, panAuto * 2 - 1, time);
       } else {
         this.audioEngine.scheduleRowPan(row, rowPans[row] ?? 0, time);
       }
 
-      // Reverb send
       if (!isNaN(revAuto)) {
         this.audioEngine.scheduleReverbSend(row, revAuto, time);
       } else {
         this.audioEngine.scheduleReverbSend(row, reverbSends[row] ?? 0.3, time);
       }
 
-      // Delay send
       if (!isNaN(delAuto)) {
         this.audioEngine.scheduleDelaySend(row, delAuto, time);
       } else {
         this.audioEngine.scheduleDelaySend(row, delaySends[row] ?? 0.25, time);
       }
     }
-
-    // Metronome: click on beat boundaries (steps 0, 4, 8, 12)
-    if (step % 4 === 0) {
-      this.audioEngine.metronome.scheduleClick(time, step === 0);
-      const beat = step / 4;
-      setTimeout(() => eventBus.emit('metronome:beat', beat), Math.max(0, (time - ctxTime) * 1000));
-    }
-
-    const delayMs = (time - ctxTime) * 1000;
-    const s = step;
-    setTimeout(() => this.onStepAdvance(s), Math.max(0, delayMs));
   }
 
   private scheduleMidiNote(row: number, totalPitch: number, velocity: number, triggerTime: number, gateDuration: number, ctxTime: number): void {

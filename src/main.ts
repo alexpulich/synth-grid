@@ -8,23 +8,24 @@ import { AppUI } from './ui/app';
 const audioEngine = new AudioEngine();
 const sequencer = new Sequencer();
 const midiOutput = new MidiOutput();
-let app: AppUI;
+const appRef: { current: AppUI | null } = { current: null };
 
 const scheduler = new Scheduler(audioEngine, sequencer, (step) => {
-  if (sequencer.isPlaying) {
-    app.onStepAdvance(step);
+  if (sequencer.isPlaying && appRef.current) {
+    appRef.current.onStepAdvance(step);
   }
 }, midiOutput);
 
 const transport = new Transport(sequencer, scheduler, audioEngine);
 
-app = new AppUI(
+const app = new AppUI(
   document.getElementById('app')!,
   sequencer,
   transport,
   audioEngine,
   midiOutput,
 );
+appRef.current = app;
 
 // Register service worker for PWA
 if ('serviceWorker' in navigator) {

@@ -138,7 +138,7 @@ export class AudioEngine {
     const rowDest = this.rowGains[instrumentIndex] ?? this.dryBus;
     // Estimate voice duration: use gate or defaults (0.5s drums, 1.0s melodic)
     const defaultDuration = instrumentIndex >= 4 ? 1.0 : 0.5;
-    const duration = gate != null ? gate : defaultDuration;
+    const duration = gate !== undefined ? gate : defaultDuration;
     const voiceGain = this.voicePool.acquire(this.ctx, instrumentIndex, rowDest, time + duration);
 
     if (this.useSample[instrumentIndex] && this.sampleEngine.hasSample(instrumentIndex)) {

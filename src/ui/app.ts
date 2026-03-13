@@ -31,7 +31,7 @@ import { AutoSave } from '../state/local-storage';
 import { SampleStorage } from '../state/sample-storage';
 import { ScaleSelector } from './scale-selector';
 import { DELAY_DIVISIONS } from '../audio/effects/delay';
-import { showToast } from './toast';
+import { showToast, ensureContainer as ensureToastContainer } from './toast';
 import { CellTooltip } from './cell-tooltip';
 import { ShortcutHints } from './shortcut-hints';
 import { OnboardingTour } from './onboarding-tour';
@@ -54,6 +54,9 @@ export class AppUI {
     audioEngine: AudioEngine,
     midiOutput?: MidiOutput,
   ) {
+    // Ensure toast a11y container exists before any toast fires
+    ensureToastContainer();
+
     // Audio reactive background (behind everything)
     new ReactiveBackground(root, audioEngine.analyser);
 
@@ -207,7 +210,7 @@ export class AppUI {
       audioEngine.eq.setLow(data.eqLow);
       audioEngine.eq.setMid(data.eqMid);
       audioEngine.eq.setHigh(data.eqHigh);
-      if (data.delayDivision != null && data.delayDivision < DELAY_DIVISIONS.length) {
+      if (data.delayDivision !== undefined && data.delayDivision < DELAY_DIVISIONS.length) {
         effectsPanel.setDelayDivisionIndex(data.delayDivision);
         audioEngine.delay.setTimeFromDivision(data.tempo, DELAY_DIVISIONS[data.delayDivision].mult);
       }
@@ -491,10 +494,10 @@ export class AppUI {
           state.reverbSends, state.delaySends,
         );
         // V4 extension: restore global state (scale, sidechain, soundParams, humanize)
-        if (state.scale != null) {
+        if (state.scale !== undefined) {
           sequencer.setScale(state.scale, state.rootNote ?? 0);
         }
-        if (state.sidechainEnabled != null) {
+        if (state.sidechainEnabled !== undefined) {
           sequencer.setSidechain(state.sidechainEnabled, state.sidechainDepth ?? 0.7, state.sidechainRelease ?? 0.15);
         }
         if (state.soundParams) {
@@ -503,7 +506,7 @@ export class AppUI {
             audioEngine.soundParams[row] = { ...sequencer.getSoundParams(row) };
           }
         }
-        if (state.humanize != null) {
+        if (state.humanize !== undefined) {
           sequencer.humanize = state.humanize;
         }
       }
@@ -536,10 +539,10 @@ export class AppUI {
             sequencer.setRowSwing(row, saved.swing);
           }
         }
-        if (saved.selectedScale != null) {
+        if (saved.selectedScale !== undefined) {
           sequencer.setScale(saved.selectedScale, saved.rootNote ?? 0);
         }
-        if (saved.sidechainEnabled != null) {
+        if (saved.sidechainEnabled !== undefined) {
           sequencer.setSidechain(saved.sidechainEnabled, saved.sidechainDepth ?? 0.7, saved.sidechainRelease ?? 0.15);
         }
         // Restore sound params
@@ -550,24 +553,24 @@ export class AppUI {
           }
         }
         // Restore saturation
-        if (saved.saturationDrive != null) {
+        if (saved.saturationDrive !== undefined) {
           audioEngine.saturation.setDrive(saved.saturationDrive);
         }
-        if (saved.saturationTone != null) {
+        if (saved.saturationTone !== undefined) {
           audioEngine.saturation.setTone(saved.saturationTone);
         }
         // Restore delay division
-        if (saved.delayDivision != null && saved.delayDivision < DELAY_DIVISIONS.length) {
+        if (saved.delayDivision !== undefined && saved.delayDivision < DELAY_DIVISIONS.length) {
           audioEngine.delay.setTimeFromDivision(saved.tempo, DELAY_DIVISIONS[saved.delayDivision].mult);
         }
         // Restore humanize
-        if (saved.humanize != null) {
+        if (saved.humanize !== undefined) {
           sequencer.humanize = saved.humanize;
         }
         // Restore EQ
-        if (saved.eqLow != null) audioEngine.eq.setLow(saved.eqLow);
-        if (saved.eqMid != null) audioEngine.eq.setMid(saved.eqMid);
-        if (saved.eqHigh != null) audioEngine.eq.setHigh(saved.eqHigh);
+        if (saved.eqLow !== undefined) audioEngine.eq.setLow(saved.eqLow);
+        if (saved.eqMid !== undefined) audioEngine.eq.setMid(saved.eqMid);
+        if (saved.eqHigh !== undefined) audioEngine.eq.setHigh(saved.eqHigh);
         // Restore MIDI CC mappings
         if (saved.midiMappings) {
           midiLearn.loadMappings(saved.midiMappings);
@@ -593,7 +596,7 @@ export class AppUI {
         if (saved.midiOutputConfigs) {
           sequencer.loadMidiOutputConfigs(saved.midiOutputConfigs);
         }
-        if (saved.midiOutputGlobalEnabled != null) {
+        if (saved.midiOutputGlobalEnabled !== undefined) {
           sequencer.midiOutputGlobalEnabled = saved.midiOutputGlobalEnabled;
         }
         if (saved.midiClockMode && midiClock) {

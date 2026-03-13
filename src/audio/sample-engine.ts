@@ -65,7 +65,7 @@ export class SampleEngine {
 
       // Pitch via playbackRate
       const pitchMult = Math.pow(2, (pitchOffset ?? 0) / 12);
-      if (glideFrom != null) {
+      if (glideFrom !== undefined) {
         const fromRate = Math.pow(2, glideFrom / 12);
         source.playbackRate.setValueAtTime(fromRate, time);
         source.playbackRate.exponentialRampToValueAtTime(pitchMult, time + 0.06);
@@ -87,11 +87,11 @@ export class SampleEngine {
       gain.connect(dest);
 
       // Start from trim point, limit by gate or region
-      const playDuration = gate != null ? Math.min(gate, regionDuration) : regionDuration;
+      const playDuration = gate !== undefined ? Math.min(gate, regionDuration) : regionDuration;
       source.start(time, trimStart, meta.loop ? undefined : playDuration);
 
       // Fade out at end of gate
-      if (gate != null && !meta.loop) {
+      if (gate !== undefined && !meta.loop) {
         const fadeStart = time + gate - 0.005;
         if (fadeStart > time) {
           gain.gain.setValueAtTime(velocity, fadeStart);

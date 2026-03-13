@@ -2,6 +2,7 @@ import { NUM_ROWS, NUM_STEPS, NUM_BANKS, NUM_AUTO_PARAMS, VELOCITY_OFF, VELOCITY
 import type { Grid, VelocityLevel, ProbabilityGrid, NoteGrid, FilterLockGrid, RatchetGrid, ConditionGrid, GateGrid, SlideGrid, SoundParams, MidiOutputConfig, ClockMode, AutomationData } from '../types';
 import { clamp } from '../utils/math';
 import { euclidean, rotatePattern } from '../utils/euclidean';
+import { mulberry32 } from '../utils/prng';
 import { eventBus } from '../utils/event-bus';
 import { History, type HistoryEntry } from '../state/history';
 import { MuteState } from './mute-state';
@@ -685,12 +686,13 @@ export class Sequencer {
     eventBus.emit('grid:cleared');
   }
 
-  randomizeRow(row: number, density: number): void {
+  randomizeRow(row: number, density: number, seed?: number): void {
     this.pushHistory();
     const grid = this.grids[this._activeBank];
     const len = this.getRowLength(row);
+    const rand = seed !== undefined ? mulberry32(seed) : Math.random;
     for (let step = 0; step < len; step++) {
-      grid[row][step] = Math.random() < density ? VELOCITY_LOUD : VELOCITY_OFF;
+      grid[row][step] = rand() < density ? VELOCITY_LOUD : VELOCITY_OFF;
     }
     for (let step = len; step < NUM_STEPS; step++) {
       grid[row][step] = VELOCITY_OFF;

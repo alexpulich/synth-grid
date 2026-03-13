@@ -1,6 +1,7 @@
 import { NUM_STEPS } from '../types';
 import type { Sequencer } from '../sequencer/sequencer';
 import { euclidean, rotatePattern } from '../utils/euclidean';
+import { mulberry32 } from '../utils/prng';
 
 export class EuclideanPopover {
   private el: HTMLElement;
@@ -14,6 +15,7 @@ export class EuclideanPopover {
   private densityLabel!: HTMLElement;
   private currentRow = 0;
   private visible = false;
+  private randomSeed = 0;
 
   constructor(private sequencer: Sequencer) {
     this.el = document.createElement('div');
@@ -114,6 +116,7 @@ export class EuclideanPopover {
       this.sequencer.randomizeRow(
         this.currentRow,
         Number(this.densitySlider.value) / 100,
+        this.randomSeed,
       );
       this.hide();
     });
@@ -193,16 +196,18 @@ export class EuclideanPopover {
       }
     }
 
+    const rand = mulberry32(this.randomSeed);
     for (let i = 0; i < this.randomPreviewCells.length; i++) {
       this.randomPreviewCells[i].classList.toggle(
         'euclidean-preview-cell--active',
-        Math.random() < density,
+        rand() < density,
       );
     }
   }
 
   show(row: number, anchor: HTMLElement): void {
     this.currentRow = row;
+    this.randomSeed = Math.random() * 0xFFFFFFFF >>> 0;
     const rowLen = this.sequencer.getRowLength(row);
 
     // Update slider max values based on row length
