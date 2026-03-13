@@ -8,7 +8,7 @@ Browser-based visual music step sequencer. Zero runtime dependencies — vanilla
 npm run dev        # Start dev server (port 5173)
 npm run build      # Type-check + build for production
 npx tsc --noEmit   # Type-check only
-npm test           # Run Vitest test suite (106 tests, ~190ms)
+npm test           # Run Vitest test suite (191 tests, ~280ms)
 npm run test:watch # Run tests in watch mode
 ```
 
@@ -28,7 +28,8 @@ src/
     instruments/*.ts         # 8 synth instruments (kick, snare, hihat, clap, bass, lead, pad, perc)
     effects/*.ts             # Reverb, Delay (tempo-synced), Filter, Saturation, EQ (3-band)
   sequencer/
-    sequencer.ts             # Central state: 17 per-bank data layers + global state (soundParams, scale, sidechain, MIDI configs, humanize)
+    sequencer.ts             # Central state: delegates per-bank data to BankStateManager + global state (soundParams, scale, sidechain, MIDI configs, humanize)
+    bank-state.ts            # BankStateManager: 16 per-bank data arrays + capture/restore/clear/loadAll
     transport.ts             # Play/stop/tap tempo, All Notes Off on stop
     mute-state.ts            # Per-row mute/solo
     pattern-chain.ts         # Song mode chain (max 32 entries)

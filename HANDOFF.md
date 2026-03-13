@@ -2,17 +2,17 @@
 
 ## Goal
 
-Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 21 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, or anything else you see fit.
+Synth Grid is a browser-based visual music step sequencer built with vanilla TypeScript + Vite + Web Audio API (zero runtime dependencies). The project has been developed iteratively over 22 rounds, each adding a cohesive set of features. **You are free to do whatever you think is best to develop this project further** — new features, UX improvements, refactoring, performance optimization, visual polish, accessibility, or anything else you see fit.
 
 ## Current State
 
-- **86 TypeScript files, 28 CSS files, ~16,500 lines of code**
-- **Latest round**: Round 21 — Lint CI + MIDI CC Extraction + Tests
-- **Test suite**: Vitest with 162 tests across 11 files (~230ms runtime)
+- **87 TypeScript files, 28 CSS files, ~16,500 lines of code**
+- **Latest round**: Round 22 — Bank-State Extraction + MIDI/Scene Tests
+- **Test suite**: Vitest with 191 tests across 14 files (~280ms runtime)
 - **CI**: `npm run lint` + `npm test` run before Docker build in GitHub Actions (test -> build-and-push -> deploy)
 - **ESLint**: Flat config with TypeScript plugin, zero violations
 
-### What's Built (Rounds 1-21)
+### What's Built (Rounds 1-22)
 
 | Round | Features |
 |-------|----------|
@@ -37,22 +37,23 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 19 | Bug fixes + testing foundation: fix redo bug, Vitest setup with 65 tests |
 | 20 | Refactor: extract GridEventManager from grid.ts, density randomizer, 41 sequencer tests (106 total), CI test integration |
 | 21 | Lint CI, MIDI CC router extraction from app.ts, cross-bank undo tests, PRNG tests (162 total) |
+| 22 | Extract BankStateManager from sequencer.ts, MIDI learn tests (12), mute scenes tests (7), bank-state tests (10) — 191 total |
 
 ### Known Gaps
 
 - Theme card swatches are hardcoded — new themes need `swatches` array added manually
 - Toast `role="status"` container created lazily — screen readers won't see it until first toast
 - Test coverage limited to pure logic — no DOM/UI tests (would need jsdom)
-- Random preview in euclidean popover is truly random — preview doesn't match what gets applied
 
 ## Architecture Quick Reference
 
 - **Event-driven**: Typed `EventMap` pub/sub — components never reference each other directly. `app.ts` is the wiring hub
 - **Audio chain**: Per-row gains/panners -> dry bus + reverb/delay sends -> master -> saturation -> EQ -> perf FX -> compressor -> analyser -> filter -> limiter -> destination
-- **State**: Sequencer holds all grid state. 4 banks (A-D). 17 per-bank data layers + global state. localStorage auto-save (500ms debounce). URL hash encoding (V1-V4)
+- **State**: Sequencer holds all grid state. 4 banks (A-D). 16 per-bank data layers managed by `BankStateManager` + global state. localStorage auto-save (500ms debounce). URL hash encoding (V1-V4)
 - **UI**: Pure DOM manipulation, no framework. Grid split: `GridUI` (DOM/visuals) + `GridEventManager` (events)
 - **Testing**: Vitest, node environment, colocated `*.test.ts` files. CI gate (lint + test) before deploy
 - **MIDI CC routing**: Extracted to `src/midi/midi-cc-router.ts` — standalone function, testable with mocks
+- **Bank state**: Extracted to `src/sequencer/bank-state.ts` — `BankStateManager` owns all 16 per-bank arrays. Sequencer delegates storage to it, retains public API + event emission
 
 See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 
@@ -67,6 +68,7 @@ See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 - **GridEventManager extraction** (Round 20): Clean split of 1031-line grid.ts into visual updates (670) + event handlers (377). Low risk because handlers already called sequencer through clean API
 - **Tests found the real bug**: QA reported "undo off-by-one" but tests showed the real issue was redo returning null from top of stack
 - **MIDI CC extraction** (Round 21): Removed ~70 lines from app.ts by extracting self-contained switch block into testable module
+- **BankStateManager extraction** (Round 22): Moved 16 per-bank arrays + capture/restore/clear/loadAll into dedicated class. Sequencer dropped from 1,002 to ~540 lines. All 41 sequencer tests passed without modification
 
 ## What To Watch Out For
 
@@ -76,108 +78,48 @@ See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 - **Adding per-bank state is a 9-step checklist**: See CLAUDE.md gotchas
 - **`grid:cleared` must resync audio**: App.ts handler covers this — new ops modifying mixer state must emit this event
 - **Keyboard shortcuts**: Must update both `keyboard-shortcuts.ts` AND `help-overlay.ts` sections array
-- **QA Bug #1 (undo off-by-one)**: QA reported this but 22 unit tests confirm undo/redo is correct. The QA test may have been run on an older code version. Cross-bank undo test added in Round 21 as regression guard.
+- **BankStateManager fields are `readonly` arrays**: The arrays themselves can be mutated (elements reassigned), but the array references are stable — sequencer accesses them via `this.bs.grids[bank]` etc.
 
-## Round 22 Plan
+## Round 23 Plan
 
-### Theme: Test Coverage + Sequencer Refactor + Euclidean Preview Fix
+### Theme: App.ts Extraction + Scheduler Tests
 
-Rounds 19-21 focused on testing infrastructure, linting, and extraction. Round 22 continues the technical health push by closing the biggest test gaps, tackling the largest file in the codebase (`sequencer.ts` at 1,002 lines), and fixing one of the remaining known UX bugs.
+### Step 1: Extract state restoration from app.ts (~80 lines)
+**New file**: `src/state/state-restorer.ts`
 
-### Step 1: Extract MIDI module tests
+App.ts has scattered state restoration logic (URL hash → localStorage → IndexedDB samples → MIDI mappings). Consolidate into:
+- `restoreState(sequencer, audioEngine, sampleEngine, midiLearn)` — orchestrates full restore
+- Handles URL hash decoding, localStorage fallback, sample buffer restore, MIDI mapping restore
+- Returns what was restored for UI feedback
 
-Add tests for `midi-learn.ts` — the only MIDI module with pure logic that's testable without Web MIDI API mocks.
+### Step 2: Extract audio sync handlers from app.ts (~100 lines)
+**New file**: `src/audio/audio-sync.ts`
 
-**New file**: `src/midi/midi-learn.test.ts`
-- `armLearn()` sets armed state
-- `handleCC()` in armed mode stores pending CC
-- `assignTarget()` creates mapping and disarms
-- `handleCC()` with mapping calls `onApply` callback with normalized value
-- Duplicate CC or target replaces previous mapping
-- `removeMapping()` removes by target
-- `loadMappings()` restores mappings
+App.ts has ~100 lines of event→audioEngine sync handlers (volume, pan, sends, filter locks, sidechain). Extract:
+- `wireAudioSync(sequencer, audioEngine, sampleEngine)` — registers all event listeners
+- Pure wiring, no state
 
-Estimated: ~10 tests.
+### Step 3: Scheduler condition/swing tests (~20 tests)
+**New file**: `src/audio/scheduler.test.ts`
 
-### Step 2: Add mute-scenes tests
+The scheduler (273 lines) has untested core logic:
+- Swing timing calculation
+- Humanize offset application
+- Trig condition evaluation (every-N, probability-based)
+- Ratchet sub-step timing
+- Row length wrapping
 
-**New file**: `src/sequencer/mute-scenes.test.ts`
+### Step 4: Piano roll state extraction
+**New file**: `src/ui/piano-state.ts` (~150 lines)
+**New file**: `src/ui/piano-state.test.ts` (~10 tests)
 
-Test `MuteScenes` class (pure state, no DOM):
-- Save/recall scenes
-- Empty scene recall behavior
-- `loadScenes()` restores state
-- Scene independence (modifying one doesn't affect another)
-
-Estimated: ~6 tests.
-
-### Step 3: Extract sequencer bank-state accessors
-
-**File**: `src/sequencer/sequencer.ts` (1,002 lines)
-
-The sequencer has ~400 lines of repetitive per-bank getters/setters (get/set/getAll/getCurrent for each of 17 layers). Extract these into a `BankStateManager` class that the sequencer delegates to.
-
-**New file**: `src/sequencer/bank-state.ts`
-- `BankStateManager` — manages all 17 per-bank data layers
-- Typed getters: `getGrid(bank)`, `getCurrentGrid()`, `getAllGrids()`
-- Typed setters with event emission
-- `captureEntry(bank)` / `restoreEntry(entry)` for history integration
-
-**Modify**: `src/sequencer/sequencer.ts`
-- Replace inline array management with `this.bankState.getGrid(bank)` etc.
-- Keep sequencer as the public API; bank-state is an internal implementation detail
-- Target: sequencer.ts drops from ~1,002 to ~600 lines
-
-### Step 4: Fix euclidean preview randomness (Known Gap)
-
-Currently the euclidean popover preview generates a random pattern, but applying generates a different one. Fix by using seeded PRNG (already available via `mulberry32`).
-
-**File**: `src/ui/euclidean-popover.ts`
-- Generate a seed when preview is requested
-- Use `mulberry32(seed)` for both preview and apply
-- Preview now matches the applied pattern exactly
-
-### Step 5: Add bank-state tests
-
-**New file**: `src/sequencer/bank-state.test.ts`
-
-Test the extracted `BankStateManager`:
-- Initialize with correct dimensions
-- Get/set per-bank layers
-- `captureEntry()` returns deep clone
-- `restoreEntry()` applies atomically
-- Bank isolation (modifying bank 0 doesn't affect bank 1)
-
-Estimated: ~8 tests.
-
-### Step 6: Update CLAUDE.md and HANDOFF.md
-
-- Add `bank-state.ts` to architecture tree in CLAUDE.md
-- Document the new sequencer/bank-state split pattern
-- Update test counts and file counts
+### Step 5: Update docs
 
 ### Verification
-
 1. `npm run lint` — zero violations
 2. `npx tsc --noEmit` — compiles clean
-3. `npm test` — all tests pass (~190 expected)
+3. `npm test` — all tests pass
 4. `npm run build` — production build succeeds
-5. Manual: verify euclidean preview matches applied pattern
-
-### Files to modify
-- `src/midi/midi-learn.test.ts` — new tests
-- `src/sequencer/mute-scenes.test.ts` — new tests
-- `src/sequencer/bank-state.ts` — new, extracted from sequencer.ts
-- `src/sequencer/bank-state.test.ts` — new tests
-- `src/sequencer/sequencer.ts` — delegate to bank-state
-- `src/ui/euclidean-popover.ts` — seeded preview
-- `CLAUDE.md` — update architecture tree
-- `HANDOFF.md` — update for Round 22
-
-### Risk assessment
-- **Bank-state extraction** (medium risk): Large refactor but purely mechanical — move arrays + accessors. Existing 41 sequencer tests serve as regression guard. Run tests after each method migration.
-- **Euclidean preview fix** (low risk): Isolated to one popover. Seeded PRNG already used by density randomizer.
-- **New tests** (no risk): Additive only.
 
 ## Key Files to Start With
 
@@ -186,7 +128,8 @@ Estimated: ~8 tests.
 | `CLAUDE.md` | Full architecture, patterns, and gotchas — read this first |
 | `src/main.ts` | Entry point — shows how everything wires together |
 | `src/types.ts` | All type definitions and constants |
-| `src/sequencer/sequencer.ts` | Central state management (17 per-bank layers + global state) |
+| `src/sequencer/sequencer.ts` | Central state management (delegates to BankStateManager + global state) |
+| `src/sequencer/bank-state.ts` | Per-bank data layer storage (16 arrays, capture/restore/clear) |
 | `src/audio/scheduler.ts` | Core scheduling loop |
 | `src/audio/audio-engine.ts` | Audio routing graph |
 | `src/ui/grid.ts` | Grid UI — DOM building + visual updates |
@@ -201,6 +144,6 @@ npm run dev        # Start dev server (port 5173)
 npm run build      # Type-check + build for production
 npx tsc --noEmit   # Type-check only
 npm run lint       # ESLint (zero violations)
-npm test           # Run Vitest test suite (162 tests)
+npm test           # Run Vitest test suite (191 tests)
 npm run test:watch # Run tests in watch mode
 ```
