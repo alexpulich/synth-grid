@@ -6,9 +6,9 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 
 ## Current State
 
-- **97 TypeScript source files (+29 test files), 28 CSS files, ~16,400 lines of code**
-- **Latest round**: Round 28 — Visual Wiring Tests + Theme Swatch Derivation + Keyboard Action Extraction
-- **Test suite**: Vitest with 402 tests across 33 files (~670ms runtime)
+- **98 TypeScript source files (+30 test files), 28 CSS files, ~16,500 lines of code**
+- **Latest round**: Round 29 — MIDI Message Parsing + Factory Preset Validation
+- **Test suite**: Vitest with 430 tests across 35 files (~760ms runtime)
 - **CI**: `npm run lint` + `npm test` run before Docker build in GitHub Actions (test -> build-and-push -> deploy)
 - **ESLint**: Flat config with TypeScript plugin, zero violations
 
@@ -44,6 +44,7 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 26 | Extract midi-wiring.ts + toast-wiring.ts from app.ts, state-restorer tests (16), audio-sync tests (8), voice-pool tests (8) — 329 total |
 | 27 | Randomizer tests (13), toast-wiring tests (7), midi-wiring tests (9), sample-manager tests (8), extract visual-wiring.ts from app.ts — 366 total |
 | 28 | Visual-wiring tests (8), theme-utils extraction + tests (8), keyboard-action extraction + tests (20), theme swatch gap resolved — 402 total |
+| 29 | MIDI message parsing extraction + tests (16), factory preset validation tests (12), midi-manager/midi-output refactored to use shared builders — 430 total |
 
 ### Known Gaps
 
@@ -71,6 +72,7 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **Theme utils**: `deriveSwatches()` in `src/ui/theme-utils.ts` — derives 4 preview swatches from theme CSS vars, replacing hardcoded arrays
 - **Keyboard action**: `resolveKeyAction()` in `src/ui/keyboard-action.ts` — pure key→action mapping extracted from keyboard-shortcuts.ts
 - **MIDI helpers**: `deriveBpmFromClockTimes` exported from midi-clock.ts, `DEFAULT_NOTE_MAP` exported from midi-input.ts
+- **MIDI message**: `parseMidiMessage()` + `buildNoteOn/Off/CC/AllNotesOff` + `MIDI_CLOCK/START/STOP` in `src/midi/midi-message.ts` — pure parsing/building extracted from midi-manager.ts and midi-output.ts
 
 See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 
@@ -173,7 +175,21 @@ See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 
 **Test count**: 366 → 402 (+36 tests across 3 new test files)
 
-## Suggestions for Round 29
+## Round 29 Summary
+
+### Theme: MIDI Message Parsing + Factory Preset Validation
+
+**Completed:**
+1. **midi-message.ts** (53 lines) — Extracted `parseMidiMessage()` parser (byte→struct) and `buildNoteOn/Off/CC/AllNotesOff` builders (struct→bytes) + `MIDI_CLOCK/START/STOP` constants from midi-manager.ts and midi-output.ts
+2. **midi-message.test.ts** (16 tests) — Parser tests (note-on, velocity-0-as-note-off, explicit note-off, CC, system real-time, channel extraction, null guards). Builder tests (correct bytes, channel/note clamping, velocity float→int mapping, AllNotesOff, constants)
+3. **midi-manager.ts** refactor — `handleMessage()` now calls `parseMidiMessage()` and switches on `msg.type`
+4. **midi-output.ts** refactor — All 6 send methods now use shared builders/constants instead of inline byte arrays
+5. **factory-presets.ts** — Exported `defaultData()` for direct testing
+6. **factory-presets.test.ts** (12 tests) — defaultData dimensions/defaults (4), per-preset characteristic validation (4), cross-preset invariants: unique IDs, valid velocities, dimensions, probability bounds (4)
+
+**Test count**: 402 → 430 (+28 tests across 2 new test files)
+
+## Suggestions for Round 30
 
 ### Codebase Status
 
@@ -230,6 +246,6 @@ npm run dev        # Start dev server (port 5173)
 npm run build      # Type-check + build for production
 npx tsc --noEmit   # Type-check only
 npm run lint       # ESLint (zero violations)
-npm test           # Run Vitest test suite (402 tests)
+npm test           # Run Vitest test suite (430 tests)
 npm run test:watch # Run tests in watch mode
 ```

@@ -1,5 +1,6 @@
 import type { MidiDeviceInfo } from '../types';
 import { eventBus } from '../utils/event-bus';
+import { buildNoteOn, buildNoteOff, buildAllNotesOff, MIDI_CLOCK, MIDI_START, MIDI_STOP } from './midi-message';
 
 export class MidiOutput {
   private access: MIDIAccess | null = null;
@@ -39,37 +40,37 @@ export class MidiOutput {
   sendNoteOn(portId: string | null, channel: number, note: number, velocity: number): void {
     const port = this.resolvePort(portId);
     if (!port) return;
-    port.send([0x90 | (channel & 0x0f), note & 0x7f, Math.round(velocity * 127) & 0x7f]);
+    port.send(buildNoteOn(channel, note, velocity));
   }
 
   sendNoteOff(portId: string | null, channel: number, note: number): void {
     const port = this.resolvePort(portId);
     if (!port) return;
-    port.send([0x80 | (channel & 0x0f), note & 0x7f, 0]);
+    port.send(buildNoteOff(channel, note));
   }
 
   sendAllNotesOff(portId: string | null, channel: number): void {
     const port = this.resolvePort(portId);
     if (!port) return;
-    port.send([0xb0 | (channel & 0x0f), 123, 0]);
+    port.send(buildAllNotesOff(channel));
   }
 
   sendClock(portId: string | null): void {
     const port = this.resolvePort(portId);
     if (!port) return;
-    port.send([0xf8]);
+    port.send(MIDI_CLOCK);
   }
 
   sendStart(portId: string | null): void {
     const port = this.resolvePort(portId);
     if (!port) return;
-    port.send([0xfa]);
+    port.send(MIDI_START);
   }
 
   sendStop(portId: string | null): void {
     const port = this.resolvePort(portId);
     if (!port) return;
-    port.send([0xfc]);
+    port.send(MIDI_STOP);
   }
 
   private resolvePort(portId: string | null): MIDIOutput | null {

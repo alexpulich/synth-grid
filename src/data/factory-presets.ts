@@ -34,7 +34,7 @@ function emptySlides(): boolean[][] {
   return Array.from({ length: NUM_ROWS }, () => new Array<boolean>(NUM_STEPS).fill(false));
 }
 
-function defaultData(): PatternData {
+export function defaultData(): PatternData {
   return {
     grids: Array.from({ length: NUM_BANKS }, emptyGrid),
     probabilities: Array.from({ length: NUM_BANKS }, emptyProbs),

@@ -8,7 +8,7 @@ Browser-based visual music step sequencer. Zero runtime dependencies — vanilla
 npm run dev        # Start dev server (port 5173)
 npm run build      # Type-check + build for production
 npx tsc --noEmit   # Type-check only
-npm test           # Run Vitest test suite (402 tests, ~670ms)
+npm test           # Run Vitest test suite (430 tests, ~760ms)
 npm run test:watch # Run tests in watch mode
 ```
 
@@ -69,6 +69,7 @@ src/
     midi-input.ts            # MIDI note -> instrument triggering (GM drum + octave mappings). Exports DEFAULT_NOTE_MAP
     midi-learn.ts            # CC learn mode: arm -> capture -> assign
     midi-output.ts           # Web MIDI output port management
+    midi-message.ts          # Pure MIDI parsing (parseMidiMessage) + builders (buildNoteOn/Off/CC) + constants (MIDI_CLOCK/START/STOP)
     midi-wiring.ts           # wireMidi(): midiManager→midiInput/midiLearn/midiClock callback wiring + CC router
     midi-clock.ts            # MIDI clock send (24ppqn) and receive (BPM derivation). Exports deriveBpmFromClockTimes
   visuals/                   # Canvas-based: particles, waveform, reactive background

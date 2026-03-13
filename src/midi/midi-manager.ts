@@ -1,5 +1,6 @@
 import type { MidiDeviceInfo } from '../types';
 import { eventBus } from '../utils/event-bus';
+import { parseMidiMessage } from './midi-message';
 
 type NoteHandler = (note: number, velocity: number, channel: number) => void;
 type CCHandler = (cc: number, value: number, channel: number) => void;
@@ -74,38 +75,20 @@ export class MidiManager {
   }
 
   private handleMessage(event: MIDIMessageEvent): void {
-    const data = event.data;
-    if (!data || data.length < 1) return;
+    const msg = parseMidiMessage(event.data as unknown as Uint8Array);
+    if (!msg) return;
 
-    // System real-time messages (single byte, no channel)
-    if (data[0] >= 0xf0) {
-      if (this.clockHandler) {
-        this.clockHandler(data[0]);
-      }
+    if (msg.type === 'system') {
+      this.clockHandler?.(msg.status);
       return;
     }
 
-    if (data.length < 2) return;
-
-    const status = data[0] & 0xf0;
-    const channel = data[0] & 0x0f;
-
     eventBus.emit('midi:activity');
 
-    if (status === 0x90 && data.length >= 3) {
-      // Note On (velocity 0 = note off)
-      const note = data[1];
-      const velocity = data[2];
-      if (velocity > 0 && this.noteHandler) {
-        this.noteHandler(note, velocity, channel);
-      }
-    } else if (status === 0xb0 && data.length >= 3) {
-      // Control Change
-      const cc = data[1];
-      const value = data[2];
-      if (this.ccHandler) {
-        this.ccHandler(cc, value, channel);
-      }
+    if (msg.type === 'note-on') {
+      this.noteHandler?.(msg.note, msg.velocity, msg.channel);
+    } else if (msg.type === 'cc') {
+      this.ccHandler?.(msg.cc, msg.value, msg.channel);
     }
   }
 }
