@@ -127,6 +127,156 @@ See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 
 **app.ts**: 328 → 280 lines (-48)
 
+## Round 26 Plan
+
+### Theme: MIDI Wiring Extraction + State Restorer & Audio Sync & Voice Pool Tests
+
+**Goal**: Extract the MIDI setup block from app.ts (~30 lines), add tests for 3 untested extracted modules plus voice-pool. Test count from 297 → ~340. app.ts drops from 280 → ~250 lines.
+
+---
+
+### Step 1: Extract `wireMidi` from app.ts
+
+**New file:** `src/midi/midi-wiring.ts`
+
+```typescript
+export function wireMidi(
+  midiManager: MidiManager,
+  midiInput: MidiInput,
+  midiLearn: MidiLearn,
+  midiClock: MidiClock | undefined,
+  midiOutput: MidiOutput | undefined,
+  audioEngine: AudioEngine,
+  sequencer: Sequencer,
+): void
+```
+
+Moves lines 167-180 from app.ts:
+- `midiManager.onNote(...)` → `midiInput.handleNote(...)`
+- `midiManager.onCC(...)` → `midiLearn.handleCC(...)`
+- `midiManager.onClock(...)` → `midiClock.handleClockByte(...)`
+- `midiLearn.onApply(createMidiCCRouter(...))`
+
+**app.ts changes:**
+- Replace 14 lines with `wireMidi(midiManager, midiInput, midiLearn, midiClock, midiOutput, audioEngine, sequencer);`
+- Move `createMidiCCRouter` import to midi-wiring.ts
+- Net: ~280 → ~266 lines
+
+---
+
+### Step 2: Extract `wireNotifications` from app.ts
+
+**New file:** `src/ui/toast-wiring.ts`
+
+```typescript
+export function wireNotifications(): void
+```
+
+Moves lines 220-233 from app.ts:
+- `bank:queued`, `bank:copied`, `bank:pasted`, `grid:cleared` toasts
+- `midi:devices-changed` toast
+
+**app.ts changes:**
+- Replace 14 lines with `wireNotifications();`
+- Move `showToast` import to toast-wiring.ts (keep `ensureToastContainer` import)
+- Net: ~266 → ~252 lines
+
+---
+
+### Step 3: Write `state-restorer.test.ts` (~14 tests)
+
+**New file:** `src/state/state-restorer.test.ts`
+
+Mock `AutoSave.load()` via `vi.spyOn`, mock `window.location.hash`, mock `decodeState` via `vi.mock`.
+
+**restoreAppState tests:**
+- Returns `hadUrlHash: true` when hash present
+- Returns `hadUrlHash: false` when no hash
+- Calls `restoreFromUrl` path when hash exists
+- Calls `restoreFromLocalStorage` path when no hash
+
+**restoreFromLocalStorage tests (via restoreAppState with no hash):**
+- Null → NaN conversion for filterLocks
+- Null → NaN conversion for automationData
+- Backward compat: global swing distributed to rows when no rowSwings
+- Restores saturation drive/tone
+- Restores EQ low/mid/high
+- Restores delay division + calls effectsPanel
+- Restores MIDI CC mappings
+- Restores sample metadata + useSample flags
+- Restores mute scenes
+- Restores MIDI output config + clock mode
+
+---
+
+### Step 4: Write `audio-sync.test.ts` (~8 tests)
+
+**New file:** `src/audio/audio-sync.test.ts`
+
+Mock sequencer and audioEngine with `as never` pattern.
+
+**wireAudioSync tests:**
+- `volume:changed` event calls `audioEngine.setRowVolume`
+- `pan:changed` event calls `audioEngine.setRowPan`
+- `send:reverb-changed` event calls `audioEngine.setRowReverbSend`
+- `send:delay-changed` event calls `audioEngine.setRowDelaySend`
+- `soundparam:changed` event assigns to `audioEngine.soundParams[row]`
+- `bank:changed` event resyncs all rows
+- `grid:cleared` event resyncs all rows
+- Resync reads correct current values from sequencer
+
+---
+
+### Step 5: Write `voice-pool.test.ts` (~8 tests)
+
+**New file:** `src/audio/voice-pool.test.ts`
+
+VoicePool uses `AudioContext` for `createGain()` — mock with minimal stubs.
+
+**Tests:**
+- `acquire` returns a GainNode connected to destination
+- Expired voices cleaned up on next acquire
+- Per-row limit (8): oldest voice for same row stolen
+- Global limit (48): oldest voice stolen regardless of row
+- Stolen voice gain set to 0 and disconnected
+- Multiple rows tracked independently
+- Acquire after steal keeps pool at limit
+- Cleanup only removes expired voices (endTime < now)
+
+---
+
+### Step 6: Update docs
+
+- **HANDOFF.md**: Add Round 26 row, update test count (~340), update app.ts line count (~252)
+- **CLAUDE.md**: Add `midi-wiring.ts` and `toast-wiring.ts` to architecture tree
+
+---
+
+### Implementation Order
+
+1. `src/midi/midi-wiring.ts` + app.ts update (extraction)
+2. `src/ui/toast-wiring.ts` + app.ts update (extraction)
+3. `src/state/state-restorer.test.ts` (highest value — complex restore logic)
+4. `src/audio/audio-sync.test.ts` (event wiring verification)
+5. `src/audio/voice-pool.test.ts` (pure state management with Audio stubs)
+6. Docs update
+
+Verify after each step: `npx tsc --noEmit`
+Final: `npm run lint && npx tsc --noEmit && npm test && npm run build`
+
+---
+
+### Key Files
+
+| File | Role |
+|------|------|
+| `src/ui/app.ts` | MIDI wiring + toast extraction source (~28 lines moving out) |
+| `src/midi/midi-wiring.ts` | New — MIDI manager→input/learn/clock/CC wiring |
+| `src/ui/toast-wiring.ts` | New — eventBus→showToast notification wiring |
+| `src/state/state-restorer.ts` | 193 lines — URL + localStorage restore, NaN conversion, backward compat |
+| `src/audio/audio-sync.ts` | 44 lines — event→audioEngine resync wiring |
+| `src/audio/voice-pool.ts` | 50 lines — polyphony limiter with steal logic |
+
 ## Key Files to Start With
 
 | File | Why |
