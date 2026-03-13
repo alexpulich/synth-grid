@@ -8,7 +8,7 @@ Browser-based visual music step sequencer. Zero runtime dependencies — vanilla
 npm run dev        # Start dev server (port 5173)
 npm run build      # Type-check + build for production
 npx tsc --noEmit   # Type-check only
-npm test           # Run Vitest test suite (191 tests, ~280ms)
+npm test           # Run Vitest test suite (225 tests, ~280ms)
 npm run test:watch # Run tests in watch mode
 ```
 
@@ -22,7 +22,8 @@ src/
     audio-engine.ts          # Audio routing: per-row GainNode+StereoPanner -> dry + reverb/delay sends -> master -> saturation -> EQ -> perf insert -> compressor -> analyser -> filter -> limiter -> destination
     voice-pool.ts            # Polyphony limiter: per-row (max 8) and global (max 48), steal oldest on overflow
     sample-engine.ts         # Per-row AudioBuffer storage, decode, cached trigger functions
-    scheduler.ts             # Look-ahead scheduler (25ms tick, 100ms schedule-ahead), MIDI output integration
+    scheduler.ts             # Look-ahead scheduler (25ms tick, 100ms schedule-ahead), MIDI output integration. Exports: checkCondition, applySwing, midiNoteClamp
+    audio-sync.ts            # wireAudioSync(): event→audioEngine wiring (volume, pan, sends, soundParams, bank/clear resync)
     performance-fx.ts        # Hold-to-engage FX: tape stop, stutter, bitcrush, reverb wash
     wav-exporter.ts          # Offline render to WAV (synth + sample modes)
     instruments/*.ts         # 8 synth instruments (kick, snare, hihat, clap, bass, lead, pad, perc)
@@ -37,13 +38,15 @@ src/
     history.ts               # Undo/redo stack (max 50), snapshots all 17 per-bank data layers
     url-state.ts             # Binary state encoding: backward-compatible V1/V2/V3/V4
     local-storage.ts         # Auto-save/restore via localStorage (debounced 500ms)
+    state-restorer.ts        # restoreAppState() + restoreSampleBuffers(): URL hash / localStorage / IndexedDB restore orchestration
     sample-storage.ts        # IndexedDB wrapper for sample ArrayBuffers (50MB limit)
   ui/                        # Pure DOM manipulation, no framework. Constructor pattern: (parent, ...deps) -> create DOM, append, wire eventBus
     grid.ts                  # Grid UI: DOM building, visual updates (670 lines)
     grid-event-manager.ts    # Grid DOM event handlers: mouse/touch drag paint, wheel shortcuts, keyboard nav, context menu (377 lines)
     euclidean-popover.ts     # Euclidean rhythm generator + density randomizer popover
     sound-shaper.ts          # Per-instrument sound shaping — dual synth/sample mode
-    piano-roll.ts            # Piano roll modal for melodic rows
+    piano-roll.ts            # Piano roll modal for melodic rows — delegates to piano-state.ts for pure logic
+    piano-state.ts           # Pure piano roll functions: computePitchRows, determineCellAction, getDragEffect
     automation-lane.ts       # Per-row collapsible automation strip (Vol/Pan/Flt/Rev/Del)
     cell-context-menu.ts     # Right-click context menu: all 8 cell data layers
     cell-tooltip.ts          # Hover tooltip for active cells — badge-based display

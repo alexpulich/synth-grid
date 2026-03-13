@@ -4,8 +4,9 @@ import { INSTRUMENTS } from '../audio/instruments';
 import type { Sequencer } from '../sequencer/sequencer';
 import type { AudioEngine } from '../audio/audio-engine';
 import { eventBus } from '../utils/event-bus';
-import { SCALES, scaleDegreesToSemitones, semitoneToNoteName } from '../utils/scales';
+import { SCALES, semitoneToNoteName } from '../utils/scales';
 import { elementAtTouch } from '../utils/touch';
+import { computePitchRows, determineCellAction, getDragEffect } from './piano-state';
 
 const INSTRUMENT_CLASS: Record<number, string> = {
   4: 'bass',
@@ -244,34 +245,7 @@ export class PianoRoll {
 
   /** Compute which semitone offsets are available based on the current scale */
   private computePitchRows(): number[] {
-    const scale = SCALES[this.sequencer.selectedScale];
-
-    if (scale.intervals.length === 12) {
-      // Chromatic: all 25 semitones
-      const pitches: number[] = [];
-      for (let s = 12; s >= -12; s--) {
-        pitches.push(s);
-      }
-      return pitches;
-    }
-
-    // Non-chromatic: enumerate scale degrees that produce semitones in [-12, +12]
-    const seen = new Set<number>();
-    const pitches: number[] = [];
-    const len = scale.intervals.length;
-    const maxDegrees = Math.ceil(24 / 12 * len) + len;
-
-    for (let degree = -maxDegrees; degree <= maxDegrees; degree++) {
-      const semitones = scaleDegreesToSemitones(scale, degree);
-      if (semitones >= -12 && semitones <= 12 && !seen.has(semitones)) {
-        seen.add(semitones);
-        pitches.push(semitones);
-      }
-    }
-
-    // Sort descending (highest pitch at top)
-    pitches.sort((a, b) => b - a);
-    return pitches;
+    return computePitchRows(SCALES[this.sequencer.selectedScale]);
   }
 
   /** Rebuild the entire grid DOM (called on open and scale change) */
@@ -403,22 +377,18 @@ export class PianoRoll {
     const grid = this.sequencer.getCurrentGrid();
     const noteGrid = this.sequencer.getCurrentNoteGrid();
     const row = this.currentRow;
-    const currentVel = grid[row][step];
-    const currentNote = noteGrid[row][step];
+    const action = determineCellAction(grid[row][step], noteGrid[row][step], pitch);
 
-    if (currentVel === VELOCITY_OFF) {
-      // Empty step: activate with this pitch
+    if (action === 'activate') {
       this.sequencer.setCell(row, step, VELOCITY_LOUD as VelocityLevel);
       this.sequencer.setNoteOffsetSilent(row, step, pitch);
       this.previewNote(pitch);
       return 'paint';
-    } else if (currentNote === pitch) {
-      // Same pitch: erase
+    } else if (action === 'erase') {
       this.sequencer.setCell(row, step, VELOCITY_OFF as VelocityLevel);
       this.sequencer.setNoteOffsetSilent(row, step, 0);
       return 'erase';
     } else {
-      // Different pitch: move note
       this.sequencer.setNoteOffsetSilent(row, step, pitch);
       this.previewNote(pitch);
       return 'paint';
@@ -430,26 +400,18 @@ export class PianoRoll {
     const grid = this.sequencer.getCurrentGrid();
     const noteGrid = this.sequencer.getCurrentNoteGrid();
     const row = this.currentRow;
-    const currentVel = grid[row][step];
-    const currentNote = noteGrid[row][step];
+    const action = getDragEffect(this.dragMode, grid[row][step], noteGrid[row][step], pitch);
 
-    if (this.dragMode === 'paint') {
-      if (currentVel === VELOCITY_OFF) {
-        // Activate step with this pitch
-        this.sequencer.setCell(row, step, VELOCITY_LOUD as VelocityLevel);
-        this.sequencer.setNoteOffsetSilent(row, step, pitch);
-        this.previewNote(pitch);
-      } else if (currentNote !== pitch) {
-        // Move existing note to this pitch
-        this.sequencer.setNoteOffsetSilent(row, step, pitch);
-        this.previewNote(pitch);
-      }
-    } else {
-      // Erase mode
-      if (currentVel !== VELOCITY_OFF && currentNote === pitch) {
-        this.sequencer.setCell(row, step, VELOCITY_OFF as VelocityLevel);
-        this.sequencer.setNoteOffsetSilent(row, step, 0);
-      }
+    if (action === 'activate') {
+      this.sequencer.setCell(row, step, VELOCITY_LOUD as VelocityLevel);
+      this.sequencer.setNoteOffsetSilent(row, step, pitch);
+      this.previewNote(pitch);
+    } else if (action === 'move') {
+      this.sequencer.setNoteOffsetSilent(row, step, pitch);
+      this.previewNote(pitch);
+    } else if (action === 'erase') {
+      this.sequencer.setCell(row, step, VELOCITY_OFF as VelocityLevel);
+      this.sequencer.setNoteOffsetSilent(row, step, 0);
     }
   }
 

@@ -6,9 +6,9 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 
 ## Current State
 
-- **87 TypeScript files, 28 CSS files, ~16,500 lines of code**
-- **Latest round**: Round 22 — Bank-State Extraction + MIDI/Scene Tests
-- **Test suite**: Vitest with 191 tests across 14 files (~280ms runtime)
+- **90 TypeScript files, 28 CSS files, ~16,800 lines of code**
+- **Latest round**: Round 23 — App.ts Extraction + Scheduler Tests
+- **Test suite**: Vitest with 225 tests across 16 files (~280ms runtime)
 - **CI**: `npm run lint` + `npm test` run before Docker build in GitHub Actions (test -> build-and-push -> deploy)
 - **ESLint**: Flat config with TypeScript plugin, zero violations
 
@@ -38,6 +38,7 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 20 | Refactor: extract GridEventManager from grid.ts, density randomizer, 41 sequencer tests (106 total), CI test integration |
 | 21 | Lint CI, MIDI CC router extraction from app.ts, cross-bank undo tests, PRNG tests (162 total) |
 | 22 | Extract BankStateManager from sequencer.ts, MIDI learn tests (12), mute scenes tests (7), bank-state tests (10) — 191 total |
+| 23 | Extract audio-sync.ts + state-restorer.ts from app.ts (~180 lines out), scheduler tests (20), piano-state extraction + tests (14) — 225 total |
 
 ### Known Gaps
 
@@ -54,6 +55,9 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **Testing**: Vitest, node environment, colocated `*.test.ts` files. CI gate (lint + test) before deploy
 - **MIDI CC routing**: Extracted to `src/midi/midi-cc-router.ts` — standalone function, testable with mocks
 - **Bank state**: Extracted to `src/sequencer/bank-state.ts` — `BankStateManager` owns all 16 per-bank arrays. Sequencer delegates storage to it, retains public API + event emission
+- **Audio sync**: Extracted to `src/audio/audio-sync.ts` — event→audioEngine wiring for volume, pan, sends, soundParams, bank/clear resync
+- **State restoration**: Extracted to `src/state/state-restorer.ts` — URL hash + localStorage + IndexedDB sample buffer restore
+- **Piano roll state**: Pure logic extracted to `src/ui/piano-state.ts` — pitch row computation, cell action determination, drag effects
 
 See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 
@@ -80,46 +84,140 @@ See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 - **Keyboard shortcuts**: Must update both `keyboard-shortcuts.ts` AND `help-overlay.ts` sections array
 - **BankStateManager fields are `readonly` arrays**: The arrays themselves can be mutated (elements reassigned), but the array references are stable — sequencer accesses them via `this.bs.grids[bank]` etc.
 
-## Round 23 Plan
+## Round 23 Summary
 
 ### Theme: App.ts Extraction + Scheduler Tests
 
-### Step 1: Extract state restoration from app.ts (~80 lines)
-**New file**: `src/state/state-restorer.ts`
+**Completed:**
+1. **audio-sync.ts** (44 lines) — Extracted event→audioEngine wiring from app.ts. Deduplicates bank:changed / grid:cleared resync into `resyncAllRows` helper
+2. **state-restorer.ts** (193 lines) — Extracted URL hash + localStorage restore from app.ts. `restoreAppState()` + `restoreSampleBuffers()` with dependency injection via `StateRestorerDeps` interface
+3. **scheduler.test.ts** (20 tests) — Tests for `checkCondition` (8), `applySwing` (4), `midiNoteClamp` (5), scheduling math (3). Exported 3 pure helpers from scheduler.ts
+4. **piano-state.ts** (78 lines) + **piano-state.test.ts** (14 tests) — Extracted `computePitchRows`, `determineCellAction`, `getDragEffect` from piano-roll.ts
 
-App.ts has scattered state restoration logic (URL hash → localStorage → IndexedDB samples → MIDI mappings). Consolidate into:
-- `restoreState(sequencer, audioEngine, sampleEngine, midiLearn)` — orchestrates full restore
-- Handles URL hash decoding, localStorage fallback, sample buffer restore, MIDI mapping restore
-- Returns what was restored for UI feedback
+**app.ts**: 583 → 403 lines (-180)
 
-### Step 2: Extract audio sync handlers from app.ts (~100 lines)
-**New file**: `src/audio/audio-sync.ts`
+## Round 24 Plan
 
-App.ts has ~100 lines of event→audioEngine sync handlers (volume, pan, sends, filter locks, sidechain). Extract:
-- `wireAudioSync(sequencer, audioEngine, sampleEngine)` — registers all event listeners
-- Pure wiring, no state
+### Theme: Pattern Snapshot Extraction + Pure Logic Tests + MIDI Clock Tests
 
-### Step 3: Scheduler condition/swing tests (~20 tests)
-**New file**: `src/audio/scheduler.test.ts`
+**Goal**: Extract pattern snapshot capture/load from app.ts (~78 lines), add tests for 4 untested pure-logic modules, bring test count from 225 → ~270. app.ts drops from ~403 to ~325 lines.
 
-The scheduler (273 lines) has untested core logic:
-- Swing timing calculation
-- Humanize offset application
-- Trig condition evaluation (every-N, probability-based)
-- Ratchet sub-step timing
-- Row length wrapping
+---
 
-### Step 4: Piano roll state extraction
-**New file**: `src/ui/piano-state.ts` (~150 lines)
-**New file**: `src/ui/piano-state.test.ts` (~10 tests)
+### Step 1: Extract pattern snapshot — `src/state/pattern-snapshot.ts`
 
-### Step 5: Update docs
+Lines 143-220 of app.ts are self-contained capture/load logic used only by PatternLibrary. Extract:
 
-### Verification
-1. `npm run lint` — zero violations
-2. `npx tsc --noEmit` — compiles clean
-3. `npm test` — all tests pass
-4. `npm run build` — production build succeeds
+```typescript
+export function captureSnapshot(sequencer: Sequencer, audioEngine: AudioEngine, getDelayDivisionIndex: () => number): PatternData
+export function loadSnapshot(data: PatternData, sequencer: Sequencer, audioEngine: AudioEngine, effectsPanel?: { setDelayDivisionIndex(i: number): void; refresh(ae: AudioEngine, s: Sequencer): void }): void
+```
+
+Handles NaN↔null conversion for filterLocks and automationData. `loadSnapshot` restores all global state (scale, sidechain, soundParams, saturation, EQ, delay division).
+
+**app.ts changes**: Replace lines 143-220 with two import calls. Removes `DELAY_DIVISIONS` import from app.ts.
+
+---
+
+### Step 2: Math utility tests — `src/utils/math.test.ts`
+
+**Target**: `src/utils/math.ts` (17 lines, 3 pure functions, zero deps)
+
+| Test group | Tests | What's tested |
+|-----------|-------|---------------|
+| `clamp` | 4 | Within range, below min, above max, equal to bounds |
+| `lerp` | 4 | t=0, t=1, t=0.5, t beyond 0-1 |
+| `scale` | 4 | Identity mapping, reversed range, zero-width input, typical use |
+
+~12 tests.
+
+---
+
+### Step 3: Step clipboard tests — `src/sequencer/step-clipboard.test.ts`
+
+**Target**: `src/sequencer/step-clipboard.ts` (50 lines, pure stateful class)
+
+| Test group | Tests | What's tested |
+|-----------|-------|---------------|
+| `copy/paste` | 3 | Empty clipboard returns null, copy then paste returns deep clone, paste twice returns independent copies |
+| `hasData/sourceStep` | 2 | Initially false/-1, set after copy |
+| `deep clone` | 2 | Mutating original doesn't affect clipboard, mutating paste result doesn't affect clipboard |
+| `automationData` | 2 | Copy with automation, copy without automation (undefined) |
+
+~9 tests.
+
+---
+
+### Step 4: MIDI clock tests — `src/midi/midi-clock.test.ts`
+
+**Target**: `src/midi/midi-clock.ts` (101 lines). The BPM derivation logic and clock byte handling are testable with mocks.
+
+Extract BPM derivation as a pure helper:
+```typescript
+export function deriveBpmFromClockTimes(times: number[]): number | null
+```
+
+| Test group | Tests | What's tested |
+|-----------|-------|---------------|
+| `deriveBpmFromClockTimes` | 4 | Too few samples returns null, 120 BPM intervals, 90 BPM intervals, out-of-range BPM returns null |
+| `handleClockByte` | 5 | 0xF8 accumulates times, 0xFA starts transport, 0xFC stops transport, ignores when not in receive mode, buffer capped at 48 |
+| `setMode` | 2 | Clears received times, stops send timer |
+
+~11 tests.
+
+---
+
+### Step 5: MIDI input tests — `src/midi/midi-input.test.ts`
+
+**Target**: `src/midi/midi-input.ts` (45 lines). Note→row mapping is a pure lookup.
+
+Extract the note map:
+```typescript
+export const DEFAULT_NOTE_MAP: ReadonlyMap<number, number>
+```
+
+| Test group | Tests | What's tested |
+|-----------|-------|---------------|
+| `DEFAULT_NOTE_MAP` | 4 | GM drum notes (36→0, 38→1, 42→2, 39→3), direct octave (48-55), drum pad alt (24-31), unmapped note returns undefined |
+| `handleNote` | 3 | Triggers audio at correct row, normalizes velocity (127→1.0, 64→~0.5), ignores unmapped notes |
+
+~7 tests.
+
+---
+
+### Step 6: Update docs
+
+- **HANDOFF.md**: Add Round 24 row, update line/test counts
+- **CLAUDE.md**: Add `pattern-snapshot.ts` to architecture tree, note exported MIDI helpers
+
+---
+
+### Implementation Order
+
+1. `src/state/pattern-snapshot.ts` + app.ts update (extraction)
+2. `src/utils/math.test.ts` (quickest, zero deps)
+3. `src/sequencer/step-clipboard.test.ts` (pure stateful class)
+4. `src/midi/midi-clock.ts` refactor + `src/midi/midi-clock.test.ts`
+5. `src/midi/midi-input.ts` refactor + `src/midi/midi-input.test.ts`
+6. Docs update
+
+Verify after each step: `npx tsc --noEmit`
+Final: `npm run lint && npx tsc --noEmit && npm test && npm run build`
+
+---
+
+### Key Files
+
+| File | Role |
+|------|------|
+| `src/ui/app.ts` | Pattern snapshot extraction source (~78 lines moving out) |
+| `src/utils/math.ts` | 3 pure functions — clamp, lerp, scale |
+| `src/sequencer/step-clipboard.ts` | Pure stateful copy/paste clipboard |
+| `src/midi/midi-clock.ts` | MIDI clock sync — extract BPM derivation helper |
+| `src/midi/midi-input.ts` | MIDI note→instrument mapping — export note map |
+| `src/state/pattern-library-storage.ts` | PatternData type definition used by pattern-snapshot |
+
+---
 
 ## Key Files to Start With
 
@@ -144,6 +242,6 @@ npm run dev        # Start dev server (port 5173)
 npm run build      # Type-check + build for production
 npx tsc --noEmit   # Type-check only
 npm run lint       # ESLint (zero violations)
-npm test           # Run Vitest test suite (191 tests)
+npm test           # Run Vitest test suite (225 tests)
 npm run test:watch # Run tests in watch mode
 ```

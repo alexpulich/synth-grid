@@ -4,7 +4,7 @@ import type { MidiOutput } from '../midi/midi-output';
 import { NUM_STEPS, VELOCITY_MAP, GATE_LEVELS, MELODIC_ROWS } from '../types';
 import { eventBus } from '../utils/event-bus';
 
-function checkCondition(condIndex: number, loopCount: number): boolean {
+export function checkCondition(condIndex: number, loopCount: number): boolean {
   switch (condIndex) {
     case 1: return loopCount % 2 === 0;       // 1:2
     case 2: return loopCount % 2 === 1;       // 2:2
@@ -13,6 +13,19 @@ function checkCondition(condIndex: number, loopCount: number): boolean {
     case 5: return loopCount > 0;             // !1
     default: return true;
   }
+}
+
+/** Apply swing offset to odd-numbered steps */
+export function applySwing(baseTime: number, rowStep: number, swingAmount: number, stepDuration: number): number {
+  if (rowStep % 2 === 1) {
+    return baseTime + swingAmount * stepDuration;
+  }
+  return baseTime;
+}
+
+/** Clamp a MIDI note (baseNote + pitch) to valid 0-127 range */
+export function midiNoteClamp(baseNote: number, totalPitch: number): number {
+  return Math.max(0, Math.min(127, Math.round(baseNote + totalPitch)));
 }
 
 export class Scheduler {
@@ -118,10 +131,7 @@ export class Scheduler {
           const gateLevel = gates[row][rowStep] ?? 1;
           const gateDuration = stepDuration * GATE_LEVELS[gateLevel];
 
-          let triggerTime = time;
-          if (rowStep % 2 === 1) {
-            triggerTime += rowSwings[row] * stepDuration;
-          }
+          let triggerTime = applySwing(time, rowStep, rowSwings[row], stepDuration);
 
           let glideFrom: number | undefined;
           if (MELODIC_ROWS.includes(row as typeof MELODIC_ROWS[number]) && slides[row][rowStep]) {
@@ -233,7 +243,7 @@ export class Scheduler {
     const cfg = this.sequencer.getMidiOutputConfig(row);
     if (!cfg.enabled) return;
 
-    const midiNote = Math.max(0, Math.min(127, Math.round(cfg.baseNote + totalPitch)));
+    const midiNote = midiNoteClamp(cfg.baseNote, totalPitch);
     const delayMs = Math.max(0, (triggerTime - ctxTime) * 1000);
     const gateMs = gateDuration * 1000;
 
