@@ -1,6 +1,10 @@
 const CACHE_NAME = 'synth-grid-v1';
+const OFFLINE_URL = '/offline.html';
 
-self.addEventListener('install', () => {
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.add(OFFLINE_URL)),
+  );
   self.skipWaiting();
 });
 
@@ -36,10 +40,20 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first for HTML and other resources
+  // Network-first for navigation, fall back to cached page or offline.html
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request)),
+      fetch(event.request)
+        .then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          return response;
+        })
+        .catch(() =>
+          caches.match(event.request).then(
+            (cached) => cached || caches.match(OFFLINE_URL),
+          ),
+        ),
     );
     return;
   }

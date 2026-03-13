@@ -7,8 +7,8 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 ## Current State
 
 - **98 TypeScript source files (+30 test files), 28 CSS files, ~16,500 lines of code**
-- **Latest round**: Round 29 — MIDI Message Parsing + Factory Preset Validation
-- **Test suite**: Vitest with 430 tests across 35 files (~760ms runtime)
+- **Latest round**: Round 30 — Final Polish
+- **Test suite**: Vitest with 438 tests across 36 files (~760ms runtime)
 - **CI**: `npm run lint` + `npm test` run before Docker build in GitHub Actions (test -> build-and-push -> deploy)
 - **ESLint**: Flat config with TypeScript plugin, zero violations
 
@@ -45,10 +45,10 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 27 | Randomizer tests (13), toast-wiring tests (7), midi-wiring tests (9), sample-manager tests (8), extract visual-wiring.ts from app.ts — 366 total |
 | 28 | Visual-wiring tests (8), theme-utils extraction + tests (8), keyboard-action extraction + tests (20), theme swatch gap resolved — 402 total |
 | 29 | MIDI message parsing extraction + tests (16), factory preset validation tests (12), midi-manager/midi-output refactored to use shared builders — 430 total |
+| 30 | Final polish: preset validation tests (8), favicon, offline fallback (sw.js + offline.html), README update, toast a11y gap resolved — 438 total |
 
 ### Known Gaps
 
-- Toast `role="status"` container created lazily — screen readers won't see it until first toast
 - Test coverage limited to pure logic — no DOM/UI tests (would need jsdom)
 
 ## Architecture Quick Reference
@@ -189,39 +189,18 @@ See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 
 **Test count**: 402 → 430 (+28 tests across 2 new test files)
 
-## Suggestions for Round 30
+## Round 30 Summary
 
-### Codebase Status
+### Theme: Final Polish
 
-- **app.ts** (228 lines, stable) — Mostly DOM construction + initialization wiring. Only extractable block: factory preset seeding (~15 lines, diminishing returns)
-- **All extracted modules tested** — audio-sync, state-restorer, pattern-snapshot, sample-manager, midi-wiring, toast-wiring, visual-wiring all have test coverage
-- **Pure logic extraction complete** — keyboard-action, piano-state, theme-utils, all scheduler/clock helpers extracted and tested
-- **Test coverage**: 33/97 source files (34%) have tests. Remaining untested files are mostly DOM/Web Audio/Canvas-dependent
+**Completed:**
+1. **presets.test.ts** (8 tests) — Validates PRESETS array: count, non-empty/unique names, grid dimensions (8×16), valid velocities (0-3), active cells, kick row active, integer values
+2. **Favicon** — Added `<link rel="icon" type="image/svg+xml">` to index.html reusing existing icon-192.svg
+3. **Offline fallback** — Created `public/offline.html` (dark-themed, retry button). Updated `public/sw.js` to pre-cache offline.html on install, cache HTML on successful navigation, fall back to offline.html on navigation failure
+4. **README.md** — Updated to reflect current feature set (samples, MIDI, automation, piano roll, PWA, etc.)
+5. **Toast a11y gap resolved** — `ensureToastContainer()` already called at app.ts:61; removed stale known gap from HANDOFF.md
 
-### Viable Directions
-
-**Option A: MIDI Message Parsing Extraction (~15 tests)**
-- Extract `parseMidiMessage(data: Uint8Array)` from `MidiManager.handleMessage()` — pure function returning `{type, channel, note?, velocity?, cc?, value?}`
-- Extract MIDI message encoding helpers from `MidiOutput` (`buildNoteOn`, `buildNoteOff`, `buildCC`, `buildClock`) — pure byte-array builders
-- Tests: note-on/off parsing, CC parsing, system real-time detection, velocity-0-as-note-off, encoding bit masking, channel clamping
-- Low risk, self-contained pure logic
-
-**Option B: Factory Preset Validation Tests (~12 tests)**
-- Test `FACTORY_PRESETS` data generators in `data/factory-presets.ts` — verify grid dimensions, velocity ranges, tempo bounds, required fields
-- Test `defaultData()` helper (correct array dimensions, default values)
-- No extraction needed — functions are already exported/exportable
-- Tests ensure presets don't silently break when types change
-
-**Option C: New User-Facing Feature**
-- Pattern export/import via JSON file (download + drag-and-drop load)
-- Undo toast (brief notification showing what was undone, with redo shortcut hint)
-- Swing visualization (subtle per-row offset indicators in the grid)
-- A/B comparison mode (quick-switch between two banks with visual diff)
-
-**Option D: Accessibility Improvements**
-- ARIA live regions for toast (fix known gap: `role="status"` container created lazily)
-- Screen reader announcements for transport state changes
-- Keyboard-navigable theme switcher and effects panel
+**Test count**: 430 → 438 (+8 tests in 1 new test file)
 
 ## Key Files to Start With
 
@@ -246,6 +225,6 @@ npm run dev        # Start dev server (port 5173)
 npm run build      # Type-check + build for production
 npx tsc --noEmit   # Type-check only
 npm run lint       # ESLint (zero violations)
-npm test           # Run Vitest test suite (430 tests)
+npm test           # Run Vitest test suite (438 tests)
 npm run test:watch # Run tests in watch mode
 ```

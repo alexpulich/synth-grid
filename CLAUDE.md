@@ -8,7 +8,7 @@ Browser-based visual music step sequencer. Zero runtime dependencies — vanilla
 npm run dev        # Start dev server (port 5173)
 npm run build      # Type-check + build for production
 npx tsc --noEmit   # Type-check only
-npm test           # Run Vitest test suite (430 tests, ~760ms)
+npm test           # Run Vitest test suite (438 tests, ~760ms)
 npm run test:watch # Run tests in watch mode
 ```
 
