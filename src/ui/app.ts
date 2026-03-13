@@ -23,9 +23,8 @@ import { MidiClock } from '../midi/midi-clock';
 import { ParticleSystem } from '../visuals/particle-system';
 import { WaveformVisualizer } from '../visuals/waveform-visualizer';
 import { ReactiveBackground } from '../visuals/reactive-background';
-import { INSTRUMENTS } from '../audio/instruments';
 import { eventBus } from '../utils/event-bus';
-import { NUM_ROWS } from '../types';
+import { wireVisuals } from './visual-wiring';
 import { AutoSave } from '../state/local-storage';
 import { SampleStorage } from '../state/sample-storage';
 import { restoreAppState, restoreSampleBuffers } from '../state/state-restorer';
@@ -177,33 +176,7 @@ export class AppUI {
     // Wire mixer/sound params/bank sync to audio engine
     wireAudioSync(sequencer, audioEngine);
 
-    // Wire particle bursts to cell triggers (per-row step for polyrhythm)
-    eventBus.on('step:advance', (step) => {
-      const grid = sequencer.getCurrentGrid();
-      const rowLengths = sequencer.getCurrentRowLengths();
-      for (let row = 0; row < NUM_ROWS; row++) {
-        const rowLen = rowLengths[row] ?? 16;
-        const rowStep = step % rowLen;
-        if (grid[row][rowStep] > 0 && sequencer.muteState.isRowAudible(row)) {
-          const rect = this.gridUI.getCellRect(row, rowStep);
-          this.particles.burst(
-            rect.left + rect.width / 2,
-            rect.top + rect.height / 2,
-            INSTRUMENTS[row].color,
-          );
-        }
-      }
-    });
-
-    // Wake visualizer on play
-    eventBus.on('transport:play', () => {
-      this.visualizer.wake();
-    });
-
-    // Wire transport stop to clear playhead
-    eventBus.on('transport:stop', () => {
-      this.gridUI.clearPlayhead();
-    });
+    wireVisuals(this.gridUI, this.particles, this.visualizer, sequencer);
 
     wireNotifications();
 

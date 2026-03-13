@@ -3,7 +3,7 @@ import { NUM_ROWS, NUM_STEPS, VELOCITY_OFF, VELOCITY_LOUD, VELOCITY_MEDIUM } fro
 import type { VelocityLevel } from '../types';
 
 // Bjorklund / Euclidean rhythm algorithm
-function euclidean(steps: number, pulses: number): boolean[] {
+export function euclidean(steps: number, pulses: number): boolean[] {
   if (pulses >= steps) return new Array(steps).fill(true);
   if (pulses <= 0) return new Array(steps).fill(false);
 

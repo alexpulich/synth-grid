@@ -7,8 +7,8 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 ## Current State
 
 - **94 TypeScript source files (+26 test files), 28 CSS files, ~16,200 lines of code**
-- **Latest round**: Round 26 — MIDI Wiring Extraction + Toast Wiring + State Restorer & Audio Sync & Voice Pool Tests
-- **Test suite**: Vitest with 329 tests across 26 files (~500ms runtime)
+- **Latest round**: Round 27 — Extracted Module Tests + Visual Wiring Extraction
+- **Test suite**: Vitest with 366 tests across 30 files (~600ms runtime)
 - **CI**: `npm run lint` + `npm test` run before Docker build in GitHub Actions (test -> build-and-push -> deploy)
 - **ESLint**: Flat config with TypeScript plugin, zero violations
 
@@ -42,6 +42,7 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 24 | Extract pattern-snapshot.ts from app.ts (~75 lines out), math tests (12), step-clipboard tests (9), MIDI clock refactor + tests (11), MIDI input tests (7) — 264 total |
 | 25 | Extract sample-manager.ts + createBitcrushCurve from app.ts/performance-fx.ts, pattern-snapshot tests (16), local-storage tests (10), bitcrush tests (7) — 297 total |
 | 26 | Extract midi-wiring.ts + toast-wiring.ts from app.ts, state-restorer tests (16), audio-sync tests (8), voice-pool tests (8) — 329 total |
+| 27 | Randomizer tests (13), toast-wiring tests (7), midi-wiring tests (9), sample-manager tests (8), extract visual-wiring.ts from app.ts — 366 total |
 
 ### Known Gaps
 
@@ -66,6 +67,7 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **Bitcrush curve**: `createBitcrushCurve()` exported from `performance-fx.ts` — standalone pure function for WaveShaperNode staircase curve
 - **MIDI wiring**: Extracted to `src/midi/midi-wiring.ts` — wireMidi() connects midiManager callbacks to midiInput/midiLearn/midiClock + CC router
 - **Toast wiring**: Extracted to `src/ui/toast-wiring.ts` — wireNotifications() connects eventBus bank/grid/MIDI events to showToast
+- **Visual wiring**: Extracted to `src/ui/visual-wiring.ts` — wireVisuals() connects particle bursts, visualizer wake, playhead clear to transport events
 - **MIDI helpers**: `deriveBpmFromClockTimes` exported from midi-clock.ts, `DEFAULT_NOTE_MAP` exported from midi-input.ts
 
 See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
@@ -143,26 +145,31 @@ See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 
 **app.ts**: 280 → 255 lines (-25)
 
-## Suggestions for Round 27
+## Round 27 Summary
 
-### app.ts Status (255 lines)
+### Theme: Extracted Module Tests + Visual Wiring Extraction
 
-What remains in app.ts is mostly **DOM construction** (header, controls row, grid container — lines 61-157) and **UI-specific event wiring** that references `this.gridUI`/`this.particles`/`this.visualizer` (lines 180-208). These are harder to extract without introducing awkward parameter passing or losing the benefit of closure over `this`.
+**Completed:**
+1. **randomizer.test.ts** (13 tests) — Exported `euclidean` for direct testing. Tests for euclidean algorithm (hit count, edge cases, distribution), randomizeGrid (dimensions, velocity levels, density profiles, determinism)
+2. **toast-wiring.test.ts** (7 tests) — Tests for wireNotifications: bank queued/copied/pasted toasts, grid:cleared toast, MIDI device change toasts, null/empty guard paths
+3. **midi-wiring.test.ts** (9 tests) — Tests for wireMidi: onNote→midiInput, onCC→midiLearn, onClock→midiClock delegation, undefined midiClock path, createMidiCCRouter integration, argument forwarding
+4. **sample-manager.test.ts** (8 tests) — Tests for wireSampleManager: load-request (success/full/decode-error), sample:removed, sample:mode-toggled, sample:meta-changed (with/without buffer/record)
+5. **visual-wiring.ts** (40 lines) — Extracted `wireVisuals()` from app.ts: particle bursts on step:advance, visualizer wake on transport:play, playhead clear on transport:stop
 
-**Remaining extractable blocks:**
-- Lines 180-206: Visual event wiring (particle bursts on step:advance, visualizer wake on transport:play, playhead clear on transport:stop) — ~27 lines. Could become `wireVisuals(gridUI, particles, visualizer, sequencer)` in a new `ui/visual-wiring.ts`
-- Lines 231-245: Pattern library factory preset seeding — ~15 lines. Could become `seedFactoryPresets(storage)` in `state/pattern-library-storage.ts` or a helper
+**app.ts**: 255 → 228 lines (-27)
 
-**At 255 lines, app.ts is already lean.** Further extraction has diminishing returns. Consider shifting focus to new features, test coverage for existing extracted modules, or other improvements.
+## Suggestions for Round 28
 
-### Untested Extracted Modules (good test candidates)
+### app.ts Status (228 lines)
 
-| File | Lines | Testability |
-|------|-------|-------------|
-| `midi-wiring.ts` | 29 | High — mock midiManager/midiInput/midiLearn/midiClock, verify callback wiring |
-| `toast-wiring.ts` | 17 | High — mock eventBus + showToast, verify toast messages |
-| `sample-manager.ts` | 58 | Medium — async event handlers with IndexedDB mocks, 4 event paths |
-| `data/randomizer.ts` | 81 | High — `randomizeGrid()` returns Grid, verify dimensions + density profiles |
+What remains in app.ts is mostly **DOM construction** (header, controls row, grid container — lines 61-157) and **initialization wiring** (MIDI setup, auto-save, state restore, pattern library). At 228 lines, further extraction has strongly diminishing returns.
+
+**Remaining extractable block:**
+- Lines 203-217: Pattern library factory preset seeding — ~15 lines. Could become `seedFactoryPresets(storage)` in `state/pattern-library-storage.ts`
+
+### All Extracted Modules Now Tested
+
+All modules extracted from app.ts in Rounds 22-27 now have test coverage: audio-sync, state-restorer, pattern-snapshot, sample-manager, midi-wiring, toast-wiring, and visual-wiring (extracted this round).
 
 ### Other Directions
 
@@ -193,6 +200,6 @@ npm run dev        # Start dev server (port 5173)
 npm run build      # Type-check + build for production
 npx tsc --noEmit   # Type-check only
 npm run lint       # ESLint (zero violations)
-npm test           # Run Vitest test suite (329 tests)
+npm test           # Run Vitest test suite (366 tests)
 npm run test:watch # Run tests in watch mode
 ```
