@@ -30,11 +30,12 @@ import { AutoSave } from '../state/local-storage';
 import { SampleStorage } from '../state/sample-storage';
 import { restoreAppState, restoreSampleBuffers } from '../state/state-restorer';
 import { ScaleSelector } from './scale-selector';
-import { createMidiCCRouter } from '../midi/midi-cc-router';
 import { captureSnapshot, loadSnapshot } from '../state/pattern-snapshot';
 import { wireAudioSync } from '../audio/audio-sync';
 import { wireSampleManager } from '../audio/sample-manager';
-import { showToast, ensureContainer as ensureToastContainer } from './toast';
+import { ensureContainer as ensureToastContainer } from './toast';
+import { wireMidi } from '../midi/midi-wiring';
+import { wireNotifications } from './toast-wiring';
 import { CellTooltip } from './cell-tooltip';
 import { ShortcutHints } from './shortcut-hints';
 import { OnboardingTour } from './onboarding-tour';
@@ -164,20 +165,7 @@ export class AppUI {
     if (midiClock) transport.setMidiClock(midiClock);
     new MidiPanel(controlsRow, midiManager, midiLearn, midiOutput, midiClock, sequencer);
 
-    midiManager.onNote((note, velocity, channel) => {
-      midiInput.handleNote(note, velocity, channel);
-    });
-    midiManager.onCC((cc, value, channel) => {
-      midiLearn.handleCC(cc, value, channel);
-    });
-    if (midiClock) {
-      midiManager.onClock((status) => {
-        midiClock.handleClockByte(status);
-      });
-    }
-
-    // MIDI CC target application
-    midiLearn.onApply(createMidiCCRouter(audioEngine, sequencer));
+    wireMidi(midiManager, midiInput, midiLearn, midiClock, audioEngine, sequencer);
 
     // Initialize MIDI (async, non-blocking)
     midiManager.init().then(() => {
@@ -217,20 +205,7 @@ export class AppUI {
       this.gridUI.clearPlayhead();
     });
 
-    // Toast notifications for bank queue, copy/paste, and MIDI
-    const bankNames = ['A', 'B', 'C', 'D'];
-    eventBus.on('bank:queued', (bank) => {
-      if (bank !== null) showToast(`Bank ${bankNames[bank]} queued`);
-    });
-    eventBus.on('bank:copied', (bank) => showToast(`Pattern ${bankNames[bank]} copied`, 'success'));
-    eventBus.on('bank:pasted', (bank) => showToast(`Pattern pasted to ${bankNames[bank]}`, 'success'));
-    eventBus.on('grid:cleared', () => showToast('Bank cleared'));
-
-    eventBus.on('midi:devices-changed', (devices) => {
-      if (devices.length > 0) {
-        showToast(`MIDI: ${devices.map((d) => d.name).join(', ')}`);
-      }
-    });
+    wireNotifications();
 
     // Sample storage (IndexedDB) + sample event wiring
     const sampleStorage = new SampleStorage();

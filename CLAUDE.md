@@ -8,7 +8,7 @@ Browser-based visual music step sequencer. Zero runtime dependencies — vanilla
 npm run dev        # Start dev server (port 5173)
 npm run build      # Type-check + build for production
 npx tsc --noEmit   # Type-check only
-npm test           # Run Vitest test suite (297 tests, ~500ms)
+npm test           # Run Vitest test suite (329 tests, ~500ms)
 npm run test:watch # Run tests in watch mode
 ```
 
@@ -52,6 +52,7 @@ src/
     automation-lane.ts       # Per-row collapsible automation strip (Vol/Pan/Flt/Rev/Del)
     cell-context-menu.ts     # Right-click context menu: all 8 cell data layers
     cell-tooltip.ts          # Hover tooltip for active cells — badge-based display
+    toast-wiring.ts          # wireNotifications(): eventBus→showToast for bank/grid/MIDI events
     touch-toolbar.ts         # Floating toolbar for touch — FAB toggle edit mode
     toast.ts                 # Singleton showToast(message, type?) — auto-dismissing (3s, max 3)
     help-overlay.ts          # ? button + searchable shortcut reference
@@ -65,6 +66,7 @@ src/
     midi-input.ts            # MIDI note -> instrument triggering (GM drum + octave mappings). Exports DEFAULT_NOTE_MAP
     midi-learn.ts            # CC learn mode: arm -> capture -> assign
     midi-output.ts           # Web MIDI output port management
+    midi-wiring.ts           # wireMidi(): midiManager→midiInput/midiLearn/midiClock callback wiring + CC router
     midi-clock.ts            # MIDI clock send (24ppqn) and receive (BPM derivation). Exports deriveBpmFromClockTimes
   visuals/                   # Canvas-based: particles, waveform, reactive background
   utils/
