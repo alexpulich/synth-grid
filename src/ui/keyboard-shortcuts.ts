@@ -9,15 +9,7 @@ import type { PatternLibrary } from './pattern-library';
 import type { MuteScenes } from '../sequencer/mute-scenes';
 import type { MuteScenesUI } from './mute-scenes-ui';
 import { showToast } from './toast';
-
-type FxName = 'tapestop' | 'stutter' | 'bitcrush' | 'reverbwash';
-
-const FX_KEY_MAP: Record<string, FxName> = {
-  F1: 'tapestop',
-  F2: 'stutter',
-  F3: 'bitcrush',
-  F4: 'reverbwash',
-};
+import { resolveKeyAction, FX_KEY_MAP } from './keyboard-action';
 
 export class KeyboardShortcuts {
   constructor(
@@ -42,117 +34,99 @@ export class KeyboardShortcuts {
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
 
-    // Performance FX: F1-F4 engage on keydown
-    const fx = FX_KEY_MAP[e.key];
-    if (fx && this.performanceFX) {
-      e.preventDefault();
-      this.performanceFX.engage(fx);
-      return;
-    }
-
     const modKey = e.metaKey || e.ctrlKey;
+    const action = resolveKeyAction(e.code, e.key, modKey, e.shiftKey, e.altKey);
+    if (!action) return;
 
-    // Undo: Ctrl/Cmd+Z
-    if (modKey && !e.shiftKey && e.code === 'KeyZ') {
-      e.preventDefault();
-      this.sequencer.undo();
-      return;
-    }
-
-    // Redo: Ctrl/Cmd+Shift+Z
-    if (modKey && e.shiftKey && e.code === 'KeyZ') {
-      e.preventDefault();
-      this.sequencer.redo();
-      return;
-    }
-
-    // Copy bank: Ctrl/Cmd+C
-    if (modKey && e.code === 'KeyC') {
-      e.preventDefault();
-      this.sequencer.copyBank();
-      return;
-    }
-
-    // Paste bank: Ctrl/Cmd+V
-    if (modKey && e.code === 'KeyV') {
-      e.preventDefault();
-      this.sequencer.pasteBank();
-      return;
-    }
-
-    // Help: ? (Shift+/)
-    if (e.code === 'Slash' && e.shiftKey && this.helpOverlay) {
-      e.preventDefault();
-      this.helpOverlay.toggle();
-      return;
-    }
-
-    // Mute scenes: Alt+1-8 recall, Shift+Alt+1-8 save
-    if (e.altKey && this.muteScenes && this.muteScenesUI) {
-      const digitMatch = e.code.match(/^Digit([1-8])$/);
-      if (digitMatch) {
-        e.preventDefault();
-        const sceneIndex = parseInt(digitMatch[1]) - 1;
-        if (e.shiftKey) {
-          this.muteScenesUI.saveToScene(sceneIndex);
-        } else {
-          this.muteScenesUI.recallScene(sceneIndex);
+    switch (action.type) {
+      case 'fx-engage':
+        if (this.performanceFX) {
+          e.preventDefault();
+          this.performanceFX.engage(action.fx);
         }
-        return;
-      }
-    }
-
-    switch (e.code) {
-      case 'Space':
+        break;
+      case 'undo':
+        e.preventDefault();
+        this.sequencer.undo();
+        break;
+      case 'redo':
+        e.preventDefault();
+        this.sequencer.redo();
+        break;
+      case 'copy-bank':
+        e.preventDefault();
+        this.sequencer.copyBank();
+        break;
+      case 'paste-bank':
+        e.preventDefault();
+        this.sequencer.pasteBank();
+        break;
+      case 'help':
+        if (this.helpOverlay) {
+          e.preventDefault();
+          this.helpOverlay.toggle();
+        }
+        break;
+      case 'mute-scene-recall':
+        if (this.muteScenes && this.muteScenesUI) {
+          e.preventDefault();
+          this.muteScenesUI.recallScene(action.index);
+        }
+        break;
+      case 'mute-scene-save':
+        if (this.muteScenes && this.muteScenesUI) {
+          e.preventDefault();
+          this.muteScenesUI.saveToScene(action.index);
+        }
+        break;
+      case 'toggle-play':
         e.preventDefault();
         this.transport.toggle();
         break;
-      case 'Digit1': this.sequencer.queueBank(0); break;
-      case 'Digit2': this.sequencer.queueBank(1); break;
-      case 'Digit3': this.sequencer.queueBank(2); break;
-      case 'Digit4': this.sequencer.queueBank(3); break;
-      case 'KeyC':
+      case 'queue-bank':
+        this.sequencer.queueBank(action.index);
+        break;
+      case 'clear-bank':
         this.sequencer.clearCurrentBank();
         break;
-      case 'KeyR':
+      case 'randomize':
         if (this.onRandomize) this.onRandomize();
         break;
-      case 'KeyS':
+      case 'toggle-song-mode':
         this.sequencer.patternChain.toggleSongMode();
         break;
-      case 'KeyT':
+      case 'cycle-theme':
         if (this.themeSwitcher) this.themeSwitcher.cycle();
         break;
-      case 'BracketLeft':
+      case 'rotate-left':
         this.sequencer.rotateLeft();
         break;
-      case 'BracketRight':
+      case 'rotate-right':
         this.sequencer.rotateRight();
         break;
-      case 'KeyM':
+      case 'toggle-midi-learn':
         if (this.midiLearn) {
           if (this.midiLearn.armed) this.midiLearn.cancelLearn();
           else this.midiLearn.armLearn();
         }
         break;
-      case 'KeyK':
+      case 'toggle-metronome':
         if (this.metronomeUI) this.metronomeUI.toggle();
         break;
-      case 'KeyP':
+      case 'toggle-pattern-library':
         if (this.patternLibrary) this.patternLibrary.toggle();
         break;
-      case 'KeyN':
+      case 'toggle-midi-output':
         this.sequencer.midiOutputGlobalEnabled = !this.sequencer.midiOutputGlobalEnabled;
         showToast(this.sequencer.midiOutputGlobalEnabled ? 'MIDI output enabled' : 'MIDI output disabled');
         break;
-      case 'KeyA':
+      case 'toggle-automation':
         if (this.onToggleAutomation) this.onToggleAutomation();
         break;
     }
   };
 
   private handleKeyUp = (e: KeyboardEvent): void => {
-    // Performance FX: disengage on keyup
     const fx = FX_KEY_MAP[e.key];
     if (fx && this.performanceFX) {
       this.performanceFX.disengage(fx);

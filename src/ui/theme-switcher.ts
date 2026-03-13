@@ -1,10 +1,10 @@
 import { eventBus } from '../utils/event-bus';
+import { deriveSwatches } from './theme-utils';
 
 interface ThemeDefinition {
   id: string;
   name: string;
   vars: Record<string, string>;
-  swatches: string[]; // 4 representative colors for preview
 }
 
 const THEMES: ThemeDefinition[] = [
@@ -12,7 +12,6 @@ const THEMES: ThemeDefinition[] = [
     id: 'neon-night',
     name: 'Neon Night',
     vars: {},
-    swatches: ['#0a0a0f', '#ff3366', '#6633ff', '#00ccff'],
   },
   {
     id: 'sunset-fade',
@@ -37,7 +36,6 @@ const THEMES: ThemeDefinition[] = [
       '--knob-bg': '#2a1420',
       '--knob-track': '#442030',
     },
-    swatches: ['#1a0a14', '#ff4444', '#ff5577', '#ffaa22'],
   },
   {
     id: 'deep-ocean',
@@ -62,7 +60,6 @@ const THEMES: ThemeDefinition[] = [
       '--knob-bg': '#0c1624',
       '--knob-track': '#1a2840',
     },
-    swatches: ['#050a14', '#2288cc', '#3399ee', '#44ccaa'],
   },
   {
     id: 'phantom',
@@ -87,7 +84,6 @@ const THEMES: ThemeDefinition[] = [
       '--knob-bg': '#1a1a1a',
       '--knob-track': '#333333',
     },
-    swatches: ['#0c0c0c', '#ffffff', '#bbbbbb', '#888888'],
   },
 ];
 
@@ -117,7 +113,7 @@ export class ThemeSwitcher {
 
       const swatchesRow = document.createElement('div');
       swatchesRow.className = 'theme-card-swatches';
-      for (const color of theme.swatches) {
+      for (const color of deriveSwatches(theme.vars)) {
         const swatch = document.createElement('span');
         swatch.className = 'theme-card-swatch';
         swatch.style.background = color;

@@ -8,7 +8,7 @@ Browser-based visual music step sequencer. Zero runtime dependencies — vanilla
 npm run dev        # Start dev server (port 5173)
 npm run build      # Type-check + build for production
 npx tsc --noEmit   # Type-check only
-npm test           # Run Vitest test suite (366 tests, ~600ms)
+npm test           # Run Vitest test suite (402 tests, ~670ms)
 npm run test:watch # Run tests in watch mode
 ```
 
@@ -54,6 +54,8 @@ src/
     cell-tooltip.ts          # Hover tooltip for active cells — badge-based display
     toast-wiring.ts          # wireNotifications(): eventBus→showToast for bank/grid/MIDI events
     visual-wiring.ts         # wireVisuals(): particle bursts, visualizer wake, playhead clear on transport events
+    theme-utils.ts           # deriveSwatches(): derive theme preview swatches from CSS vars
+    keyboard-action.ts       # resolveKeyAction(): pure key→action mapping, extracted from keyboard-shortcuts.ts
     touch-toolbar.ts         # Floating toolbar for touch — FAB toggle edit mode
     toast.ts                 # Singleton showToast(message, type?) — auto-dismissing (3s, max 3)
     help-overlay.ts          # ? button + searchable shortcut reference

@@ -6,9 +6,9 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 
 ## Current State
 
-- **94 TypeScript source files (+26 test files), 28 CSS files, ~16,200 lines of code**
-- **Latest round**: Round 27 — Extracted Module Tests + Visual Wiring Extraction
-- **Test suite**: Vitest with 366 tests across 30 files (~600ms runtime)
+- **97 TypeScript source files (+29 test files), 28 CSS files, ~16,400 lines of code**
+- **Latest round**: Round 28 — Visual Wiring Tests + Theme Swatch Derivation + Keyboard Action Extraction
+- **Test suite**: Vitest with 402 tests across 33 files (~670ms runtime)
 - **CI**: `npm run lint` + `npm test` run before Docker build in GitHub Actions (test -> build-and-push -> deploy)
 - **ESLint**: Flat config with TypeScript plugin, zero violations
 
@@ -43,10 +43,10 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 | 25 | Extract sample-manager.ts + createBitcrushCurve from app.ts/performance-fx.ts, pattern-snapshot tests (16), local-storage tests (10), bitcrush tests (7) — 297 total |
 | 26 | Extract midi-wiring.ts + toast-wiring.ts from app.ts, state-restorer tests (16), audio-sync tests (8), voice-pool tests (8) — 329 total |
 | 27 | Randomizer tests (13), toast-wiring tests (7), midi-wiring tests (9), sample-manager tests (8), extract visual-wiring.ts from app.ts — 366 total |
+| 28 | Visual-wiring tests (8), theme-utils extraction + tests (8), keyboard-action extraction + tests (20), theme swatch gap resolved — 402 total |
 
 ### Known Gaps
 
-- Theme card swatches are hardcoded — new themes need `swatches` array added manually
 - Toast `role="status"` container created lazily — screen readers won't see it until first toast
 - Test coverage limited to pure logic — no DOM/UI tests (would need jsdom)
 
@@ -68,6 +68,8 @@ Synth Grid is a browser-based visual music step sequencer built with vanilla Typ
 - **MIDI wiring**: Extracted to `src/midi/midi-wiring.ts` — wireMidi() connects midiManager callbacks to midiInput/midiLearn/midiClock + CC router
 - **Toast wiring**: Extracted to `src/ui/toast-wiring.ts` — wireNotifications() connects eventBus bank/grid/MIDI events to showToast
 - **Visual wiring**: Extracted to `src/ui/visual-wiring.ts` — wireVisuals() connects particle bursts, visualizer wake, playhead clear to transport events
+- **Theme utils**: `deriveSwatches()` in `src/ui/theme-utils.ts` — derives 4 preview swatches from theme CSS vars, replacing hardcoded arrays
+- **Keyboard action**: `resolveKeyAction()` in `src/ui/keyboard-action.ts` — pure key→action mapping extracted from keyboard-shortcuts.ts
 - **MIDI helpers**: `deriveBpmFromClockTimes` exported from midi-clock.ts, `DEFAULT_NOTE_MAP` exported from midi-input.ts
 
 See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
@@ -158,9 +160,22 @@ See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 
 **app.ts**: 255 → 228 lines (-27)
 
-## Suggestions for Round 28
+## Round 28 Summary
 
-### app.ts Status (228 lines)
+### Theme: Visual Wiring Tests + Theme Swatch Derivation + Keyboard Action Extraction
+
+**Completed:**
+1. **visual-wiring.test.ts** (8 tests) — Tests for wireVisuals: particle bursts for active/audible cells, muted row skipping, polyrhythm step wrapping, cell rect centering, visualizer wake, playhead clear, undefined rowLength default
+2. **theme-utils.ts** (13 lines) + **theme-utils.test.ts** (8 tests) — `deriveSwatches()` pure function replaces hardcoded `swatches` arrays in theme definitions. Tests for defaults, full/partial overrides, all 3 non-default themes, length, extra key ignoring
+3. **theme-switcher.ts** modification — Removed `swatches` from `ThemeDefinition` interface and all hardcoded swatch arrays. Now calls `deriveSwatches(theme.vars)` for preview colors
+4. **keyboard-action.ts** (80 lines) + **keyboard-action.test.ts** (20 tests) — `resolveKeyAction()` pure key→action mapping extracted from keyboard-shortcuts.ts. Tests for all 20 action types including FX, undo/redo, copy/paste, mute scenes, bank queue, and null for unknown keys
+5. **keyboard-shortcuts.ts** modification — Delegates to `resolveKeyAction()` for key mapping, switches on `action.type` for side effects
+
+**Test count**: 366 → 402 (+36 tests across 3 new test files)
+
+## Suggestions for Round 29
+
+### app.ts Status (228 lines, stable)
 
 What remains in app.ts is mostly **DOM construction** (header, controls row, grid container — lines 61-157) and **initialization wiring** (MIDI setup, auto-save, state restore, pattern library). At 228 lines, further extraction has strongly diminishing returns.
 
@@ -200,6 +215,6 @@ npm run dev        # Start dev server (port 5173)
 npm run build      # Type-check + build for production
 npx tsc --noEmit   # Type-check only
 npm run lint       # ESLint (zero violations)
-npm test           # Run Vitest test suite (366 tests)
+npm test           # Run Vitest test suite (402 tests)
 npm run test:watch # Run tests in watch mode
 ```
