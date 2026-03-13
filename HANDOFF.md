@@ -78,25 +78,106 @@ See `CLAUDE.md` for detailed patterns, gotchas, and the full architecture tree.
 - **Keyboard shortcuts**: Must update both `keyboard-shortcuts.ts` AND `help-overlay.ts` sections array
 - **QA Bug #1 (undo off-by-one)**: QA reported this but 22 unit tests confirm undo/redo is correct. The QA test may have been run on an older code version. Cross-bank undo test added in Round 21 as regression guard.
 
-## Potential Next Directions
+## Round 22 Plan
 
-These are suggestions, not requirements. Pursue whatever you think would most improve the project:
+### Theme: Test Coverage + Sequencer Refactor + Euclidean Preview Fix
 
-### Feature Ideas
-- **Collaborative mode**: WebRTC or WebSocket real-time jam sessions
-- **Audio input**: Sidechain from mic/line-in, sampler from live input
-- **Piano roll enhancements**: Velocity editing, keyboard navigation, row copy/paste
-- **Pattern chaining improvements**: Visual timeline editor for song mode
-- **Per-bank snapshots**: Save/load individual banks (currently saves all 4 together)
-- **More themes**: Community themes, custom theme editor
-- **Keyboard shortcut customization**: User-configurable keybindings
-- **Swing patterns**: More sophisticated swing (triplet, shuffle) beyond simple even/odd offset
+Rounds 19-21 focused on testing infrastructure, linting, and extraction. Round 22 continues the technical health push by closing the biggest test gaps, tackling the largest file in the codebase (`sequencer.ts` at 1,002 lines), and fixing one of the remaining known UX bugs.
 
-### Technical Improvements
-- **Expand test coverage**: Scheduler logic, audio engine (needs Web Audio mocks), DOM/UI tests (needs jsdom)
-- **Performance**: Profile grid refresh path (128 cells x 6 DOM ops on bank switch — could diff)
-- **Code splitting**: Lazy-load heavy modules (performance FX, wav exporter, piano roll)
-- **E2E tests**: Playwright for critical user flows (play/stop, grid paint, bank switch)
+### Step 1: Extract MIDI module tests
+
+Add tests for `midi-learn.ts` — the only MIDI module with pure logic that's testable without Web MIDI API mocks.
+
+**New file**: `src/midi/midi-learn.test.ts`
+- `armLearn()` sets armed state
+- `handleCC()` in armed mode stores pending CC
+- `assignTarget()` creates mapping and disarms
+- `handleCC()` with mapping calls `onApply` callback with normalized value
+- Duplicate CC or target replaces previous mapping
+- `removeMapping()` removes by target
+- `loadMappings()` restores mappings
+
+Estimated: ~10 tests.
+
+### Step 2: Add mute-scenes tests
+
+**New file**: `src/sequencer/mute-scenes.test.ts`
+
+Test `MuteScenes` class (pure state, no DOM):
+- Save/recall scenes
+- Empty scene recall behavior
+- `loadScenes()` restores state
+- Scene independence (modifying one doesn't affect another)
+
+Estimated: ~6 tests.
+
+### Step 3: Extract sequencer bank-state accessors
+
+**File**: `src/sequencer/sequencer.ts` (1,002 lines)
+
+The sequencer has ~400 lines of repetitive per-bank getters/setters (get/set/getAll/getCurrent for each of 17 layers). Extract these into a `BankStateManager` class that the sequencer delegates to.
+
+**New file**: `src/sequencer/bank-state.ts`
+- `BankStateManager` — manages all 17 per-bank data layers
+- Typed getters: `getGrid(bank)`, `getCurrentGrid()`, `getAllGrids()`
+- Typed setters with event emission
+- `captureEntry(bank)` / `restoreEntry(entry)` for history integration
+
+**Modify**: `src/sequencer/sequencer.ts`
+- Replace inline array management with `this.bankState.getGrid(bank)` etc.
+- Keep sequencer as the public API; bank-state is an internal implementation detail
+- Target: sequencer.ts drops from ~1,002 to ~600 lines
+
+### Step 4: Fix euclidean preview randomness (Known Gap)
+
+Currently the euclidean popover preview generates a random pattern, but applying generates a different one. Fix by using seeded PRNG (already available via `mulberry32`).
+
+**File**: `src/ui/euclidean-popover.ts`
+- Generate a seed when preview is requested
+- Use `mulberry32(seed)` for both preview and apply
+- Preview now matches the applied pattern exactly
+
+### Step 5: Add bank-state tests
+
+**New file**: `src/sequencer/bank-state.test.ts`
+
+Test the extracted `BankStateManager`:
+- Initialize with correct dimensions
+- Get/set per-bank layers
+- `captureEntry()` returns deep clone
+- `restoreEntry()` applies atomically
+- Bank isolation (modifying bank 0 doesn't affect bank 1)
+
+Estimated: ~8 tests.
+
+### Step 6: Update CLAUDE.md and HANDOFF.md
+
+- Add `bank-state.ts` to architecture tree in CLAUDE.md
+- Document the new sequencer/bank-state split pattern
+- Update test counts and file counts
+
+### Verification
+
+1. `npm run lint` — zero violations
+2. `npx tsc --noEmit` — compiles clean
+3. `npm test` — all tests pass (~190 expected)
+4. `npm run build` — production build succeeds
+5. Manual: verify euclidean preview matches applied pattern
+
+### Files to modify
+- `src/midi/midi-learn.test.ts` — new tests
+- `src/sequencer/mute-scenes.test.ts` — new tests
+- `src/sequencer/bank-state.ts` — new, extracted from sequencer.ts
+- `src/sequencer/bank-state.test.ts` — new tests
+- `src/sequencer/sequencer.ts` — delegate to bank-state
+- `src/ui/euclidean-popover.ts` — seeded preview
+- `CLAUDE.md` — update architecture tree
+- `HANDOFF.md` — update for Round 22
+
+### Risk assessment
+- **Bank-state extraction** (medium risk): Large refactor but purely mechanical — move arrays + accessors. Existing 41 sequencer tests serve as regression guard. Run tests after each method migration.
+- **Euclidean preview fix** (low risk): Isolated to one popover. Seeded PRNG already used by density randomizer.
+- **New tests** (no risk): Additive only.
 
 ## Key Files to Start With
 
